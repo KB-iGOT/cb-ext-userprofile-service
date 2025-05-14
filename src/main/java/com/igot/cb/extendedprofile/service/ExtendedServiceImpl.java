@@ -7,6 +7,7 @@ import com.igot.cb.transactional.cassandrautils.CassandraOperation;
 import com.igot.cb.util.ApiResponse;
 import com.igot.cb.util.Constants;
 import com.igot.cb.util.ProjectUtil;
+import org.apache.commons.collections4.MapUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,6 +15,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.apache.commons.lang3.StringUtils;
 
+import javax.validation.Valid;
 import java.util.*;
 
 /**
@@ -69,7 +71,7 @@ public class ExtendedServiceImpl implements ExtendedProfileService {
 
 
     @Override
-    public ApiResponse getDistrictsList(String authToken) {
+    public ApiResponse getDistrictsList(String authToken,Map<String, Object> requestBody) {
         logger.info("ExtendedServiceImpl::getDistrictsList started");
         ApiResponse outgoingResponse = ProjectUtil.createDefaultResponse(Constants.API_GET_DISTRICT_LIST);
         String userId = accessTokenValidator.fetchUserIdFromAccessToken(authToken);
@@ -77,8 +79,15 @@ public class ExtendedServiceImpl implements ExtendedProfileService {
             updateErrorDetails(outgoingResponse, Constants.USER_ID_DOESNT_EXIST, HttpStatus.BAD_REQUEST);
             return outgoingResponse;
         }
+        if (MapUtils.isEmpty(requestBody)  || !requestBody.containsKey(Constants.CONTEXT_NAME)) {
+            outgoingResponse.getParams().setStatus(Constants.FAILED);
+            outgoingResponse.getParams().setErrMsg("Context name is missing in the request");
+            outgoingResponse.setResponseCode(HttpStatus.OK);
+            return outgoingResponse;
+        }
         Map<String, Object> propertyMap = new HashMap<>();
         propertyMap.put(Constants.CONTEXT_TYPE, Constants.DISTRICT);
+        propertyMap.put(Constants.CONTEXT_NAME, requestBody.get(Constants.CONTEXT_NAME));
         try {
             List<Map<String, Object>> cassandraResults = cassandraOperation.getRecordsByPropertiesByKey(
                     Constants.KEYSPACE_SUNBIRD,
