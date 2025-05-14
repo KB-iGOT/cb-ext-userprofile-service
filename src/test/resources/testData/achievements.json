@@ -1,0 +1,18 @@
+[
+  {
+    "title": "Source Contributor",
+    "issuedOrganisation": "GitHub",
+    "issuedDate": "2024-01-20",
+    "documentUrl": "http://example.com/certificate2.pdf",
+    "description": "For contributions to open source projects.",
+    "uuid": "5d4782ff-6fe3-4aba-9875-d0e6bb0ce17e"
+  },
+  {
+    "title": "Best Developer Award",
+    "issuedOrganisation": "Tech Corp",
+    "issuedDate": "2023-08-15",
+    "documentUrl": "http://example.com/certificate1.pdf",
+    "description": "Awarded for outstanding development work.",
+    "uuid": "f509aa8c-4220-4b4c-ab2d-9f6c3d22c72a"
+  }
+]

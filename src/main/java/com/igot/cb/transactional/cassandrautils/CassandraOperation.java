@@ -39,4 +39,10 @@ public interface CassandraOperation {
 
     public Map<String, Object> updateRecord(
             String keyspaceName, String tableName, Map<String, Object> request);
+
+    public Map<String, Object> updateRecordByCompositeKey(
+            String keyspaceName,
+            String tableName,
+            Map<String, Object> updateAttributes,
+            Map<String, Object> compositeKey);
 }
