@@ -46,4 +46,23 @@ public class CbServerProperties {
 
   @Value("${redis.connection.timeout}")
   private long redisConnectionTimeout;
+
+  @Value("${validation.required-fields.educationalQualification}")
+  private String educationalQualificationMandatoryFields;
+
+  @Value("${validation.required-fields.serviceHistory}")
+  private String serviceHistoryMandatoryFields;
+
+  @Value("${validation.required-fields.achievement}")
+  private String achievementsMandatoryFields;
+
+  @Value("${context.types}")
+  private String[] contextType;
+
+  @Value("${basic.profile.fields}")
+  private String basicProfileFields;
+
+  public List<String> getBasicProfileFields() {
+    return Arrays.asList(basicProfileFields.split(","));
+  }
 }
