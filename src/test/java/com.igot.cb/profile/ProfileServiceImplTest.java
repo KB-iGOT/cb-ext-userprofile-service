@@ -1,11 +1,11 @@
 package com.igot.cb.profile;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.authentication.util.AccessTokenValidator;
 import com.igot.cb.profile.service.ProfileServiceImpl;
 import com.igot.cb.transactional.cassandrautils.CassandraOperation;
+import com.igot.cb.transactional.redis.cache.CacheService;
 import com.igot.cb.util.ApiRespParam;
 import com.igot.cb.util.ApiResponse;
 import com.igot.cb.util.CbServerProperties;
@@ -21,7 +21,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
-import static org.mockito.Mockito.verify;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -31,7 +30,8 @@ import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
+
 @ExtendWith(MockitoExtension.class)
 public class ProfileServiceImplTest {
 
@@ -48,18 +48,21 @@ public class ProfileServiceImplTest {
     @Mock
     private CbServerProperties serverConfig;
 
+    @Mock
+    private CacheService cacheService;
+
+    private static final ObjectMapper mapper = new ObjectMapper();
+
     private static final String USER_ID = "0ba1704d-eafb-4590-98ee-e973a535e71e";
-    private static final String TOKEN = "eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJwMTRYR1lrdHAxUnNScEZZeXZGTnZuekUxVDBMT3hVSHBoNnhHSzUxdGhvIn0.eyJqdGkiOiJjZGMzNjA3YS1jMDNkLTQxYzctOWYxZC05ZTQxNjI1Mjg5ZGIiLCJleHAiOjE3NDczMDU0MzEsIm5iZiI6MCwiaWF0IjoxNzQ3MjE5MDMxLCJpc3MiOiJodHRwczovL3BvcnRhbC5kZXYua2FybWF5b2dpYmhhcmF0Lm5ldC9hdXRoL3JlYWxtcy9zdW5iaXJkIiwic3ViIjoiZjpiYWFkYThiMS1lNjJlLTQ0YzQtYTE0ZC02NzAyZWE5MGY0OTY6YzljZWU4ZmEtMWUzOC00NzFlLThlZjItOTI4MzU4YmIwOTI1IiwidHlwIjoiQmVhcmVyIiwiYXpwIjoiYWRtaW4tY2xpIiwiYXV0aF90aW1lIjowLCJzZXNzaW9uX3N0YXRlIjoiMTMwMjFiN2ItMzMzMC00YTA1LTg2YjMtZmZhMWFjM2EzOTY2IiwiYWNyIjoiMSIsImFsbG93ZWQtb3JpZ2lucyI6WyJodHRwOi8vbG9jYWxob3N0OjQyMDAiXSwicmVhbG1fYWNjZXNzIjp7InJvbGVzIjpbIm9mZmxpbmVfYWNjZXNzIiwidW1hX2F1dGhvcml6YXRpb24iXX0sInNjb3BlIjoiIiwib3JnIjoiMDEzNzY4MjIyOTA4MTM3NDcyNjMiLCJuYW1lIjoiTWRvIExlYWRlciIsInByZWZlcnJlZF91c2VybmFtZSI6Im1kb2xlYWRlcl9jbmlhIiwidXNlcl9yb2xlcyI6WyJDT05URU5UX0NSRUFUT1IiLCJDT05URU5UX1JFVklFV0VSIiwiTURPX0xFQURFUiIsIlBVQkxJQyJdLCJnaXZlbl9uYW1lIjoiTWRvIExlYWRlciIsImVtYWlsIjoidGEqKioqKioqKioqKioqKioqKipAeW9wbWFpbC5jb20ifQ.PUz7EvgvUxgBxRXoMbm25e-w2q3q9qRUpxcczGXTTantRKwB0pq22gBE1-t79AiRy0HNsaJNMD7Z9o2GWYk2s9KUMY3egQcx3U5ixzeLCxG7usaHpOPN1JxHbRhyJusyeciNH4oMSiqqiYXTdrBBg5xQbGAT-8fu7uWkXMftKuEX8AGqwZYymnWEBpKlTeamnPb_pYm2pDXX6XCn94rwyfzII_smqKZFU9SD0aoBAZKtnWmn_2_K1mJCKHsKAUJmhxBRF6u7ReFEXAZylcVbyLbxGaf_LZ4CqrnPRmr0M20TRKe0uyQDJbkwihnzsl82j1tJqxfvr8C0Lh4Uv5xcFg";
+    private static final String TOKEN = "";
 
     @BeforeEach
     void setup() {
-//        when(serverConfig.getContextType())
-//                .thenReturn(new String[]{"educationalQualifications", "achievements", "serviceHistory"});
+        when(accessTokenValidator.fetchUserIdFromAccessToken(TOKEN)).thenReturn(USER_ID);
     }
 
     @Test
     public void testSaveWithValidEducationalQualifications() throws Exception {
-        when(accessTokenValidator.fetchUserIdFromAccessToken(TOKEN)).thenReturn(USER_ID);
 
         Map<String, Object> request = loadJson("testData/valid-education-request.json");
         when(serverConfig.getContextType())
@@ -93,8 +96,6 @@ public class ProfileServiceImplTest {
 
     @Test
     public void testValidationFailureWithMissingFields() throws Exception {
-        when(accessTokenValidator.fetchUserIdFromAccessToken(TOKEN)).thenReturn(USER_ID);
-
         Map<String, Object> request = loadJson("testData/invalid-education-request.json");
 
         when(serverConfig.getEducationalQualificationMandatoryFields())
@@ -107,8 +108,6 @@ public class ProfileServiceImplTest {
 
     @Test
     public void testSaveWithNoContextData() throws Exception {
-        when(accessTokenValidator.fetchUserIdFromAccessToken(TOKEN)).thenReturn(USER_ID);
-
         Map<String, Object> request = loadJson("testData/no-context-data-request.json");
 
         ApiResponse response = extendedProfileService.saveExtendedProfile(request, TOKEN);
@@ -119,8 +118,6 @@ public class ProfileServiceImplTest {
 
     @Test
     public void testInsertFailure() throws Exception {
-        when(accessTokenValidator.fetchUserIdFromAccessToken(TOKEN)).thenReturn(USER_ID);
-
         Map<String, Object> request = loadJson("testData/valid-education-request.json");
 
         when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), anyMap(), any(), any()))
@@ -143,8 +140,6 @@ public class ProfileServiceImplTest {
 
     @Test
     public void testUpdateExtendedProfileWithValidData() throws Exception {
-        when(accessTokenValidator.fetchUserIdFromAccessToken(TOKEN)).thenReturn(USER_ID);
-
         Map<String, Object> request = loadJson("testData/valid-update-request.json");
 
         when(serverConfig.getContextType()).thenReturn(new String[]{"educationalQualifications", "achievements", "serviceHistory"});
@@ -175,8 +170,6 @@ public class ProfileServiceImplTest {
 
     @Test
     public void testUpdateExtendedProfileWithMissingContextData() throws Exception {
-        when(accessTokenValidator.fetchUserIdFromAccessToken(TOKEN)).thenReturn(USER_ID);
-
         Map<String, Object> request = loadJson("testData/empty-update-request.json");
 
         when(serverConfig.getContextType()).thenReturn(new String[]{"educationalQualifications"});
@@ -188,8 +181,6 @@ public class ProfileServiceImplTest {
 
     @Test
     public void testUpdateExtendedProfileDatabaseFailure() throws Exception {
-        when(accessTokenValidator.fetchUserIdFromAccessToken(TOKEN)).thenReturn(USER_ID);
-
         Map<String, Object> request = loadJson("testData/valid-update-request.json");
 
         when(serverConfig.getContextType()).thenReturn(new String[]{"educationalQualifications"});
@@ -210,9 +201,6 @@ public class ProfileServiceImplTest {
     void testGetExtendedProfileSummary() throws Exception {
         String[] contextTypes = {"educationalQualifications", "achievements", "serviceHistory"};
         when(serverConfig.getContextType()).thenReturn(contextTypes);
-        when(accessTokenValidator.fetchUserIdFromAccessToken(TOKEN)).thenReturn(USER_ID);
-
-
         for (String contextType : contextTypes) {
             String fileName = contextType + ".json";
             String contextDataJson = readJson(fileName);
@@ -245,8 +233,6 @@ public class ProfileServiceImplTest {
     @ParameterizedTest
     @ValueSource(strings = {"educationalQualifications", "achievements", "serviceHistory"})
     void testReadFullExtendedProfile(String contextType) throws Exception {
-        when(accessTokenValidator.fetchUserIdFromAccessToken(TOKEN)).thenReturn(USER_ID);
-
         String contextDataJson = readJson(contextType + ".json");
         Map<String, Object> dbRow = new HashMap<>();
         dbRow.put(Constants.CONTEXT_DATA, contextDataJson);
@@ -276,8 +262,82 @@ public class ProfileServiceImplTest {
         assertEquals(expectedData.get(0).get("uuid"), returnedData.get(0).get("uuid"));
     }
 
-    private Map<String, Object> loadJson(String filePath) throws Exception {
+    @Test
+    void testGetBasicProfile_SelfUser_CacheHit() throws IOException {
+        String cacheKey = Constants.USER + ":basicProfile:" + USER_ID;
+        String cachedJson = readJson("basicProfileSelf.json");
+        when(cacheService.getCache(cacheKey)).thenReturn(cachedJson);
+
+        ApiResponse response = extendedProfileService.getBasicProfile(USER_ID, TOKEN);
+        verify(cacheService, times(1)).getCache(cacheKey);
+        verify(cacheService, never()).putCache(anyString(), any());
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        assertEquals("success", response.getParams().getStatus());
+        assertEquals("Mayank212 Vats", ((Map<?, ?>) response.getResult()).get("firstName"));
+    }
+
+    @Test
+    void testGetBasicProfile_SelfUser_DbHit() throws Exception {
+        String cacheKey = "user:basicProfile:" + USER_ID;
+        when(cacheService.getCache(cacheKey)).thenReturn(null);
+
         ObjectMapper mapper = new ObjectMapper();
+        String dbJson = readJson("basicProfileDbRecord.json");
+        Map<String, Object> dbRecord = loadJsonFromString(dbJson);
+
+        Object profileDetailsObj = dbRecord.get(Constants.PROFILE_DETAILS_LOWERCASE);
+        String profileDetailsJson = mapper.writeValueAsString(profileDetailsObj);
+        dbRecord.put(Constants.PROFILE_DETAILS_LOWERCASE, profileDetailsJson);
+
+        when(cassandraOperation.getRecordsByPropertiesByKey(
+                eq(Constants.KEYSPACE_SUNBIRD),
+                eq(Constants.USER),
+                anyMap(),
+                anyList(),
+                isNull()
+        )).thenReturn(List.of(dbRecord));
+
+        when(serverConfig.getBasicProfileFields()).thenReturn(List.of("firstName", "channel", "id", "profiledetails", "rootOrgId"));
+
+        ApiResponse response = extendedProfileService.getBasicProfile(USER_ID, TOKEN);
+
+        assertNotNull(response);
+        assertEquals("api.getBasicProfile.read", response.getId());
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+
+        Map<String, Object> result = (Map<String, Object>) response.getResult();
+        assertEquals(USER_ID, result.get("id"));
+        assertTrue(result.containsKey(Constants.PROFILE_DETAILS_LOWERCASE));
+        verify(cacheService).putCache(eq(cacheKey), anyMap());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"serviceHistory"})
+    void testDeleteExtendedProfile_forMultipleContextTypes(String contextType) throws Exception {
+
+        Map<String, Object> input = loadJson("testData/delete-ExtendedProfile.json");
+        String contextDataJson = readJson("deleteContextData.json");
+
+        Map<String, Object> dbRow = new HashMap<>();
+        dbRow.put(Constants.CONTENT_TYPE_KEY, contextType);
+        dbRow.put(Constants.USERID_KEY, USER_ID);
+        dbRow.put(Constants.CONTEXT_DATA, contextDataJson);
+
+        when(serverConfig.getContextType()).thenReturn(new String[] { contextType });
+        when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), isNull(), isNull()))
+                .thenReturn(List.of(dbRow));
+        when(cassandraOperation.updateRecordByCompositeKey(anyString(), anyString(), anyMap(), anyMap()))
+                .thenReturn(Map.of(Constants.RESPONSE, Constants.SUCCESS));
+
+        ApiResponse response = extendedProfileService.deleteExtendedProfile(input, TOKEN);
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        assertEquals(Constants.SUCCESS, response.get(Constants.RESPONSE));
+    }
+
+
+
+    private Map<String, Object> loadJson(String filePath) throws Exception {
         InputStream is = getClass().getClassLoader().getResourceAsStream(filePath);
         return mapper.readValue(is, new TypeReference<>() {});
     }
@@ -299,5 +359,8 @@ public class ProfileServiceImplTest {
         return new String(Files.readAllBytes(Paths.get("src/test/resources/testData/" + fileName)));
     }
 
+    private Map<String, Object> loadJsonFromString(String jsonContent) throws Exception {
+        return mapper.readValue(jsonContent, new TypeReference<>() {});
+    }
 
 }
