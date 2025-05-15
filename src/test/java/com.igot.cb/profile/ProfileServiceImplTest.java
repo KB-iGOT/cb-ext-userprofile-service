@@ -97,7 +97,8 @@ public class ProfileServiceImplTest {
     @Test
     public void testValidationFailureWithMissingFields() throws Exception {
         Map<String, Object> request = loadJson("testData/invalid-education-request.json");
-
+        when(serverConfig.getContextType())
+                .thenReturn(new String[]{"educationalQualifications", "achievements", "serviceHistory"});
         when(serverConfig.getEducationalQualificationMandatoryFields())
                 .thenReturn("degree,institutionName,startYear,endYear");
         ApiResponse response = extendedProfileService.saveExtendedProfile(request, TOKEN);
@@ -109,11 +110,12 @@ public class ProfileServiceImplTest {
     @Test
     public void testSaveWithNoContextData() throws Exception {
         Map<String, Object> request = loadJson("testData/no-context-data-request.json");
-
+        when(serverConfig.getContextType())
+                .thenReturn(new String[]{"educationalQualifications", "achievements", "serviceHistory"});
         ApiResponse response = extendedProfileService.saveExtendedProfile(request, TOKEN);
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
-        assertEquals("Request data is missing.", response.getParams().getErrMsg());
+        assertTrue(response.getParams().getErrMsg().startsWith("Invalid context type in request"));
     }
 
     @Test

@@ -80,13 +80,15 @@ public class ProfileServiceImpl implements ProfileService {
 
         String[] fields = mandatoryFields.split(",");
         for (String field : fields) {
-            if (data.get(field) == null || StringUtils.isEmpty(data.get(field).toString())) {
+            String value = (String) data.get(field);
+            if (StringUtils.isBlank(value)) {
                 errorMessages.append(field).append(" is mandatory. ");
             }
         }
 
         return errorMessages.toString();
     }
+
 
     private String buildErrorMessage(List<String> errList) {
         return errList.isEmpty() ? "" : "Failed Due To Missing or Invalid Params - " + String.join(", ", errList) + ".";
@@ -97,13 +99,25 @@ public class ProfileServiceImpl implements ProfileService {
         ApiResponse response = createDefaultResponse("api.extendedProfile.create");
 
         Map<String, Object> requestData = (Map<String, Object>) request.get(Constants.REQUEST);
+        String userId = (String) requestData.get(Constants.USER_ID_RQST);
         String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
-        if (userIdFromToken == null) {
+
+        if (!StringUtils.equalsIgnoreCase(userIdFromToken, userId)) {
             response.setResponseCode(HttpStatus.BAD_REQUEST);
             response.getParams().setStatus(Constants.FAILED);
             response.getParams().setErrMsg("Invalid UserId in the request");
             return response;
         }
+
+        String[] contextTypes = serverConfig.getContextType();
+        String validationError = validateRequestContextTypes(requestData, contextTypes);
+        if (StringUtils.isNotBlank(validationError)) {
+            response.setResponseCode(HttpStatus.BAD_REQUEST);
+            response.getParams().setStatus(Constants.FAILED);
+            response.getParams().setErrMsg(validationError);
+            return response;
+        }
+
 
         String errMsg = validateUserExtendedProfileRequest(requestData);
         if (StringUtils.isNotBlank(errMsg)) {
@@ -112,8 +126,7 @@ public class ProfileServiceImpl implements ProfileService {
             return response;
         }
 
-        String userId = (String) requestData.get(Constants.USER_ID_RQST);
-        String[] contextTypes = serverConfig.getContextType();
+
         List<Map<String, Object>> savedDataWithUUIDs = new ArrayList<>();
 
         for (String contextType : contextTypes) {
@@ -686,6 +699,17 @@ public class ProfileServiceImpl implements ProfileService {
         response.setResponseCode(HttpStatus.OK);
         response.setTs(LocalDate.now().toString());
         return response;
+    }
+
+    private String validateRequestContextTypes(Map<String, Object> requestData, String[] contextTypes) {
+        Set<String> allowedKeys = new HashSet<>(Arrays.asList(contextTypes));
+        allowedKeys.add(Constants.USER_ID_RQST);
+
+        Optional<String> invalidKey = requestData.keySet().stream()
+                .filter(key -> !allowedKeys.contains(key))
+                .findFirst();
+
+        return invalidKey.map(key -> "Invalid context type in request: " + key).orElse(null);
     }
 
 }
