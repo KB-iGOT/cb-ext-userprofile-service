@@ -2,6 +2,9 @@ package com.igot.cb.extendedprofile.service;
 
 import com.igot.cb.util.ApiResponse;
 
+import javax.validation.Valid;
+import java.util.Map;
+
 /**
  * @author mahesh.vakkund
  */
@@ -19,8 +22,9 @@ public interface ExtendedProfileService {
      * Retrieves a list of districts grouped by states from the master data.
      * Each state contains a list of its districts.
      *
-     * @param authToken The authentication token used to validate the user
+     * @param authToken   The authentication token used to validate the user
+     * @param requestBody Request Body that contains the contextName
      * @return ApiResponse containing the list of districts by state or an error response
      */
-    ApiResponse getDistrictsList(String authToken);
+    ApiResponse getDistrictsList(String authToken, @Valid Map<String, Object> requestBody);
 }
