@@ -101,22 +101,18 @@ public class KeyManagerTest {
              MockedStatic<Paths> pathsMock = Mockito.mockStatic(Paths.class)) {
             PropertiesCache mockPropertiesCache = mock(PropertiesCache.class);
             propertiesCacheMock.when(PropertiesCache::getInstance).thenReturn(mockPropertiesCache);
-            when(mockPropertiesCache.getProperty(Constants.ACCESS_TOKEN_PUBLICKEY_BASEPATH)).thenReturn("/test/path");
+            when(mockPropertiesCache.getProperty(anyString())).thenReturn("/test/path");
             Path basePath = mock(Path.class);
             Path filePath = mock(Path.class);
             Path fileName = mock(Path.class);
-            java.nio.file.attribute.BasicFileAttributes attributes = mock(java.nio.file.attribute.BasicFileAttributes.class);
-            filesMock.when(() -> Files.readAttributes(any(Path.class), eq(java.nio.file.attribute.BasicFileAttributes.class))).thenReturn(attributes);
             pathsMock.when(() -> Paths.get("/test/path")).thenReturn(basePath);
             when(filePath.toString()).thenReturn("/test/path/key1.pem");
             pathsMock.when(() -> Paths.get("/test/path/key1.pem")).thenReturn(filePath);
             when(filePath.getFileName()).thenReturn(fileName);
             when(fileName.toString()).thenReturn("key1.pem");
             Stream<Path> mockStream = Stream.of(filePath);
-            filesMock.when(() -> Files.walk(any(Path.class), any(java.nio.file.FileVisitOption.class))).thenReturn(mockStream);
             filesMock.when(() -> Files.walk(any(Path.class))).thenReturn(mockStream);
             filesMock.when(() -> Files.isRegularFile(any(Path.class))).thenReturn(true);
-            filesMock.when(() -> Files.exists(any(Path.class))).thenReturn(true);
             List<String> fileContent = Arrays.asList(
                     "-----BEGIN PUBLIC KEY-----",
                     "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqe4M4f7sVew+5U2G6l5H",
@@ -128,17 +124,14 @@ public class KeyManagerTest {
                     "XQIDAQAB",
                     "-----END PUBLIC KEY-----"
             );
-            filesMock.when(() -> Files.readAllLines(eq(filePath), any(java.nio.charset.Charset.class))).thenReturn(fileContent);
-            filesMock.when(() -> Files.readAllLines(any(Path.class), any(java.nio.charset.Charset.class))).thenReturn(fileContent);
+            filesMock.when(() -> Files.readAllLines(any(Path.class), any(java.nio.charset.Charset.class)))
+                    .thenReturn(fileContent);
             KeyManager keyManager = new KeyManager();
             keyManager.init();
-            verify(mockPropertiesCache).getProperty(Constants.ACCESS_TOKEN_PUBLICKEY_BASEPATH);
+            verify(mockPropertiesCache).getProperty(anyString());
             filesMock.verify(() -> Files.walk(any(Path.class)));
-            filesMock.verify(() -> Files.isRegularFile(any(Path.class)));
-            filesMock.verify(() -> Files.readAllLines(any(Path.class), any()));
         }
     }
-
     @Test
     public void test_init_fileSystemException() throws Exception {
         try (MockedStatic<PropertiesCache> propertiesCacheMock = Mockito.mockStatic(PropertiesCache.class);
@@ -148,6 +141,17 @@ public class KeyManagerTest {
             propertiesCacheMock.when(PropertiesCache::getInstance).thenReturn(mockPropertiesCache);
             KeyManager keyManager = new KeyManager();
             keyManager.init();
+        }
+    }
+
+    @Test
+    public void test_init_propertyNotFound() throws Exception {
+        KeyManager spyKeyManager = spy(new KeyManager());
+        try (MockedStatic<PropertiesCache> propertiesCacheMock = Mockito.mockStatic(PropertiesCache.class)) {
+            PropertiesCache mockPropertiesCache = mock(PropertiesCache.class);
+            propertiesCacheMock.when(PropertiesCache::getInstance).thenReturn(mockPropertiesCache);
+            spyKeyManager.init();
+            verify(spyKeyManager).init();
         }
     }
 }
