@@ -6,8 +6,13 @@ import com.datastax.oss.driver.api.core.cql.PreparedStatement;
 import com.datastax.oss.driver.api.core.cql.ResultSet;
 import com.datastax.oss.driver.api.core.cql.SimpleStatement;
 import com.datastax.oss.driver.api.querybuilder.QueryBuilder;
+import com.datastax.oss.driver.api.querybuilder.relation.Relation;
 import com.datastax.oss.driver.api.querybuilder.select.Select;
 import com.datastax.oss.driver.api.querybuilder.term.Term;
+import com.datastax.oss.driver.api.querybuilder.update.Assignment;
+import com.datastax.oss.driver.api.querybuilder.update.Update;
+import com.datastax.oss.driver.api.querybuilder.update.UpdateStart;
+import com.datastax.oss.driver.api.querybuilder.update.UpdateWithAssignments;
 import com.igot.cb.util.ApiResponse;
 import com.igot.cb.util.Constants;
 import org.apache.commons.collections4.CollectionUtils;
@@ -187,5 +192,32 @@ public class CassandraOperationImpl implements CassandraOperation {
                 "Cassandra operation {0} started at {1} and completed at {2}. Total time elapsed is {3}.";
         MessageFormat mf = new MessageFormat(message);
         logger.debug(mf.format(new Object[]{operation, startTime, stopTime, elapsedTime}));
+    }
+
+    @Override
+    public Map<String, Object> updateRecordByCompositeKey(String keyspaceName, String tableName, Map<String, Object> updateAttributes,
+                                                          Map<String, Object> compositeKey) {
+        Map<String, Object> response = new HashMap<>();
+        CqlSession session = null;
+        try {
+            session = connectionManager.getSession(keyspaceName);
+            UpdateStart updateStart = QueryBuilder.update(keyspaceName, tableName);
+            UpdateWithAssignments updateWithAssignments = updateStart.set(updateAttributes.entrySet().stream()
+                    .map(entry -> Assignment.setColumn(entry.getKey(), QueryBuilder.literal(entry.getValue())))
+                    .toArray(Assignment[]::new));
+            Update update = updateWithAssignments.where(compositeKey.entrySet().stream()
+                    .map(entry -> Relation.column(entry.getKey()).isEqualTo(QueryBuilder.literal(entry.getValue())))
+                    .toArray(Relation[]::new));
+            SimpleStatement statement = update.build();
+            session.execute(statement);
+            response.put(Constants.RESPONSE, Constants.SUCCESS);
+        } catch (Exception e) {
+            String errMsg = String.format("Exception occurred while updating record to %s: %s", tableName, e.getMessage());
+            logger.error(errMsg, e);
+            response.put(Constants.RESPONSE, Constants.FAILED);
+            response.put(Constants.ERROR_MESSAGE, errMsg);
+            throw e;
+        }
+        return response;
     }
 }

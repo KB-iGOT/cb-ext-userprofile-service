@@ -382,6 +382,18 @@ public class Constants {
     public static final String STATES_LIST = "statesList";
     public static final String DISTRICTS = "districts";
     public static final String DISTRICTS_LIST = "districtsList";
+    public static final String TABLE_USER_EXTENDED_PROFILE = "user_extended_profile";
+    public static final String USERID_KEY = "userid";
+    public static final String CHANNEL = "channel";
+    public static final String UUID = "uuid";
+    public static final String START_DATE = "startDate";
+    public static final String START_YEAR = "startYear";
+    public static final String ISSUED_DATE = "issuedDate";
+    public static final String ACHIVEMENTS = "achievements";
+    public static final String EDUCATIONAL_QUALIFICATIONS = "educationalQualifications";
+    public static final String SERVICE_HISTORY = "serviceHistory";
+    public static final String EXISTING_DATA = "existingData";
+    public static final String PROFILE_DETAILS_LOWERCASE = "profiledetails";
 
 
     private Constants() {

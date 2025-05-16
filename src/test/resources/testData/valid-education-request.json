@@ -1,0 +1,14 @@
+{
+  "request": {
+    "userId": "0ba1704d-eafb-4590-98ee-e973a535e71e",
+    "educationalQualifications": [
+      {
+        "degree": "Master of Technology (M.Tech)",
+        "fieldOfStudy": "Computer Science",
+        "institutionName": "MSIT University",
+        "startYear": "2012",
+        "endYear": "2016"
+      }
+    ]
+  }
+}

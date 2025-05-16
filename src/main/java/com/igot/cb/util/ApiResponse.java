@@ -41,4 +41,8 @@ public class ApiResponse {
         this();
         this.id = id;
     }
+
+    public Object get(String key) {
+        return response.get(key);
+    }
 }
