@@ -31,11 +31,4 @@ public class CustomException extends RuntimeException {
         this.responseCode = responseCode;
     }
 
-    public CustomException(String code, String message, HttpStatus httpStatusCode, String errorCode) {
-        this.code = code;
-        this.message = message;
-        this.httpStatusCode = httpStatusCode;
-        this.errorCode = errorCode;
-    }
-
 }

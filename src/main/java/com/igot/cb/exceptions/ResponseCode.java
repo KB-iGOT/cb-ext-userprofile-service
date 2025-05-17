@@ -52,7 +52,7 @@ public enum ResponseCode {
             ResponseCode value = null;
             ResponseCode[] responseCodes = ResponseCode.values();
             for (ResponseCode response : responseCodes) {
-                if (response.getErrorCode() != null && response.getErrorCode().equals(errorCode)) {
+                if (response.getErrorCode().equals(errorCode)) {
                     return response;
                 }
             }
