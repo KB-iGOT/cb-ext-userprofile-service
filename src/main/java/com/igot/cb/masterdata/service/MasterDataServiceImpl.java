@@ -38,9 +38,6 @@ public class MasterDataServiceImpl implements MasterDataService {
     @Autowired
     public CacheService redisCacheMgr;
 
-    @Autowired
-    public ProjectUtil projectUtil;
-
     /**
      * Retrieves a list of all institutions from the master data.
      *
