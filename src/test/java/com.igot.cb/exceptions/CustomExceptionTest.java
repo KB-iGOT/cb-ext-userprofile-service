@@ -54,4 +54,31 @@ public class CustomExceptionTest {
         assertNull("Message should be null when initialized with null", exception.getMessage());
         assertNull("HttpStatusCode should be null when initialized with null", exception.getHttpStatusCode());
     }
+
+    @Test
+    public void testConstructorWithResponseCode() {
+        String code = "ERR_003";
+        String message = "Error with response code";
+        int responseCode = 400;
+        CustomException exception = new CustomException(code, message, responseCode);
+        assertEquals("Code should match the provided value", code, exception.getCode());
+        assertEquals("Message should match the provided value", message, exception.getMessage());
+        assertEquals("ResponseCode should match the provided value", responseCode, exception.getResponseCode());
+        assertNull("HttpStatusCode should be null when using responseCode constructor",
+                exception.getHttpStatusCode());
+    }
+
+    @Test
+    public void testConstructorWithHttpStatusAndErrorCode() {
+        String code = "ACCESS_DENIED";
+        String message = "User does not have sufficient permissions";
+        HttpStatus httpStatus = HttpStatus.FORBIDDEN;
+        String errorCode = "ERR_403";
+        CustomException exception = new CustomException(code, message, httpStatus, errorCode);
+        assertEquals("Code should match the provided value", code, exception.getCode());
+        assertEquals("Message should match the provided value", message, exception.getMessage());
+        assertEquals("HttpStatusCode should match the provided value", httpStatus, exception.getHttpStatusCode());
+        assertEquals("ErrorCode should match the provided value", errorCode, exception.getErrorCode());
+        assertEquals("ResponseCode should be 0 by default", 0, exception.getResponseCode());
+    }
 }
