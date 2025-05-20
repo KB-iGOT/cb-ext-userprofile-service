@@ -6,10 +6,9 @@ import com.igot.cb.util.Constants;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
 
 /**
  * Author: mahesh.vakkund
@@ -29,6 +28,20 @@ public class MasterDataController {
     @GetMapping(value = "/list/degrees")
     public ResponseEntity<ApiResponse> getDegreesList(@RequestHeader(Constants.X_AUTH_TOKEN) String authToken) {
         return new ResponseEntity<>(masterDataService.getDegreesList(authToken), HttpStatus.OK);
+    }
+
+    @PostMapping(value = "/update/institution")
+    public ResponseEntity<ApiResponse> updateInstitution(
+            @RequestHeader(Constants.X_AUTH_TOKEN) String authToken,
+            @RequestBody Map<String, Object> requestBody) {
+        return new ResponseEntity<>(masterDataService.updateInstitutionList(authToken, requestBody), HttpStatus.OK);
+    }
+
+    @PostMapping(value = "/update/degree")
+    public ResponseEntity<ApiResponse> updateDegree(
+            @RequestHeader(Constants.X_AUTH_TOKEN) String authToken,
+            @RequestBody Map<String, Object> requestBody) {
+        return new ResponseEntity<>(masterDataService.updateDegreesList(authToken, requestBody), HttpStatus.OK);
     }
 
 }

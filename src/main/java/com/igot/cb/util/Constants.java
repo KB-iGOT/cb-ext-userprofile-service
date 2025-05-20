@@ -407,6 +407,10 @@ public class Constants {
     public static final String DEGREES_LIST = "degreesList";
     public static final String DEGREES_CONFIG = "degreesConfig";
     public static final String API_GET_INSTITUTION_LIST = "api.get.institutionlist";
+    public static final String INSTITUTE_NAME = "institutionName";
+    public static final String DEGREE_NAME = "degreeName";
+    public static final String API_UPDATE_INSTITUTION_LIST = "api.update.institutionlist";
+    public static final String API_UPDATE_DEGREE_LIST = "api.update.degreelist";
 
     private Constants() {
     }

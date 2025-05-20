@@ -361,4 +361,40 @@ public class ExtendedServiceImplTest {
         assertEquals("Context name is missing in the request", response.getParams().getErrMsg());
         assertTrue("MapUtils.isEmpty should return true for empty map", MapUtils.isEmpty(emptyRequestBody));
     }
+
+    @Test
+    public void getDistrictsList_WithEmptyContextData() {
+        String authToken = "valid-auth-token";
+        String userId = "test-user-id";
+        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
+        List<Map<String, Object>> cassandraResponse = new ArrayList<>();
+        Map<String, Object> districtWithEmptyData = new HashMap<>();
+        districtWithEmptyData.put(Constants.CONTEXT_NAME, "Maharashtra");
+        districtWithEmptyData.put(Constants.CONTEXT_DATA, "");
+        cassandraResponse.add(districtWithEmptyData);
+        Map<String, Object> expectedPropertiesMap = new HashMap<>();
+        expectedPropertiesMap.put(Constants.CONTEXT_TYPE, Constants.DISTRICT);
+        expectedPropertiesMap.put(Constants.CONTEXT_NAME, "Maharashtra");
+        when(cassandraOperation.getRecordsByPropertiesByKey(
+                eq(Constants.KEYSPACE_SUNBIRD),
+                eq(Constants.MASTER_DATA),
+                eq(expectedPropertiesMap),
+                eq(List.of(Constants.CONTEXT_NAME, Constants.CONTEXT_DATA)),
+                eq(Constants.CONTEXT_TYPE)))
+                .thenReturn(cassandraResponse);
+        ApiResponse response = extendedService.getDistrictsList(authToken, requestBody);
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        assertEquals(Constants.SUCCESS, response.getParams().getStatus());
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> districtsList = (List<Map<String, Object>>) response.getResult().get(Constants.DISTRICTS_LIST);
+        assertNotNull(districtsList);
+        assertEquals(1, districtsList.size());
+        Map<String, Object> state = districtsList.get(0);
+        assertEquals("Maharashtra", state.get(Constants.STATE_NAME));
+        @SuppressWarnings("unchecked")
+        List<String> districts = (List<String>) state.get(Constants.DISTRICTS);
+        assertNotNull(districts);
+        assertTrue("Districts list should be empty for empty contextDataJson", districts.isEmpty());
+    }
 }
