@@ -19,6 +19,8 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Mockito;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 
@@ -39,6 +41,10 @@ public class ProfileServiceImplTest {
     @InjectMocks
     private ProfileServiceImpl extendedProfileService;
 
+    @Spy
+    @InjectMocks
+    private ProfileServiceImpl spyProfileService;
+
     @Mock
     private CassandraOperation cassandraOperation;
 
@@ -58,7 +64,7 @@ public class ProfileServiceImplTest {
 
     @BeforeEach
     void setup() {
-        when(accessTokenValidator.fetchUserIdFromAccessToken(TOKEN)).thenReturn(USER_ID);
+        lenient().when(accessTokenValidator.fetchUserIdFromAccessToken(TOKEN)).thenReturn(USER_ID);
     }
 
     @Test
@@ -224,7 +230,7 @@ public class ProfileServiceImplTest {
         ApiResponse response = extendedProfileService.getExtendedProfileSummary(USER_ID, TOKEN);
 
         assertEquals(HttpStatus.OK, response.getResponseCode());
-        Map<String, Object> result = (Map<String, Object>) response.getResult().get(Constants.RESULT);
+        Map<String, Object> result = (Map<String, Object>) response.get(Constants.RESPONSE);
         assertEquals(USER_ID, result.get(Constants.USERID_KEY));
         assertTrue(result.containsKey("educationalQualifications"));
         assertTrue(result.containsKey("achievements"));
@@ -252,7 +258,7 @@ public class ProfileServiceImplTest {
         ApiResponse response = extendedProfileService.readFullExtendedProfile(USER_ID, contextType, TOKEN);
 
         assertEquals(HttpStatus.OK, response.getResponseCode());
-        Map<String, Object> result = (Map<String, Object>) response.getResult().get(Constants.RESULT);
+        Map<String, Object> result = (Map<String, Object>) response.get(Constants.RESPONSE);
 
         assertEquals(USER_ID, result.get(Constants.USER_ID_RQST));
         assertTrue(result.containsKey(contextType));
@@ -335,6 +341,78 @@ public class ProfileServiceImplTest {
 
         assertEquals(HttpStatus.OK, response.getResponseCode());
         assertEquals(Constants.SUCCESS, response.get(Constants.RESPONSE));
+    }
+
+    @Test
+    void testGetBasicProfile_CacheHit_SelfUser() throws IOException {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(TOKEN)).thenReturn(USER_ID);
+        String cachedJson = readJson("basicProfileSelf.json");
+        when(cacheService.getCache("user:basicProfile:" + USER_ID)).thenReturn(cachedJson);
+
+        ApiResponse response = extendedProfileService.getBasicProfile(USER_ID, TOKEN);
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        Map<String, Object> result = (Map<String, Object>) response.getResult();
+        assertEquals("Mayank212 Vats", result.get("firstName"));
+        assertEquals(0.0, result.get("profileCompletion"));
+    }
+
+    @Test
+    void shouldReturnZeroWhenProfileDataIsNull() {
+        double result = extendedProfileService.calculateProfileCompletionPercentage(null, "nested", "user1", "token");
+        assertEquals(0.0, result);
+    }
+
+    @Test
+    void shouldReturnPartialScoreForSomeFilledFields() {
+        Map<String, Object> profile = new HashMap<>();
+        profile.put("firstName", "John");
+        profile.put("lastName", "");
+
+        when(serverConfig.getProfileCompletionRequiredFields()).thenReturn(List.of("firstName", "lastName"));
+        when(serverConfig.getFieldWeight()).thenReturn(50.0);
+
+        double result = extendedProfileService.calculateProfileCompletionPercentage(profile, "nested", "user1", "token");
+
+        assertEquals(50.0, result);
+    }
+
+    @Test
+    void shouldReturnMax100EvenIfOverweight() {
+        Map<String, Object> profile = new HashMap<>();
+        profile.put("firstName", "John");
+        profile.put("lastName", "Doe");
+
+        when(serverConfig.getProfileCompletionRequiredFields()).thenReturn(List.of("firstName", "lastName"));
+        when(serverConfig.getFieldWeight()).thenReturn(60.0);  // 2 * 60 = 120
+
+        double result = extendedProfileService.calculateProfileCompletionPercentage(profile, "nested", "user1", "token");
+
+        assertEquals(100.0, result);
+    }
+
+
+    @Test
+    void shouldHandleExtendedFieldGracefully() {
+        Map<String, Object> profile = new HashMap<>();
+
+        when(serverConfig.getProfileCompletionRequiredFields()).thenReturn(List.of("skills"));
+        when(serverConfig.getExtendedFieldsConfig()).thenReturn(List.of("skills"));
+        when(serverConfig.getFieldWeight()).thenReturn(16.7);
+
+        ApiResponse apiResponse = new ApiResponse();
+        apiResponse.setResponseCode(HttpStatus.OK);
+        Map<String, Object> responseMap = new HashMap<>();
+        responseMap.put("skills", List.of("Java", "Spring"));
+        apiResponse.put(Constants.RESPONSE, responseMap);
+
+
+        doReturn(apiResponse).when(spyProfileService)
+                .readFullExtendedProfile(USER_ID, "skills", "token");
+
+        double result = spyProfileService.calculateProfileCompletionPercentage(profile, "nested", USER_ID, "token");
+
+        assertEquals(16.7, result);
     }
 
 

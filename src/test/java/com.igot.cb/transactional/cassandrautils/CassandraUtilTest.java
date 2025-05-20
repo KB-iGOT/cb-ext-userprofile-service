@@ -1,14 +1,19 @@
 package com.igot.cb.transactional.cassandrautils;
 
 import com.datastax.oss.driver.api.core.CqlIdentifier;
-import com.datastax.oss.driver.api.core.cql.ColumnDefinition;
-import com.datastax.oss.driver.api.core.cql.ColumnDefinitions;
-import com.datastax.oss.driver.api.core.cql.ResultSet;
-import com.datastax.oss.driver.api.core.cql.Row;
+import com.datastax.oss.driver.api.core.CqlSession;
+import com.datastax.oss.driver.api.core.cql.*;
+import com.datastax.oss.driver.api.querybuilder.QueryBuilder;
+import com.datastax.oss.driver.api.querybuilder.relation.Relation;
+import com.datastax.oss.driver.api.querybuilder.update.Assignment;
+import com.datastax.oss.driver.api.querybuilder.update.Update;
+import com.datastax.oss.driver.api.querybuilder.update.UpdateStart;
+import com.datastax.oss.driver.api.querybuilder.update.UpdateWithAssignments;
 import com.igot.cb.util.Constants;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
@@ -21,6 +26,15 @@ import static org.mockito.Mockito.*;
 
 @RunWith(MockitoJUnitRunner.class)
 public class CassandraUtilTest {
+
+    @Mock
+    private CassandraConnectionManager connectionManager;
+
+    @Mock
+    private CqlSession session;
+
+    @InjectMocks
+    private CassandraOperationImpl cassandraOperation;
 
     @Test
     public void testGetPreparedStatement_WithSingleField() {
@@ -125,5 +139,32 @@ public class CassandraUtilTest {
             assertEquals("123", rowMap.get("userId"));
             assertEquals("test@example.com", rowMap.get("email"));
         }
+    }
+
+    @Test
+    public void testUpdateRecordByCompositeKey_Success() {
+        String keyspace = "ks";
+        String table = "tbl";
+        Map<String, Object> updateAttrs = Map.of("name", "John");
+        Map<String, Object> compositeKey = Map.of("id", 1, "type", "A");
+
+        UpdateStart updateStart = QueryBuilder.update(keyspace, table);
+        Assignment[] assignments = updateAttrs.entrySet().stream()
+                .map(entry -> Assignment.setColumn(entry.getKey(), QueryBuilder.literal(entry.getValue())))
+                .toArray(Assignment[]::new);
+        UpdateWithAssignments updateWithAssignments = updateStart.set(assignments);
+        Relation[] relations = compositeKey.entrySet().stream()
+                .map(entry -> Relation.column(entry.getKey()).isEqualTo(QueryBuilder.literal(entry.getValue())))
+                .toArray(Relation[]::new);
+        Update update = updateWithAssignments.where(relations);
+        SimpleStatement statement = update.build();
+
+        when(connectionManager.getSession(keyspace)).thenReturn(session);
+        when(session.execute(any(SimpleStatement.class))).thenReturn(mock(ResultSet.class));
+
+        Map<String, Object> result = cassandraOperation.updateRecordByCompositeKey(keyspace, table, updateAttrs, compositeKey);
+
+        assertEquals(Constants.SUCCESS, result.get(Constants.RESPONSE));
+        verify(session).execute(any(SimpleStatement.class));
     }
 }
