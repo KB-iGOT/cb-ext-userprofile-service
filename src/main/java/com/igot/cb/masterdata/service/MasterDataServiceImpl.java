@@ -227,7 +227,7 @@ public class MasterDataServiceImpl implements MasterDataService {
     public ApiResponse updateInstitutionList(String authToken, Map<String, Object> requestBody) {
         logger.info("MasterDataServiceImpl::updateInstitutionList started");
         ApiResponse response = ProjectUtil.createDefaultResponse(Constants.API_UPDATE_INSTITUTION_LIST);
-        String userId = "abcdef";//accessTokenValidator.fetchUserIdFromAccessToken(authToken);
+        String userId = accessTokenValidator.fetchUserIdFromAccessToken(authToken);
         if (StringUtils.isEmpty(userId)) {
             updateErrorDetails(response, Constants.USER_ID_DOESNT_EXIST, HttpStatus.BAD_REQUEST);
             return response;
@@ -376,7 +376,7 @@ public class MasterDataServiceImpl implements MasterDataService {
     public ApiResponse updateDegreesList(String authToken, Map<String, Object> requestBody) {
         logger.info("MasterDataServiceImpl::updateDegreesList started");
         ApiResponse response = ProjectUtil.createDefaultResponse(Constants.API_UPDATE_DEGREE_LIST);
-        String userId = "abcdef";//accessTokenValidator.fetchUserIdFromAccessToken(authToken);
+        String userId = accessTokenValidator.fetchUserIdFromAccessToken(authToken);
         if (StringUtils.isEmpty(userId)) {
             updateErrorDetails(response, Constants.USER_ID_DOESNT_EXIST, HttpStatus.BAD_REQUEST);
             return response;
