@@ -62,7 +62,21 @@ public class CbServerProperties {
   @Value("${basic.profile.fields}")
   private String basicProfileFields;
 
+  @Value("${profile.completion.required.fields}")
+  private String profileCompletionRequiredFields;
+
+  @Value("${profile.completion.extended.fields}")
+  private List<String> extendedFieldsConfig;
+
+  @Value("${profile.completion.field.weight}")
+  private double fieldWeight;
+
   public List<String> getBasicProfileFields() {
     return Arrays.asList(basicProfileFields.split(","));
   }
+
+  public List<String> getProfileCompletionRequiredFields() {
+    return Arrays.asList(profileCompletionRequiredFields.split(","));
+  }
+
 }

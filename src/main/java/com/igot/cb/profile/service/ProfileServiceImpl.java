@@ -223,31 +223,76 @@ public class ProfileServiceImpl implements ProfileService {
     @Override
     public ApiResponse getExtendedProfileSummary(String userId, String userToken) {
         ApiResponse response = createDefaultResponse("api.extendedProfile.read");
-        String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
-        if (userIdFromToken == null) {
-            response.setResponseCode(HttpStatus.BAD_REQUEST);
-            response.getParams().setStatus(Constants.FAILED);
-            response.getParams().setErrMsg("Invalid UserId in the request");
-            return response;
+
+        if (!isValidUser(userToken)) {
+            return createErrorResponse("Invalid UserId in the request", HttpStatus.BAD_REQUEST);
         }
 
+        String redisKey = buildSummaryRedisKey(userId);
+        Map<String, Object> result = fetchSummaryFromCache(redisKey);
+
+        if (result == null) {
+            result = fetchSummaryFromDB(userId);
+            if (result == null) {
+                return createErrorResponse("No data found for user.", HttpStatus.NO_CONTENT);
+            }
+            cacheSummary(redisKey, result);
+        }
+
+        response.setResponseCode(HttpStatus.OK);
+        response.put(Constants.RESPONSE, result);
+        return response;
+    }
+
+    private boolean isValidUser(String userToken) {
+        return accessTokenValidator.fetchUserIdFromAccessToken(userToken) != null;
+    }
+
+    private ApiResponse createErrorResponse(String errMsg, HttpStatus status) {
+        ApiResponse response = createDefaultResponse("api.extendedProfile.read");
+        response.setResponseCode(status);
+        response.getParams().setStatus(Constants.FAILED);
+        response.getParams().setErrMsg(errMsg);
+        return response;
+    }
+
+    private String buildSummaryRedisKey(String userId) {
+        return "user:extendedProfile:all:" + userId;
+    }
+
+    private Map<String, Object> fetchSummaryFromCache(String redisKey) {
+        try {
+            Map<String, Object> cachedResult = getFromCache(redisKey);
+            if (cachedResult != null && !cachedResult.isEmpty()) {
+                logger.info("Cache hit for key: {}", redisKey);
+                return cachedResult;
+            }
+            logger.info("Cache miss for key: {}", redisKey);
+        } catch (Exception e) {
+            logger.warn("Failed to fetch cache for key {}: {}", redisKey, e.getMessage());
+        }
+        return null;
+    }
+
+    private Map<String, Object> fetchSummaryFromDB(String userId) {
+      
         String[] contextTypes = serverConfig.getContextType();
         Map<String, Object> result = new HashMap<>();
 
         for (String contextType : contextTypes) {
-            Map<String, Object> query = new HashMap<>();
-            query.put(Constants.USERID_KEY, userId);
-            query.put(Constants.CONTEXT_TYPE, contextType);
+            Map<String, Object> query = Map.of(
+                    Constants.USERID_KEY, userId,
+                    Constants.CONTEXT_TYPE, contextType
+            );
 
             List<Map<String, Object>> rows = cassandraOperation.getRecordsByPropertiesByKey(
                     Constants.DATABASE, Constants.TABLE_USER_EXTENDED_PROFILE, query, null, null);
 
             if (rows != null && !rows.isEmpty()) {
-                String  contextDataJson = (String) rows.get(0).get(Constants.CONTEXT_DATA);
+                String json = (String) rows.get(0).get(Constants.CONTEXT_DATA);
                 try {
                     List<Map<String, Object>> contextData = new ObjectMapper().readValue(
-                            contextDataJson, new TypeReference<List<Map<String, Object>>>() {
-                            });
+                            json, new TypeReference<>() {});
 
                     List<Map<String, Object>> summary = contextData.stream().limit(2).collect(Collectors.toList());
                     Map<String, Object> contextSummary = new HashMap<>();
@@ -256,17 +301,23 @@ public class ProfileServiceImpl implements ProfileService {
                     result.put(contextType, contextSummary);
 
                 } catch (IOException e) {
-                    response.setResponseCode(HttpStatus.INTERNAL_SERVER_ERROR);
-                    response.getParams().setErrMsg("Error parsing context data for " + contextType);
-                    return response;
+                    logger.error("Error parsing context data for {}: {}", contextType, e.getMessage());
+                    return null;
                 }
             }
         }
 
         result.put(Constants.USERID_KEY, userId);
-        response.setResponseCode(HttpStatus.OK);
-        response.put(Constants.RESULT, result);
-        return response;
+        return result.isEmpty() ? null : result;
+    }
+
+    private void cacheSummary(String redisKey, Map<String, Object> result) {
+        try {
+            cacheService.putCache(redisKey, result);
+            logger.info("Cached extended profile summary for key: {}", redisKey);
+        } catch (Exception e) {
+            logger.warn("Failed to cache extended profile summary for key {}: {}", redisKey, e.getMessage());
+        }
     }
 
     private Comparator<Map<String, Object>> getSortingComparator(String contextType) {
@@ -294,40 +345,42 @@ public class ProfileServiceImpl implements ProfileService {
             return response;
         }
 
-        Map<String, Object> query = new HashMap<>();
-        query.put(Constants.USERID_KEY, userId);
-        query.put(Constants.CONTEXT_TYPE, contextType);
-
-        List<Map<String, Object>> rows = cassandraOperation.getRecordsByPropertiesByKey(
-                Constants.DATABASE, Constants.TABLE_USER_EXTENDED_PROFILE, query, null, null);
-
-        if (rows == null || rows.isEmpty()) {
-            response.setResponseCode(HttpStatus.NO_CONTENT);
-            response.getParams().setErrMsg("No data found for user.");
-            return response;
-        }
-
-        Map<String, Object> row = rows.get(0);
-        String contextDataJson = (String) row.get(Constants.CONTEXT_DATA);
+        String redisKey = "user:extendedProfile:" + contextType + ":" + userId;
+        List<Map<String, Object>> contextData = null;
 
         try {
-            List<Map<String, Object>> contextData = new ObjectMapper().readValue(
-                    contextDataJson, new TypeReference<List<Map<String, Object>>>() {
-                    });
-            Map<String, Object> result = new HashMap<>();
-            result.put(contextType, contextData);
-            result.put(Constants.USER_ID_RQST, userId);
-            result.put(Constants.COUNT, contextData.size());
-            response.put(Constants.RESULT, result);
-            response.setResponseCode(HttpStatus.OK);
-        } catch (IOException e) {
-            response.setResponseCode(HttpStatus.INTERNAL_SERVER_ERROR);
-            response.getParams().setErrMsg("Failed to parse context data: " + e.getMessage());
+            Map<String, Object> cachedMap = getFromCache(redisKey);
+            if (cachedMap != null && cachedMap.containsKey(contextType)) {
+                logger.info("Cache hit for key: {}", redisKey);
+                contextData = extractContextData(cachedMap.get(contextType));
+            } else {
+                logger.info("Cache miss for key: {}", redisKey);
+            }
+        } catch (Exception e) {
+            logger.warn("Error reading from cache for key {}: {}", redisKey, e.getMessage());
         }
+
+        if (contextData == null) {
+            contextData = fetchExtendedProfileFromDB(userId, contextType);
+            if (contextData != null) {
+                cacheService.putCache(redisKey, Map.of(contextType, contextData));
+            } else {
+                response.setResponseCode(HttpStatus.NO_CONTENT);
+                response.getParams().setErrMsg("No data found for user.");
+                return response;
+            }
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put(contextType, contextData);
+        result.put(Constants.USER_ID_RQST, userId);
+        result.put(Constants.COUNT, contextData instanceof Collection ? ((Collection<?>) contextData).size() : 1);
+        response.put(Constants.RESPONSE, result);
+        response.setResponseCode(HttpStatus.OK);
 
         return response;
     }
-
+6
     @Override
     public ApiResponse updateExtendedProfile(Map<String, Object> request, String userToken) {
 
@@ -599,6 +652,12 @@ public class ProfileServiceImpl implements ProfileService {
                 cacheService.putCache(cacheKey, userProfile);
             }
 
+            double completion = calculateProfileCompletionPercentage(
+                    userProfile,
+                    Constants.PROFILE_DETAILS_LOWERCASE,
+                    userId,
+                    userToken);
+            userProfile.put("profileCompletion", completion);
             if (!isSelfUser) {
                 sanitizeProfile(userProfile);
             }
@@ -662,10 +721,10 @@ public class ProfileServiceImpl implements ProfileService {
     }
 
     private ApiResponse responseWithEmptyProfile(ApiResponse response) {
+        response.setResponseCode(HttpStatus.NOT_FOUND);
         response.put("response", Collections.emptyMap());
         return response;
     }
-
 
     private void removePersonalDetailsFromProfile(Map<String, Object> profile, ObjectMapper objectMapper) {
         try {
@@ -683,6 +742,7 @@ public class ProfileServiceImpl implements ProfileService {
             logger.warn("Could not remove personalDetails from profileDetails", e);
         }
     }
+
 
     private ApiResponse errorResponse(ApiResponse response, String errorMessage) {
         response.setResponseCode(HttpStatus.INTERNAL_SERVER_ERROR);
@@ -712,4 +772,104 @@ public class ProfileServiceImpl implements ProfileService {
         return invalidKey.map(key -> "Invalid context type in request: " + key).orElse(null);
     }
 
+
+    private List<Map<String, Object>> fetchExtendedProfileFromDB(String userId, String contextType) {
+        logger.info("Fetching extended profile from DB for userId: {}, contextType: {}", userId, contextType);
+        Map<String, Object> query = new HashMap<>();
+        query.put(Constants.USERID_KEY, userId);
+        query.put(Constants.CONTEXT_TYPE, contextType);
+
+        List<Map<String, Object>> rows = cassandraOperation.getRecordsByPropertiesByKey(
+                Constants.DATABASE, Constants.TABLE_USER_EXTENDED_PROFILE, query, null, null);
+
+        if (rows == null || rows.isEmpty()) return null;
+
+        String contextDataJson = (String) rows.get(0).get(Constants.CONTEXT_DATA);
+
+        try {
+            return new ObjectMapper().readValue(
+                    contextDataJson, new TypeReference<List<Map<String, Object>>>() {});
+        } catch (IOException e) {
+            logger.error("Failed to parse context data JSON for userId: {}, contextType: {}: {}", userId, contextType, e.getMessage());
+            return null;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> extractContextData(Object contextDataRaw) {
+        if (contextDataRaw instanceof List<?>) {
+            return (List<Map<String, Object>>) contextDataRaw;
+        }
+        return List.of();
+    }
+
+    public double calculateProfileCompletionPercentage(Map<String, Object> profileData, String nestedFieldKey, String userId, String userToken) {
+        List<String> requiredFields = serverConfig.getProfileCompletionRequiredFields();
+        if (profileData == null || requiredFields == null || requiredFields.isEmpty()) {
+            return 0.0;
+        }
+
+        double totalCompletion = 0.0;
+
+        Map<String, Object> nestedData = getNestedData(profileData, nestedFieldKey);
+
+        for (String field : requiredFields) {
+            boolean isFilled;
+            try {
+                if (isExtendedProfileField(field)) {
+                    isFilled = hasExtendedProfileData(userId, field, userToken);
+                } else {
+                    isFilled = isFieldPresent(profileData, nestedData, field);
+                }
+            } catch (Exception e) {
+                logger.warn("Exception checking field '{}' for user '{}': {}", field, userId, e.getMessage());
+                isFilled = false;
+            }
+
+            if (isFilled) {
+                totalCompletion += serverConfig.getFieldWeight();
+            }
+        }
+
+        totalCompletion = Math.min(totalCompletion, 100.0);
+
+        return Math.round(totalCompletion * 10.0) / 10.0;
+    }
+
+    private Map<String, Object> getNestedData(Map<String, Object> profileData, String nestedFieldKey) {
+        Object nested = profileData.get(nestedFieldKey);
+        if (nested instanceof Map) {
+            return (Map<String, Object>) nested;
+        }
+        return Collections.emptyMap();
+    }
+
+    private boolean isExtendedProfileField(String field) {
+        return serverConfig.getExtendedFieldsConfig().stream()
+                .anyMatch(f -> f.equalsIgnoreCase(field));
+    }
+
+
+    private boolean isFieldPresent(Map<String, Object> profileData, Map<String, Object> nestedData, String field) {
+        Object value = profileData.getOrDefault(field, nestedData.get(field));
+        return value != null && !value.toString().trim().isEmpty();
+    }
+
+    private boolean hasExtendedProfileData(String userId, String contextType, String userToken) {
+        try {
+            ApiResponse response = readFullExtendedProfile(userId, contextType, userToken);
+
+            if (response != null && response.getResponseCode() == HttpStatus.OK) {
+                Map<String, Object> result = (Map<String, Object>) response.get(Constants.RESPONSE);
+                Object contextData = result.get(contextType);
+
+                return contextData instanceof Collection && !((Collection<?>) contextData).isEmpty();
+            } else {
+                logger.warn("No extended profile data found for user {} and context {}", userId, contextType);
+            }
+        } catch (Exception e) {
+            logger.error("Exception while reading extended profile for user {} and context {}: {}", userId, contextType, e.getMessage(), e);
+        }
+        return false;
+    }
 }
