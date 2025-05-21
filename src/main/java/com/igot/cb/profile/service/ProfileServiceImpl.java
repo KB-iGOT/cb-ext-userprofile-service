@@ -380,7 +380,7 @@ public class ProfileServiceImpl implements ProfileService {
 
         return response;
     }
-6
+
     @Override
     public ApiResponse updateExtendedProfile(Map<String, Object> request, String userToken) {
 
