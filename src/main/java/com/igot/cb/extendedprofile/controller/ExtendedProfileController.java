@@ -8,6 +8,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import javax.validation.Valid;
+import java.util.Map;
+
 /**
  * @author mahesh.vakkund
  */
@@ -23,8 +26,9 @@ public class ExtendedProfileController {
         return new ResponseEntity<>(extendedProfileService.getStatesList(authToken), HttpStatus.OK);
     }
 
-    @GetMapping(value = "/list/districts")
-    public ResponseEntity<ApiResponse> getDistrictsList(@RequestHeader(Constants.X_AUTH_TOKEN) String authToken) {
-        return new ResponseEntity<>(extendedProfileService.getDistrictsList(authToken), HttpStatus.OK);
+    @PostMapping(value = "/list/districts")
+    public ResponseEntity<ApiResponse> getDistrictsList(@RequestHeader(Constants.X_AUTH_TOKEN) String authToken,
+                                                        @Valid @RequestBody Map<String, Object> requestBody) {
+        return new ResponseEntity<>(extendedProfileService.getDistrictsList(authToken,requestBody), HttpStatus.OK);
     }
 }

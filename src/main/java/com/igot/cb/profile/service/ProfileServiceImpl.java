@@ -275,6 +275,7 @@ public class ProfileServiceImpl implements ProfileService {
     }
 
     private Map<String, Object> fetchSummaryFromDB(String userId) {
+      
         String[] contextTypes = serverConfig.getContextType();
         Map<String, Object> result = new HashMap<>();
 
@@ -379,8 +380,7 @@ public class ProfileServiceImpl implements ProfileService {
 
         return response;
     }
-
-
+6
     @Override
     public ApiResponse updateExtendedProfile(Map<String, Object> request, String userToken) {
 
@@ -726,6 +726,24 @@ public class ProfileServiceImpl implements ProfileService {
         return response;
     }
 
+    private void removePersonalDetailsFromProfile(Map<String, Object> profile, ObjectMapper objectMapper) {
+        try {
+            Object profileDetailsObj = profile.get(Constants.PROFILE_DETAILS);
+            if (profileDetailsObj == null) return;
+
+            Map<String, Object> profileDetailsMap = null;
+            profileDetailsMap = objectMapper.readValue((String) profileDetailsObj, Map.class);
+            if (profileDetailsMap != null && profileDetailsMap.containsKey(Constants.PERSONAL_DETAILS)) {
+                profileDetailsMap.remove(Constants.PERSONAL_DETAILS);
+                profile.put(Constants.PROFILE_DETAILS, profileDetailsMap);
+                logger.info("Removed personalDetails for non-self user");
+            }
+        } catch (Exception e) {
+            logger.warn("Could not remove personalDetails from profileDetails", e);
+        }
+    }
+
+
     private ApiResponse errorResponse(ApiResponse response, String errorMessage) {
         response.setResponseCode(HttpStatus.INTERNAL_SERVER_ERROR);
         response.getParams().setErrMsg(errorMessage);
@@ -753,6 +771,7 @@ public class ProfileServiceImpl implements ProfileService {
 
         return invalidKey.map(key -> "Invalid context type in request: " + key).orElse(null);
     }
+
 
     private List<Map<String, Object>> fetchExtendedProfileFromDB(String userId, String contextType) {
         logger.info("Fetching extended profile from DB for userId: {}, contextType: {}", userId, contextType);
@@ -853,10 +872,4 @@ public class ProfileServiceImpl implements ProfileService {
         }
         return false;
     }
-
-
-
-
-
-
 }

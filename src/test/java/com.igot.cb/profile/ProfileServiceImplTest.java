@@ -416,7 +416,6 @@ public class ProfileServiceImplTest {
     }
 
 
-
     private Map<String, Object> loadJson(String filePath) throws Exception {
         InputStream is = getClass().getClassLoader().getResourceAsStream(filePath);
         return mapper.readValue(is, new TypeReference<>() {});
