@@ -411,6 +411,10 @@ public class Constants {
     public static final String DEGREE_NAME = "degreeName";
     public static final String API_UPDATE_INSTITUTION_LIST = "api.update.institutionlist";
     public static final String API_UPDATE_DEGREE_LIST = "api.update.degreelist";
+    public static final String ACHIEVEMENTS = "achievements";
+    public static final String LOCATION_DETAILS = "locationDetails";
+    public static final String EDUCATION_QUALIFICATION = "educationalQualifications";
+    public static final String SERVICE_HISTORY = "serviceHistory";
 
     private Constants() {
     }
