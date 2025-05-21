@@ -51,7 +51,7 @@ public class ProfileController {
 
     @GetMapping("/extended/achievements/{userId}")
     public ResponseEntity<Object> getAchievements(@PathVariable("userId") String userId, @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken) {
-        ApiResponse response = profileService.readFullExtendedProfile(userId,"achievements",authToken);
+        ApiResponse response = profileService.readFullExtendedProfile(userId, Constants.ACHIEVEMENTS, authToken);
         return new ResponseEntity<>(response, HttpStatus.valueOf(response.getResponseCode().value()));
     }
 
