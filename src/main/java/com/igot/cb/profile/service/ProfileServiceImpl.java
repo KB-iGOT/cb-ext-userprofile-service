@@ -375,7 +375,11 @@ public class ProfileServiceImpl implements ProfileService {
         result.put(contextType, contextData);
         result.put(Constants.USER_ID_RQST, userId);
         result.put(Constants.COUNT, contextData instanceof Collection ? ((Collection<?>) contextData).size() : 1);
-        response.put(Constants.RESPONSE, result);
+        if(contextType.equalsIgnoreCase(Constants.LOCATION_DETAILS)){
+            response.put(Constants.RESPONSE, contextData.get(0));
+        }else{
+            response.put(Constants.RESPONSE, result);
+        }
         response.setResponseCode(HttpStatus.OK);
 
         return response;

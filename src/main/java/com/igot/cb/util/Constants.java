@@ -414,7 +414,6 @@ public class Constants {
     public static final String ACHIEVEMENTS = "achievements";
     public static final String LOCATION_DETAILS = "locationDetails";
     public static final String EDUCATION_QUALIFICATION = "educationalQualifications";
-    public static final String SERVICE_HISTORY = "serviceHistory";
 
     private Constants() {
     }
