@@ -78,4 +78,5 @@ public class CbServerProperties {
   public List<String> getProfileCompletionRequiredFields() {
     return Arrays.asList(profileCompletionRequiredFields.split(","));
   }
+
 }

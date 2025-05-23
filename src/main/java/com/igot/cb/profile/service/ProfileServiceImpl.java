@@ -21,7 +21,9 @@ import java.io.IOException;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
+
 import java.time.OffsetDateTime;
+
 
 @Service
 public class ProfileServiceImpl implements ProfileService {
@@ -38,8 +40,10 @@ public class ProfileServiceImpl implements ProfileService {
     @Autowired
     private CacheService cacheService;
 
+
     @Autowired
     private ObjectMapper mapper;
+
 
     private Logger logger = LoggerFactory.getLogger(ProfileServiceImpl.class);
 
@@ -133,14 +137,17 @@ public class ProfileServiceImpl implements ProfileService {
 
 
         List<Map<String, Object>> savedDataWithUUIDs = new ArrayList<>();
+
         String incomingContextType = null;
         String finalJson = null;
         List<Map<String, Object>> mergedList = null;
+
         for (String contextType : contextTypes) {
             List<Map<String, Object>> incomingList = (List<Map<String, Object>>) requestData.get(contextType);
             if (incomingList == null || incomingList.isEmpty()) {
                 continue;
             }
+
             incomingContextType = contextType;
             List<Map<String, Object>> dataWithUUIDs = addUUIDsToData(incomingList);
 
@@ -154,6 +161,7 @@ public class ProfileServiceImpl implements ProfileService {
             mergedList = mergeExistingAndNewData(existingRows, dataWithUUIDs, contextType);
 
             finalJson = convertListToJson(mergedList, response);
+
             if (finalJson == null) {
                 return response;
             }
@@ -175,6 +183,7 @@ public class ProfileServiceImpl implements ProfileService {
             String contextKey = "user:extendedProfile:" + incomingContextType + ":" + userId;
             cacheService.putCache(contextKey, finalJson);
             updateExtendedProfileAllCache(userId, incomingContextType, mergedList);
+
             response.setResponseCode(HttpStatus.OK);
             response.put(Constants.RESULT, savedDataWithUUIDs);
         } else {
@@ -390,12 +399,15 @@ public class ProfileServiceImpl implements ProfileService {
         result.put(contextType, contextData);
         result.put(Constants.USER_ID_RQST, userId);
         result.put(Constants.COUNT, contextData instanceof Collection ? ((Collection<?>) contextData).size() : 1);
-        response.put(Constants.RESPONSE, result);
+        if(contextType.equalsIgnoreCase(Constants.LOCATION_DETAILS)){
+            response.put(Constants.RESPONSE, contextData.get(0));
+        }else{
+            response.put(Constants.RESPONSE, result);
+        }
         response.setResponseCode(HttpStatus.OK);
 
         return response;
     }
-
 
     @Override
     public ApiResponse updateExtendedProfile(Map<String, Object> request, String userToken) {
@@ -747,6 +759,25 @@ public class ProfileServiceImpl implements ProfileService {
         return response;
     }
 
+
+    private void removePersonalDetailsFromProfile(Map<String, Object> profile, ObjectMapper objectMapper) {
+        try {
+            Object profileDetailsObj = profile.get(Constants.PROFILE_DETAILS);
+            if (profileDetailsObj == null) return;
+
+            Map<String, Object> profileDetailsMap = null;
+            profileDetailsMap = objectMapper.readValue((String) profileDetailsObj, Map.class);
+            if (profileDetailsMap != null && profileDetailsMap.containsKey(Constants.PERSONAL_DETAILS)) {
+                profileDetailsMap.remove(Constants.PERSONAL_DETAILS);
+                profile.put(Constants.PROFILE_DETAILS, profileDetailsMap);
+                logger.info("Removed personalDetails for non-self user");
+            }
+        } catch (Exception e) {
+            logger.warn("Could not remove personalDetails from profileDetails", e);
+        }
+    }
+
+
     private ApiResponse errorResponse(ApiResponse response, String errorMessage) {
         response.setResponseCode(HttpStatus.INTERNAL_SERVER_ERROR);
         response.getParams().setErrMsg(errorMessage);
@@ -897,9 +928,5 @@ public class ProfileServiceImpl implements ProfileService {
             logger.error("Error updating extendedProfile all cache for userId {}: {}", userId, e.getMessage());
         }
     }
-
-
-
-
 
 }

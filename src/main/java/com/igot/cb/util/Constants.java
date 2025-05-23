@@ -394,7 +394,26 @@ public class Constants {
     public static final String SERVICE_HISTORY = "serviceHistory";
     public static final String EXISTING_DATA = "existingData";
     public static final String PROFILE_DETAILS_LOWERCASE = "profiledetails";
-
+    public static final String CONSISTENCY_LEVEL = "consistencyLevel";
+    public static final String INSTITUTIONS = "institutions";
+    public static final String INSTITUTION = "institution";
+    public static final String INSTITUTION_ID = "institutionId";
+    public static final String INSTITUTION_LIST = "institutionList";
+    public static final String SYSTEM_SETTINGS = "system_settings";
+    public static final String INSTITUTIONS_CONFIG = "institutionsConfig";
+    public static final String FIELD_KEY = "field";
+    public static final String API_GET_DEGREE_LIST = "api.get.degreelist";
+    public static final String DEGREES = "degrees";
+    public static final String DEGREES_LIST = "degreesList";
+    public static final String DEGREES_CONFIG = "degreesConfig";
+    public static final String API_GET_INSTITUTION_LIST = "api.get.institutionlist";
+    public static final String INSTITUTE_NAME = "institutionName";
+    public static final String DEGREE_NAME = "degreeName";
+    public static final String API_UPDATE_INSTITUTION_LIST = "api.update.institutionlist";
+    public static final String API_UPDATE_DEGREE_LIST = "api.update.degreelist";
+    public static final String ACHIEVEMENTS = "achievements";
+    public static final String LOCATION_DETAILS = "locationDetails";
+    public static final String EDUCATION_QUALIFICATION = "educationalQualifications";
 
     private Constants() {
     }

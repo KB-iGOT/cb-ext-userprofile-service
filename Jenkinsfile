@@ -14,14 +14,18 @@ node() {
                         error 'Please resolve the errors and rerun..'
                     } else
                         println(ANSI_BOLD + ANSI_GREEN + "Found environment variable named hub_org with value as: " + hub_org + ANSI_NORMAL)
-                }
-				
+                }				
                 cleanWs()
                 checkout scm
                 commit_hash = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
 	        build_tag = sh(script: "echo " + params.github_release_tag.split('/')[-1] + "_" + commit_hash + "_" + env.BUILD_NUMBER, returnStdout: true).trim()
                 echo "build_tag: " + build_tag
 
+        if(params.enable_code_analysis){
+            stage('Code analysis'){
+               build job: "Build/CodeReview/${JOB_BASE_NAME}", wait: true
+	     }
+	}
         stage('docker-pre-build') {
             sh '''
 	

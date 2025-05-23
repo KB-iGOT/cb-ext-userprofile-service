@@ -1,10 +1,10 @@
-package com.igot.cb.extendedprofile;
+package com.igot.cb.extendedprofile.service;
 
 import com.igot.cb.authentication.util.AccessTokenValidator;
-import com.igot.cb.extendedprofile.service.ExtendedServiceImpl;
 import com.igot.cb.transactional.cassandrautils.CassandraOperation;
 import com.igot.cb.util.ApiResponse;
 import com.igot.cb.util.Constants;
+import org.apache.commons.collections4.MapUtils;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -32,9 +32,12 @@ public class ExtendedServiceImplTest {
     @InjectMocks
     private ExtendedServiceImpl extendedService;
 
+    private Map<String, Object> requestBody;
+
     @Before
     public void setUp() {
-        // Any setup code needed
+        requestBody = new HashMap<>();
+        requestBody.put(Constants.CONTEXT_NAME, "Maharashtra");
     }
 
     @Test
@@ -142,7 +145,6 @@ public class ExtendedServiceImplTest {
     }
     @Test
     public void getDistrictsList_Success() {
-        // Arrange
         String authToken = "valid-auth-token";
         String userId = "test-user-id";
         when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
@@ -157,6 +159,7 @@ public class ExtendedServiceImplTest {
         cassandraResponse.add(district2);
         Map<String, Object> expectedPropertiesMap = new HashMap<>();
         expectedPropertiesMap.put(Constants.CONTEXT_TYPE, Constants.DISTRICT);
+        expectedPropertiesMap.put(Constants.CONTEXT_NAME, "Maharashtra");
         when(cassandraOperation.getRecordsByPropertiesByKey(
                 eq(Constants.KEYSPACE_SUNBIRD),
                 eq(Constants.MASTER_DATA),
@@ -164,7 +167,8 @@ public class ExtendedServiceImplTest {
                 eq(List.of(Constants.CONTEXT_NAME, Constants.CONTEXT_DATA)),
                 eq(Constants.CONTEXT_TYPE)))
                 .thenReturn(cassandraResponse);
-        ApiResponse response = extendedService.getDistrictsList(authToken);
+
+      ApiResponse response = extendedService.getDistrictsList(authToken, requestBody);
         assertNotNull(response);
         assertEquals(HttpStatus.OK, response.getResponseCode());
         assertEquals(Constants.SUCCESS, response.getParams().getStatus());
@@ -193,7 +197,7 @@ public class ExtendedServiceImplTest {
     public void getDistrictsList_EmptyUserId() {
         String authToken = "invalid-auth-token";
         when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn("");
-        ApiResponse response = extendedService.getDistrictsList(authToken);
+        ApiResponse response = extendedService.getDistrictsList(authToken, requestBody);
         assertNotNull(response);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
         assertEquals(Constants.FAILED, response.getParams().getStatus());
@@ -204,7 +208,7 @@ public class ExtendedServiceImplTest {
     public void getDistrictsList_NullUserId() {
         String authToken = "invalid-auth-token";
         when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(null);
-        ApiResponse response = extendedService.getDistrictsList(authToken);
+        ApiResponse response = extendedService.getDistrictsList(authToken, requestBody);
         assertNotNull(response);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
         assertEquals(Constants.FAILED, response.getParams().getStatus());
@@ -223,7 +227,7 @@ public class ExtendedServiceImplTest {
                 eq(List.of(Constants.CONTEXT_NAME, Constants.CONTEXT_DATA)),
                 eq(Constants.CONTEXT_TYPE)))
                 .thenThrow(new RuntimeException("Database connection error"));
-        ApiResponse response = extendedService.getDistrictsList(authToken);
+        ApiResponse response = extendedService.getDistrictsList(authToken, requestBody);
         assertNotNull(response);
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
         assertEquals(Constants.FAILED, response.getParams().getStatus());
@@ -242,6 +246,7 @@ public class ExtendedServiceImplTest {
         cassandraResponse.add(districtWithInvalidJson);
         Map<String, Object> expectedPropertiesMap = new HashMap<>();
         expectedPropertiesMap.put(Constants.CONTEXT_TYPE, Constants.DISTRICT);
+        expectedPropertiesMap.put(Constants.CONTEXT_NAME, "Maharashtra");
         when(cassandraOperation.getRecordsByPropertiesByKey(
                 eq(Constants.KEYSPACE_SUNBIRD),
                 eq(Constants.MASTER_DATA),
@@ -249,7 +254,7 @@ public class ExtendedServiceImplTest {
                 eq(List.of(Constants.CONTEXT_NAME, Constants.CONTEXT_DATA)),
                 eq(Constants.CONTEXT_TYPE)))
                 .thenReturn(cassandraResponse);
-        ApiResponse response = extendedService.getDistrictsList(authToken);
+        ApiResponse response = extendedService.getDistrictsList(authToken, requestBody);
         assertNotNull(response);
         assertEquals(HttpStatus.OK, response.getResponseCode());
         assertEquals(Constants.SUCCESS, response.getParams().getStatus());
@@ -270,14 +275,17 @@ public class ExtendedServiceImplTest {
         String userId = "test-user-id";
         when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
         List<Map<String, Object>> emptyResponse = new ArrayList<>();
+        Map<String, Object> expectedPropertiesMap = new HashMap<>();
+        expectedPropertiesMap.put(Constants.CONTEXT_TYPE, Constants.DISTRICT);
+        expectedPropertiesMap.put(Constants.CONTEXT_NAME, "Maharashtra");
         when(cassandraOperation.getRecordsByPropertiesByKey(
                 eq(Constants.KEYSPACE_SUNBIRD),
                 eq(Constants.MASTER_DATA),
-                anyMap(),
+                eq(expectedPropertiesMap),
                 eq(List.of(Constants.CONTEXT_NAME, Constants.CONTEXT_DATA)),
                 eq(Constants.CONTEXT_TYPE)))
                 .thenReturn(emptyResponse);
-        ApiResponse response = extendedService.getDistrictsList(authToken);
+        ApiResponse response = extendedService.getDistrictsList(authToken, requestBody);
         assertNotNull(response);
         assertEquals(HttpStatus.OK, response.getResponseCode());
         assertEquals(Constants.SUCCESS, response.getParams().getStatus());
@@ -285,5 +293,108 @@ public class ExtendedServiceImplTest {
         List<Map<String, Object>> districtsList = (List<Map<String, Object>>) response.getResult().get(Constants.DISTRICTS_LIST);
         assertNotNull(districtsList);
         assertTrue(districtsList.isEmpty());
+    }
+
+    @Test
+    public void getDistrictsList_NullRequestBody() {
+        String authToken = "valid-auth-token";
+        String userId = "test-user-id";
+        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
+        ApiResponse response = extendedService.getDistrictsList(authToken, null);
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        assertEquals(Constants.FAILED, response.getParams().getStatus());
+        assertEquals("Context name is missing in the request", response.getParams().getErrMsg());
+    }
+
+    @Test
+    public void getDistrictsList_EmptyRequestBody() {
+        String authToken = "valid-auth-token";
+        String userId = "test-user-id";
+        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
+        ApiResponse response = extendedService.getDistrictsList(authToken, new HashMap<>());
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        assertEquals(Constants.FAILED, response.getParams().getStatus());
+        assertEquals("Context name is missing in the request", response.getParams().getErrMsg());
+    }
+
+    @Test
+    public void getDistrictsList_MissingContextName() {
+        String authToken = "valid-auth-token";
+        String userId = "test-user-id";
+        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
+        Map<String, Object> invalidRequestBody = new HashMap<>();
+        invalidRequestBody.put("someOtherKey", "someValue");
+        ApiResponse response = extendedService.getDistrictsList(authToken, invalidRequestBody);
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        assertEquals(Constants.FAILED, response.getParams().getStatus());
+        assertEquals("Context name is missing in the request", response.getParams().getErrMsg());
+    }
+
+
+    @Test
+    public void testMapUtilsIsEmpty_WithNullRequestBody() {
+        String authToken = "valid-auth-token";
+        String userId = "test-user-id";
+        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
+        Map<String, Object> nullRequestBody = null;
+        ApiResponse response = extendedService.getDistrictsList(authToken, nullRequestBody);
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        assertEquals(Constants.FAILED, response.getParams().getStatus());
+        assertEquals("Context name is missing in the request", response.getParams().getErrMsg());
+        assertTrue("MapUtils.isEmpty should return true for null", MapUtils.isEmpty(nullRequestBody));
+    }
+
+    @Test
+    public void testMapUtilsIsEmpty_WithEmptyRequestBody() {
+        String authToken = "valid-auth-token";
+        String userId = "test-user-id";
+        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
+        Map<String, Object> emptyRequestBody = new HashMap<>();
+        ApiResponse response = extendedService.getDistrictsList(authToken, emptyRequestBody);
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        assertEquals(Constants.FAILED, response.getParams().getStatus());
+        assertEquals("Context name is missing in the request", response.getParams().getErrMsg());
+        assertTrue("MapUtils.isEmpty should return true for empty map", MapUtils.isEmpty(emptyRequestBody));
+    }
+
+    @Test
+    public void getDistrictsList_WithEmptyContextData() {
+        String authToken = "valid-auth-token";
+        String userId = "test-user-id";
+        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
+        List<Map<String, Object>> cassandraResponse = new ArrayList<>();
+        Map<String, Object> districtWithEmptyData = new HashMap<>();
+        districtWithEmptyData.put(Constants.CONTEXT_NAME, "Maharashtra");
+        districtWithEmptyData.put(Constants.CONTEXT_DATA, "");
+        cassandraResponse.add(districtWithEmptyData);
+        Map<String, Object> expectedPropertiesMap = new HashMap<>();
+        expectedPropertiesMap.put(Constants.CONTEXT_TYPE, Constants.DISTRICT);
+        expectedPropertiesMap.put(Constants.CONTEXT_NAME, "Maharashtra");
+        when(cassandraOperation.getRecordsByPropertiesByKey(
+                eq(Constants.KEYSPACE_SUNBIRD),
+                eq(Constants.MASTER_DATA),
+                eq(expectedPropertiesMap),
+                eq(List.of(Constants.CONTEXT_NAME, Constants.CONTEXT_DATA)),
+                eq(Constants.CONTEXT_TYPE)))
+                .thenReturn(cassandraResponse);
+        ApiResponse response = extendedService.getDistrictsList(authToken, requestBody);
+        assertNotNull(response);
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        assertEquals(Constants.SUCCESS, response.getParams().getStatus());
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> districtsList = (List<Map<String, Object>>) response.getResult().get(Constants.DISTRICTS_LIST);
+        assertNotNull(districtsList);
+        assertEquals(1, districtsList.size());
+        Map<String, Object> state = districtsList.get(0);
+        assertEquals("Maharashtra", state.get(Constants.STATE_NAME));
+        @SuppressWarnings("unchecked")
+        List<String> districts = (List<String>) state.get(Constants.DISTRICTS);
+        assertNotNull(districts);
+        assertTrue("Districts list should be empty for empty contextDataJson", districts.isEmpty());
     }
 }
