@@ -21,6 +21,10 @@ import java.io.IOException;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
+
+import java.time.OffsetDateTime;
+
+
 @Service
 public class ProfileServiceImpl implements ProfileService {
 
@@ -35,6 +39,11 @@ public class ProfileServiceImpl implements ProfileService {
 
     @Autowired
     private CacheService cacheService;
+
+
+    @Autowired
+    private ObjectMapper mapper;
+
 
     private Logger logger = LoggerFactory.getLogger(ProfileServiceImpl.class);
 
@@ -129,12 +138,17 @@ public class ProfileServiceImpl implements ProfileService {
 
         List<Map<String, Object>> savedDataWithUUIDs = new ArrayList<>();
 
+        String incomingContextType = null;
+        String finalJson = null;
+        List<Map<String, Object>> mergedList = null;
+
         for (String contextType : contextTypes) {
             List<Map<String, Object>> incomingList = (List<Map<String, Object>>) requestData.get(contextType);
             if (incomingList == null || incomingList.isEmpty()) {
                 continue;
             }
 
+            incomingContextType = contextType;
             List<Map<String, Object>> dataWithUUIDs = addUUIDsToData(incomingList);
 
             Map<String, Object> query = new HashMap<>();
@@ -144,9 +158,10 @@ public class ProfileServiceImpl implements ProfileService {
             List<Map<String, Object>> existingRows = cassandraOperation.getRecordsByPropertiesByKey(
                     Constants.DATABASE, Constants.TABLE_USER_EXTENDED_PROFILE, query, null, null);
 
-            List<Map<String, Object>> mergedList = mergeExistingAndNewData(existingRows, dataWithUUIDs, contextType);
+            mergedList = mergeExistingAndNewData(existingRows, dataWithUUIDs, contextType);
 
-            String finalJson = convertListToJson(mergedList, response);
+            finalJson = convertListToJson(mergedList, response);
+
             if (finalJson == null) {
                 return response;
             }
@@ -165,6 +180,10 @@ public class ProfileServiceImpl implements ProfileService {
         }
 
         if (!savedDataWithUUIDs.isEmpty()) {
+            String contextKey = "user:extendedProfile:" + incomingContextType + ":" + userId;
+            cacheService.putCache(contextKey, finalJson);
+            updateExtendedProfileAllCache(userId, incomingContextType, mergedList);
+
             response.setResponseCode(HttpStatus.OK);
             response.put(Constants.RESULT, savedDataWithUUIDs);
         } else {
@@ -275,7 +294,6 @@ public class ProfileServiceImpl implements ProfileService {
     }
 
     private Map<String, Object> fetchSummaryFromDB(String userId) {
-      
         String[] contextTypes = serverConfig.getContextType();
         Map<String, Object> result = new HashMap<>();
 
@@ -323,11 +341,17 @@ public class ProfileServiceImpl implements ProfileService {
     private Comparator<Map<String, Object>> getSortingComparator(String contextType) {
         switch (contextType) {
             case Constants.SERVICE_HISTORY:
-                return Comparator.comparing(map -> LocalDate.parse((String) map.get(Constants.START_DATE)));
+                return Comparator.comparing(map ->
+                        OffsetDateTime.parse((String) map.get(Constants.START_DATE)).toLocalDate()
+                );
             case Constants.EDUCATIONAL_QUALIFICATIONS:
-                return Comparator.comparing(map -> Integer.parseInt((String) map.get(Constants.START_YEAR)));
+                return Comparator.comparing(map ->
+                        Integer.parseInt((String) map.get(Constants.START_YEAR))
+                );
             case Constants.ACHIVEMENTS:
-                return Comparator.comparing(map -> LocalDate.parse((String) map.get(Constants.ISSUED_DATE)));
+                return Comparator.comparing(map ->
+                        OffsetDateTime.parse((String) map.get(Constants.ISSUED_DATE)).toLocalDate()
+                );
             default:
                 return null;
         }
@@ -459,6 +483,11 @@ public class ProfileServiceImpl implements ProfileService {
         if (!Constants.SUCCESS.equals(updateResult.get(Constants.RESPONSE))) {
             return errorResponse("Failed to update data for contextType: " + contextType);
         }
+
+        String contextKey = "user:extendedProfile:" + contextType + ":" + userId;
+        cacheService.putCache(contextKey, existingDataList);
+
+        updateExtendedProfileAllCache(userId, contextType, existingDataList);
 
         return response;
     }
@@ -730,6 +759,7 @@ public class ProfileServiceImpl implements ProfileService {
         return response;
     }
 
+
     private void removePersonalDetailsFromProfile(Map<String, Object> profile, ObjectMapper objectMapper) {
         try {
             Object profileDetailsObj = profile.get(Constants.PROFILE_DETAILS);
@@ -775,7 +805,6 @@ public class ProfileServiceImpl implements ProfileService {
 
         return invalidKey.map(key -> "Invalid context type in request: " + key).orElse(null);
     }
-
 
     private List<Map<String, Object>> fetchExtendedProfileFromDB(String userId, String contextType) {
         logger.info("Fetching extended profile from DB for userId: {}, contextType: {}", userId, contextType);
@@ -876,4 +905,28 @@ public class ProfileServiceImpl implements ProfileService {
         }
         return false;
     }
+
+
+    public void updateExtendedProfileAllCache(String userId, String contextType, List<Map<String, Object>> updatedContextData) {
+        String allKey = "user:extendedProfile:all:" + userId;
+        try {
+            String allJson = cacheService.getCache(allKey);
+
+            Map<String, List<Map<String, Object>>> allProfileData;
+            if (allJson != null && !allJson.isEmpty()) {
+                allProfileData = mapper.readValue(allJson, new TypeReference<Map<String, List<Map<String, Object>>>>() {});
+            } else {
+                allProfileData = new HashMap<>();
+            }
+
+            allProfileData.put(contextType, updatedContextData);
+
+            String updatedAllJson = mapper.writeValueAsString(allProfileData);
+            cacheService.putCache(allKey, updatedAllJson);
+
+        } catch (Exception e) {
+            logger.error("Error updating extendedProfile all cache for userId {}: {}", userId, e.getMessage());
+        }
+    }
+
 }
