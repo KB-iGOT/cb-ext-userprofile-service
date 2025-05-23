@@ -48,4 +48,13 @@ public class CacheService {
       log.warn("Field not found in key {}.", key);
     }
   }
+
+  public void putCache(String key, String jsonString) {
+    try {
+      redisTemplate.opsForValue().set(key, jsonString, cacheTtl, TimeUnit.SECONDS);
+    } catch (Exception e) {
+      log.error("Error while putting data in Redis cache: {} ", e.getMessage());
+    }
+  }
+
 }
