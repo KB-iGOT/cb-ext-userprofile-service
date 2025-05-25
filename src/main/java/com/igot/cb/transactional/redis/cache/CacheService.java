@@ -14,7 +14,8 @@ import java.util.concurrent.TimeUnit;
 public class CacheService {
 
   @Autowired
-  private RedisTemplate<String, String> redisTemplate;
+  RedisTemplate<String, String> redisTemplate;
+
   @Autowired
   private ObjectMapper objectMapper;
 

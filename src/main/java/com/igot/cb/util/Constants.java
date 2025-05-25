@@ -45,7 +45,6 @@ public class Constants {
     public static final Boolean ACTIVE_STATUS = true;
     public static final String LAST_UPDATED_DATE = "lastUpdatedDate";
     public static final String CREATED_DATE = "createdDate";
-    public static final String PAYLOAD_VALIDATION_FILE = "/payloadValidation/demandValidationData.json";
     public static final String INDEX_NAME = "demand_entity";
     public static final String INDEX_TYPE = "_doc";
     public static final String RESULT = "result";
@@ -54,9 +53,7 @@ public class Constants {
     public static final String REDIS_KEY_PREFIX = "cbpores_";
     public static final String KEYWORD = ".keyword";
     public static final String ASC = "asc";
-    public static final String REQUEST_PAYLOAD = "requestPayload";
     public static final String JWT_SECRET_KEY = "demand_search_result";
-    public static final String PAYLOAD_VALIDATION_FILE_CONTENT_PROVIDER = "/payloadValidation/contentProviderValidation.json";
     public static final String CONTENT_PROVIDER_ID = "id";
     public static final String INTEREST_COUNT = "interestCount";
     public static final String INTERESTS = "demand_search_result";
@@ -108,12 +105,10 @@ public class Constants {
     public static final String FILTERS = "filters";
     public static final String REQUEST_TYPE = "requestType";
     public static final String RQST_CONTENT_TYPE = "type";
-    public static final String PLAY_LIST_VALIDATION_FILE_JSON = "/payloadValidation/playListValidationFile.json";
     public static final String ORG_FEATURED_COURSE_KEY = "ORG_FEATURED_COURSES";
     public static final String ORG_COURSE_NOT_FOUND = "Not found course for this org";
     public static final String API_PLAYLIST_UPDATED = "api.playlist.updated";
     public static final Object UPDATED = "Updated";
-    public static final String INTEREST_VALIDATION_FILE_JSON = "/paapi.org.listyloadValidation/interestPayloadValidation.json";
     public static final String REQUESTED = "Requested";
     public static final String INTEREST_INDEX_NAME = "interests";
     public static final String INTEREST_ID_RQST = "interestId";
@@ -131,7 +126,6 @@ public class Constants {
     public static final String USER_ROOT_ORG_ID = "rootorgid";
     public static final String ROOT_ORG_ID_DOESNT_MATCH = "Unauthorized User.";
     public static final String OWNER = "owner";
-    public static final String STATUS_TRANSITION_PATH = "/payloadValidation/statusTransitions.json";
     public static final String BROADCAST = "Broadcast";
     public static final String UNASSIGNED = "Unassigned";
     public static final String INVALID_STATUS_TRANSITION = "Requesting with invalid status";
@@ -144,7 +138,6 @@ public class Constants {
     public static final String PROVIDER_ID = "providerId";
     public static final String PROVIDER_NAME = "providerName";
     public static final String PREV_ASSIGNED_PROVIDER = "previousAssignedProvider";
-    public static final String ANNOUNCEMENT_VALIDATION_FILE_JSON = "/payloadValidation/announcementValidation.json";
     public static final String ANNOUNCEMENT_ID = "announcementId";
     public static final String ANNOUNCEMENT_INDEX = "announcement_entity";
     public static final String PLAYLIST_INDEX_NAME = "playlist";
@@ -152,7 +145,6 @@ public class Constants {
     public static final String ACTIVE = "Active";
     public static final String IN_ACTIVE = "Inactive";
     public static final String ORG_BOOKMARK_ID = "orgBookmarkId";
-    public static final String PAYLOAD_VALIDATION_FILE_ORG_BOOKMARK_LIST = "/payloadValidation/orgBookmarkValidation.json";
     public static final String ERROR_WHILE_DELETING_ORG_LIST = "Error while deleting orgBookmark with ID";
     public static final String INDEX_NAME_FOR_ORG_BOOKMARK = "orgbookmark";
     public static final String REQUEST_CONSTANT = "Request: ";
@@ -161,7 +153,6 @@ public class Constants {
     public static final String AUTHORIZATION = "authorization";
     public static final String CREATED_BY = "createdBy";
     public static final String ORG_LIST = "orgList";
-    public static final String PAYLOAD_VALIDATION_UPDATE_FILE_ORG_BOOKMARK_LIST = "/payloadValidation/orgBookmarkUpdateValidation.json";
     public static final String API_ORG_BOOKMARK_CREATE = "api.org.bookmark.create";
     public static final String API_ORG_BOOKMARK_UPDATE = "api.org.bookmark.update";
     public static final String API_ORG_BOOKMARK_READ = "api.org.bookmark.read";
@@ -260,12 +251,9 @@ public class Constants {
     public static final String SPV_ORG_NAME = "Karmayogi Bharat";
     public static final String INVALID_DATA = "No data found";
     public static final String PLAYLIST_KEY_REDIS = "playListKey";
-    public static final String DESIGNATION_PAYLOAD_VALIDATION = "/payloadValidation/designationValidationFile.json";
     public static final String UPDATED_DESIGNATION = "Updated Designations";
     public static final String DESIGNATION = "designation";
-    public static final String DESCRIPTION_PAYLOAD = "Description";
     public static final String DESIGNATION_INDEX_NAME = "designation_entity";
-    public static final String TERM_CREATE_PAYLOAD_VALIDATION = "/payloadValidation/termCreateValidation.json";
     public static final String REF_ID = "refId";
     public static final String REF_TYPE = "refType";
     public static final String CODE = "code";
@@ -277,7 +265,6 @@ public class Constants {
     public static final String COMP_AREA_INDEX_NAME = "comp_area_entity";
     public static final String COMP_THEME_INDEX_NAME = "comp_theme_entity";
     public static final String COMP_SUB_THEME_INDEX_NAME = "comp_sub_theme_entity";
-    public static final String COMP_AREA_PAYLOAD_VALIDATION = "/payloadValidation/compAreaValidation.json";
     public static final String COMPETENCY_AREA_TYPE = "Competency Area";
     public static final String COMPETENCY_THEME_TYPE = "Competency Theme";
     public static final String COMPETENCY_SUB_THEME_TYPE = "Competency Sub-Theme";
@@ -292,8 +279,6 @@ public class Constants {
     public static final String UPDATED_BY = "updatedBy";
     public static final String  COMPETENCY_TYPE = "Competency Type";
     public static final String THEME_TYPE = "themeType";
-    public static final String COMPETENCY_AREA_VALIDATION_FILE_JSON = "/payloadValidation/competencyAreaPayloadValidation.json";
-    public static final String CIOS_CONTENT_VALIDATION_FILE_JSON = "/payloadValidation/ciosContentValidation.json";
     public static final String API_COMPETENCY_THEME_CREATE = "api.competency.theme.create";
     public static final String API_COMPETENCY_SUB_THEME_CREATE = "api.competency.sub.theme.create";
     public static final String API_ORG_CREATE = "api.org.create";
@@ -332,7 +317,6 @@ public class Constants {
     public static final String NO_DATA_FOR_ID = "No data found for this Id: ";
     public static final String ID_MISSING = "Id is missing in the request";
     public static final String MDO_LEADER ="MDO_LEADER";
-    public static final String COMPETENCIESVALIDATION_FILE_JSON = "/payloadValidation/competenciesValidation.json";
     public static final String TIMESTAMP = "timeStamp";
     public static final String IS_AUTHENTICATE = "isAuthenticate";
     public static final Boolean ACTIVE_STATUS_AUTHENTICATE = false;
@@ -344,7 +328,6 @@ public class Constants {
     public static final String UPDATED_DATE = "updatedDate";
     public static final String API_CIOS_CURATION_CREATE = "api.cios.curation.create";
     public static final String STATUS_NOT_VALID = "Status is not valid";
-    public static final String CONTENT_PARTNER_FILE_JSON = "/payloadValidation/contentpartnervalidationfile.json";
     public static final String DOCUMENT_UPLOADED_DATE = "documentUploadedDate";
     public static final String EXTERNAL_ID = "externalId";
     public static final String FILTER_CRITERIA_MAP= "filterCriteriaMap";
@@ -354,7 +337,6 @@ public class Constants {
     public static final String DRAFT = "draft";
     public static final String VALUE = "value";
     public static final String COMPETENCIES_V6 = "competencies_v6";
-    public static final String COMPETENCIES_V6_VALIDATION_FILE_JSON = "/payloadValidation/competenciesV6Validation.json";
     public static final String SPV_PUBLISHER ="SPV_PUBLISHER";
     public static final String CONTENT_PARTNER_NAME = "contentPartnerName";
     public static final String CONTENT_PARTNER_CODE_AND_NAME_ALREADY_PRESENT = "Content partnerCode and partnerName already present in DB";

@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+
 @RestController
 @RequestMapping("/user/profile")
 public class ProfileController {
@@ -24,33 +25,38 @@ public class ProfileController {
         return new ResponseEntity<>(response, response.getResponseCode());
     }
 
-
     @GetMapping("/extended/all/{userId}")
-    public ResponseEntity<Object> getExtendedProfileSummary(@PathVariable(Constants.USER_ID_RQST) String userId, @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken) {
+    public ResponseEntity<Object> getExtendedProfileSummary(@PathVariable(Constants.USER_ID_RQST) String userId,
+            @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken) {
         ApiResponse response = profileService.getExtendedProfileSummary(userId, authToken);
         return new ResponseEntity<>(response, HttpStatus.valueOf(response.getResponseCode().value()));
     }
 
     @GetMapping("/extended/serviceHistory/{userId}")
-    public ResponseEntity<Object> getServiceHistory(@PathVariable(Constants.USER_ID_RQST) String userId, @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken) {
-        ApiResponse response = profileService.readFullExtendedProfile(userId,Constants.SERVICE_HISTORY,authToken);
+    public ResponseEntity<Object> getServiceHistory(@PathVariable(Constants.USER_ID_RQST) String userId,
+            @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken) {
+        ApiResponse response = profileService.readFullExtendedProfile(userId, Constants.SERVICE_HISTORY, authToken);
         return new ResponseEntity<>(response, HttpStatus.valueOf(response.getResponseCode().value()));
     }
 
     @GetMapping("/extended/education/{userId}")
-    public ResponseEntity<Object> getEducationalQualifications(@PathVariable(Constants.USER_ID_RQST) String userId, @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken) {
-        ApiResponse response = profileService.readFullExtendedProfile(userId,Constants.EDUCATION_QUALIFICATION,authToken);
+    public ResponseEntity<Object> getEducationalQualifications(@PathVariable(Constants.USER_ID_RQST) String userId,
+            @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken) {
+        ApiResponse response = profileService.readFullExtendedProfile(userId, Constants.EDUCATION_QUALIFICATION,
+                authToken);
         return new ResponseEntity<>(response, HttpStatus.valueOf(response.getResponseCode().value()));
     }
 
     @GetMapping("/extended/locationDetails/{userId}")
-    public ResponseEntity<Object> getLocationDetails(@PathVariable(Constants.USER_ID_RQST) String userId, @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken) {
-        ApiResponse response = profileService.readFullExtendedProfile(userId,Constants.LOCATION_DETAILS,authToken);
+    public ResponseEntity<Object> getLocationDetails(@PathVariable(Constants.USER_ID_RQST) String userId,
+            @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken) {
+        ApiResponse response = profileService.readFullExtendedProfile(userId, Constants.LOCATION_DETAILS, authToken);
         return new ResponseEntity<>(response, HttpStatus.valueOf(response.getResponseCode().value()));
     }
 
     @GetMapping("/extended/achievements/{userId}")
-    public ResponseEntity<Object> getAchievements(@PathVariable(Constants.USER_ID_RQST) String userId, @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken) {
+    public ResponseEntity<Object> getAchievements(@PathVariable(Constants.USER_ID_RQST) String userId,
+            @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken) {
         ApiResponse response = profileService.readFullExtendedProfile(userId, Constants.ACHIEVEMENTS, authToken);
         return new ResponseEntity<>(response, HttpStatus.valueOf(response.getResponseCode().value()));
     }
@@ -64,18 +70,25 @@ public class ProfileController {
     }
 
     @DeleteMapping("/extended")
-    public ResponseEntity<?> deleteExtendedProfile(@RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken,
-                                                   @RequestBody Map<String, Object> request) {
+    public ResponseEntity<?> deleteExtendedProfile(
+            @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken,
+            @RequestBody Map<String, Object> request) {
 
         ApiResponse response = profileService.deleteExtendedProfile(request, authToken);
         return new ResponseEntity<>(response, response.getResponseCode());
     }
 
     @GetMapping("/basic/{userId}")
-    public ResponseEntity<Object> getBasicProfile(@PathVariable(Constants.USER_ID_RQST) String userId, @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken) {
-        ApiResponse response = profileService.getBasicProfile(userId,authToken);
+    public ResponseEntity<Object> getBasicProfile(@PathVariable(Constants.USER_ID_RQST) String userId,
+            @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken) {
+        ApiResponse response = profileService.getBasicProfile(userId, authToken);
         return new ResponseEntity<>(response, response.getResponseCode());
     }
 
-
+    @GetMapping("/extended/competencies/{userId}")
+    public ResponseEntity<Object> getCompetencies(@PathVariable(Constants.USER_ID_RQST) String userId,
+            @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken) {
+        ApiResponse response = profileService.readFullExtendedProfile(userId, Constants.COMPETENCIES, authToken);
+        return new ResponseEntity<>(response, HttpStatus.valueOf(response.getResponseCode().value()));
+    }   
 }

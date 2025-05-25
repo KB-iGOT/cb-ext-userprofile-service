@@ -1,26 +1,35 @@
 package com.igot.cb.util;
 
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Component;
+
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.exceptions.CustomException;
 import com.igot.cb.exceptions.ResponseCode;
-import com.igot.cb.extendedprofile.service.ExtendedServiceImpl;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpStatus;
-
-import java.io.UnsupportedEncodingException;
-import java.net.URLDecoder;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.*;
 
 /**
  * This class will contains all the common utility methods.
  *
- * @author Manzarul
+ * @author Karthikeyan R
  */
+@Component
 public class ProjectUtil {
 
-    private final Logger logger = LoggerFactory.getLogger(ExtendedServiceImpl.class);
+    @Autowired
+    private ObjectMapper mapper;
+
+    TypeReference<List<Map<String, Object>>> LIST_OF_MAP_TYPE = new TypeReference<List<Map<String, Object>>>() {
+    };
+
+    TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<Map<String, Object>>() {
+    };
 
     /**
      * This method will create and return server exception to caller.
@@ -47,5 +56,19 @@ public class ProjectUtil {
         response.setResponseCode(HttpStatus.OK);
         response.setTs(java.time.LocalDateTime.now().toString());
         return response;
+    }
+
+    public static void errorResponse(ApiResponse response, String errorMessage, HttpStatus httpStatus) {
+        response.setResponseCode(httpStatus);
+        response.getParams().setErrMsg(errorMessage);
+        response.getParams().setStatus(Constants.FAILED);
+    }
+
+    public List<Map<String, Object>> parseListOfMap(String json) throws IOException {
+        return mapper.readValue(json, LIST_OF_MAP_TYPE);
+    }
+
+    public Map<String, Object> parseMap(String json) throws IOException {
+        return mapper.readValue(json, MAP_TYPE);
     }
 }

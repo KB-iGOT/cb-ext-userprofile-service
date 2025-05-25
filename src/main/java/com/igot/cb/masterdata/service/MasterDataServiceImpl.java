@@ -24,6 +24,7 @@ import java.util.*;
  * Author: mahesh.vakkund
  */
 @Service
+@SuppressWarnings("unchecked")
 public class MasterDataServiceImpl implements MasterDataService {
 
     public static final Logger logger = LoggerFactory.getLogger(MasterDataServiceImpl.class);

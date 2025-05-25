@@ -1,5 +1,7 @@
 package com.igot.cb;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.util.CbServerProperties;
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
@@ -56,4 +58,10 @@ public class CbExtUserProfileApplication {
         return new HttpComponentsClientHttpRequestFactory(client);
     }
 
+     @Bean
+    public ObjectMapper objectMapper() {
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        return mapper;
+    }
 }

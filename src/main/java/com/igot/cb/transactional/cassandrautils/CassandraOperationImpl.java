@@ -22,11 +22,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.nio.ByteBuffer;
 import java.text.MessageFormat;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
-
 
 /**
  * @author Mahesh RV
@@ -41,7 +41,7 @@ public class CassandraOperationImpl implements CassandraOperation {
     CassandraConnectionManager connectionManager;
 
     public Select processQuery(String keyspaceName, String tableName, Map<String, Object> propertyMap,
-                                List<String> fields) {
+            List<String> fields) {
         Select select;
         if (CollectionUtils.isNotEmpty(fields)) {
             select = QueryBuilder.selectFrom(keyspaceName, tableName).columns(fields);
@@ -69,10 +69,9 @@ public class CassandraOperationImpl implements CassandraOperation {
         return select;
     }
 
-
     @Override
     public List<Map<String, Object>> getRecordsByPropertiesByKey(String keyspaceName,
-                                                                 String tableName, Map<String, Object> propertyMap, List<String> fields, String key) {
+            String tableName, Map<String, Object> propertyMap, List<String> fields, String key) {
         Select selectQuery = null;
         List<Map<String, Object>> response = new ArrayList<>();
         try {
@@ -99,7 +98,8 @@ public class CassandraOperationImpl implements CassandraOperation {
             session.execute(boundStatement);
             response.put(Constants.RESPONSE, Constants.SUCCESS);
         } catch (Exception e) {
-            String errMsg = String.format("Exception occurred while inserting record to %s %s", tableName, e.getMessage());
+            String errMsg = String.format("Exception occurred while inserting record to %s %s", tableName,
+                    e.getMessage());
             logger.error("Error inserting record into {}: {}", tableName, e.getMessage());
             response.put(Constants.RESPONSE, Constants.FAILED);
             response.put(Constants.ERROR_MESSAGE, errMsg);
@@ -108,14 +108,16 @@ public class CassandraOperationImpl implements CassandraOperation {
     }
 
     @Override
-    public List<Map<String, Object>> getRecordsByPropertiesWithoutFiltering(String keyspaceName, String tableName, Map<String, Object> propertyMap, List<String> fields, Integer limit) {
+    public List<Map<String, Object>> getRecordsByPropertiesWithoutFiltering(String keyspaceName, String tableName,
+            Map<String, Object> propertyMap, List<String> fields, Integer limit) {
 
         List<Map<String, Object>> response = new ArrayList<>();
         try {
             Select selectQuery = null;
             selectQuery = processQuery(keyspaceName, tableName, propertyMap, fields);
 
-            if (limit != null) selectQuery = selectQuery.limit(limit);
+            if (limit != null)
+                selectQuery = selectQuery.limit(limit);
             String queryString = selectQuery.toString();
             SimpleStatement statement = SimpleStatement.newInstance(queryString);
             ResultSet results = connectionManager.getSession(keyspaceName).execute(statement);
@@ -159,7 +161,8 @@ public class CassandraOperationImpl implements CassandraOperation {
             if (e.getMessage().contains(Constants.UNKNOWN_IDENTIFIER)) {
                 logger.error(
                         Constants.EXCEPTION_MSG_UPDATE + tableName + " : " + e.getMessage(), e);
-                String errMsg = String.format("Exception occurred while updating record to to %s %s", tableName, e.getMessage());
+                String errMsg = String.format("Exception occurred while updating record to to %s %s", tableName,
+                        e.getMessage());
                 response.put(Constants.RESPONSE, Constants.FAILED);
                 response.put(Constants.ERROR_MESSAGE, errMsg);
             }
@@ -172,9 +175,8 @@ public class CassandraOperationImpl implements CassandraOperation {
 
     public static String getUpdateQueryStatement(
             String keyspaceName, String tableName, Map<String, Object> map) {
-        StringBuilder query =
-                new StringBuilder(
-                        Constants.UPDATE + keyspaceName + Constants.DOT + tableName + Constants.SET);
+        StringBuilder query = new StringBuilder(
+                Constants.UPDATE + keyspaceName + Constants.DOT + tableName + Constants.SET);
         Set<String> key = new HashSet<>(map.keySet());
         key.remove(Constants.ID);
         query.append(String.join(" = ? ,", key));
@@ -188,15 +190,15 @@ public class CassandraOperationImpl implements CassandraOperation {
         logger.info("Cassandra query : " + query);
         long stopTime = System.currentTimeMillis();
         long elapsedTime = stopTime - startTime;
-        String message =
-                "Cassandra operation {0} started at {1} and completed at {2}. Total time elapsed is {3}.";
+        String message = "Cassandra operation {0} started at {1} and completed at {2}. Total time elapsed is {3}.";
         MessageFormat mf = new MessageFormat(message);
-        logger.debug(mf.format(new Object[]{operation, startTime, stopTime, elapsedTime}));
+        logger.debug(mf.format(new Object[] { operation, startTime, stopTime, elapsedTime }));
     }
 
     @Override
-    public Map<String, Object> updateRecordByCompositeKey(String keyspaceName, String tableName, Map<String, Object> updateAttributes,
-                                                          Map<String, Object> compositeKey) {
+    public Map<String, Object> updateRecordByCompositeKey(String keyspaceName, String tableName,
+            Map<String, Object> updateAttributes,
+            Map<String, Object> compositeKey) {
         Map<String, Object> response = new HashMap<>();
         CqlSession session = null;
         try {
@@ -212,7 +214,8 @@ public class CassandraOperationImpl implements CassandraOperation {
             session.execute(statement);
             response.put(Constants.RESPONSE, Constants.SUCCESS);
         } catch (Exception e) {
-            String errMsg = String.format("Exception occurred while updating record to %s: %s", tableName, e.getMessage());
+            String errMsg = String.format("Exception occurred while updating record to %s: %s", tableName,
+                    e.getMessage());
             logger.error(errMsg, e);
             response.put(Constants.RESPONSE, Constants.FAILED);
             response.put(Constants.ERROR_MESSAGE, errMsg);
@@ -220,4 +223,34 @@ public class CassandraOperationImpl implements CassandraOperation {
         }
         return response;
     }
+
+    public List<Map<String, Object>> getAllRecordsForUserId(String keyspaceName, String tableName,
+            String userId, List<String> fields, int pageSize) {
+        List<Map<String, Object>> allResults = new ArrayList<>();
+        ByteBuffer pagingState = null;
+
+        try {
+            Map<String, Object> propertyMap = Map.of("userid", userId);
+            do {
+                Select selectQuery = processQuery(keyspaceName, tableName, propertyMap, fields);
+                SimpleStatement statement = selectQuery.limit(pageSize).build();
+
+                if (pagingState != null) {
+                    statement = statement.setPagingState(pagingState);
+                }
+
+                CqlSession session = connectionManager.getSession(keyspaceName);
+                ResultSet resultSet = session.execute(statement);
+
+                List<Map<String, Object>> pageResults = CassandraUtil.createResponse(resultSet);
+                allResults.addAll(pageResults);
+
+                pagingState = resultSet.getExecutionInfo().getPagingState();
+            } while (pagingState != null);
+        } catch (Exception e) {
+            logger.error("Failed to fetch all records for userId {}: {}", userId, e.getMessage(), e);
+        }
+        return allResults;
+    }
+
 }
