@@ -203,8 +203,9 @@ public class ProfileServiceImpl implements ProfileService {
             String cachedJson = cacheService.getCache(redisKey);
             if (cachedJson != null) {
                 Map<String, Object> cachedResult = mapper.readValue(cachedJson, Map.class);
+                Map<String, Object> limitedResult = buildLimitedSummary(cachedResult);
                 response.setResponseCode(HttpStatus.OK);
-                response.put(Constants.RESPONSE, cachedResult);
+                response.put(Constants.RESPONSE, limitedResult);
                 return response;
             }
         } catch (Exception e) {
@@ -469,20 +470,20 @@ public class ProfileServiceImpl implements ProfileService {
             return "Request data is missing.";
         List<String> errList = new ArrayList<>();
         validateFieldsForList(requestData, Constants.EDUCATIONAL_QUALIFICATIONS,
-                serverConfig.getEducationalQualificationMandatoryFields(), errList);
+                serverConfig.getEducationalQualificationMandatoryFields(), errList, false);
         validateFieldsForList(requestData, Constants.ACHIVEMENTS, serverConfig.getAchievementsMandatoryFields(),
-                errList);
+                errList, false);
         validateFieldsForList(requestData, Constants.SERVICE_HISTORY, serverConfig.getServiceHistoryMandatoryFields(),
-                errList);
+                errList, true);
         return errList.isEmpty() ? "" : "Failed Due To Missing or Invalid Params - " + String.join(", ", errList) + ".";
     }
 
     private void validateFieldsForList(Map<String, Object> requestData, String listKey, String mandatoryFields,
-            List<String> errList) {
+            List<String> errList, boolean allowSkipEndDate) {
         List<Map<String, Object>> dataList = (List<Map<String, Object>>) requestData.get(listKey);
         if (dataList != null) {
             for (Map<String, Object> data : dataList) {
-                String error = validateFields(data, mandatoryFields);
+                String error = validateFields(data, mandatoryFields, allowSkipEndDate);
                 if (!error.isEmpty()) {
                     errList.add(error);
                 }
@@ -490,9 +491,15 @@ public class ProfileServiceImpl implements ProfileService {
         }
     }
 
-    private String validateFields(Map<String, Object> data, String mandatoryFields) {
+    private String validateFields(Map<String, Object> data, String mandatoryFields, boolean allowSkipEndDate) {
         StringBuilder errorMessages = new StringBuilder();
         for (String field : mandatoryFields.split(",")) {
+            if (allowSkipEndDate && Constants.END_DATE.equals(field)) {
+                Object currentlyWorking = data.get(Constants.CURRENTLY_WORKING);
+                if (Constants.TRUE.equalsIgnoreCase(String.valueOf(currentlyWorking))) {
+                    continue;
+                }
+            }
             if (StringUtils.isBlank((String) data.get(field))) {
                 errorMessages.append(field).append(" is mandatory. ");
             }
@@ -697,5 +704,34 @@ public class ProfileServiceImpl implements ProfileService {
         result.put("competencyThemeGroups", groupedThemes);
         return result;
     }
+
+    private Map<String, Object> buildLimitedSummary(Map<String, Object> fullData) {
+        Map<String, Object> limitedData = new HashMap<>();
+
+        for (Map.Entry<String, Object> entry : fullData.entrySet()) {
+            String key = entry.getKey();
+
+            if (!(entry.getValue() instanceof Map)) {
+                limitedData.put(key, entry.getValue());
+                continue;
+            }
+
+            Map<String, Object> contextBlock = (Map<String, Object>) entry.getValue();
+            Object dataObj = contextBlock.get(Constants.DATA);
+
+            if (dataObj instanceof List) {
+                List<Map<String, Object>> dataList = (List<Map<String, Object>>) dataObj;
+                Map<String, Object> limitedBlock = new HashMap<>();
+                limitedBlock.put(Constants.COUNT, contextBlock.get(Constants.COUNT));
+                limitedBlock.put(Constants.DATA, dataList.size() > 2 ? dataList.subList(0, 2) : dataList);
+                limitedData.put(key, limitedBlock);
+            } else {
+                limitedData.put(key, contextBlock);
+            }
+        }
+
+        return limitedData;
+    }
+
 
 }
