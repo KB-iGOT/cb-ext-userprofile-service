@@ -64,7 +64,7 @@ public class Constants {
     public static final String SUB = "sub";
     public static final String SSO_URL = "sso.url";
     public static final String SSO_REALM = "sso.realm";
-    public static final String ACCESS_TOKEN_PUBLICKEY_BASEPATH = "accesstoken_publickey_basepath";
+    public static final String ACCESS_TOKEN_PUBLICKEY_BASEPATH = "accesstoken.publickey.basepath";
     public static final String NO_DATA_FOUND = "No data found";
     public static final String SUCCESSFULLY_CREATED = "successfully created";
     public static final String ID = "id";
