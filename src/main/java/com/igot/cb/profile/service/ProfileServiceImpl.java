@@ -455,8 +455,8 @@ public class ProfileServiceImpl implements ProfileService {
                     })
                     : new HashMap<>();
             Map<String, Object> updatedContext = new HashMap<>();
-            updatedContext.put("data", updatedContextData);
-            updatedContext.put("count", updatedContextData != null ? updatedContextData.size() : 0);
+            updatedContext.put(Constants.DATA, updatedContextData);
+            updatedContext.put(Constants.COUNT, updatedContextData != null ? updatedContextData.size() : 0);
             allProfileData.put(contextType, updatedContext);
             cacheService.putCache(allKey, mapper.writeValueAsString(allProfileData));
         } catch (Exception e) {
