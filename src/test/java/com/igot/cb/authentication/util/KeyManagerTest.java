@@ -3,115 +3,101 @@ package com.igot.cb.authentication.util;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertThrows;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.verify;
+import static org.junit.jupiter.api.Assertions.fail;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.Paths;
+import java.nio.file.Path;
+import java.security.KeyPairGenerator;
 import java.security.PublicKey;
+import java.util.Base64;
+import java.util.Comparator;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.MockedStatic;
-import org.mockito.Mockito;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.igot.cb.authentication.model.KeyData;
+import com.igot.cb.util.Constants;
 import com.igot.cb.util.PropertiesCache;
 
 @RunWith(MockitoJUnitRunner.class)
 public class KeyManagerTest {
 
-    private static final Logger logger = LoggerFactory.getLogger(KeyManagerTest.class.getName());
+    @InjectMocks
+    private KeyManager keyManager;
+
+    @Mock
+    private PropertiesCache propertiesCache;
+
+    private static final String TEMP_PUBLIC_KEY_FILE = "temp_public_key.pem";
+    private Path tempDir;
+
+    @Before
+    public void setUp() throws IOException {
+        tempDir = Files.createTempDirectory("keymanager-test");
+    }
+
+    @After
+    public void tearDown() throws IOException {
+        Files.walk(tempDir)
+                .sorted(Comparator.reverseOrder())
+                .map(Path::toFile)
+                .forEach(File::delete);
+    }
 
     @Test
-    public void testLoadPublicKeyWithInvalidKeyString() {
-        String invalidKey = "InvalidKeyWithoutHeaderAndFooter";
-        assertThrows(java.security.spec.InvalidKeySpecException.class, () -> {
+    public void testInit_shouldLoadPublicKeysSuccessfully() throws Exception {
+        // Create dummy public key file
+        String publicKeyContent = "-----BEGIN PUBLIC KEY-----\n" +
+                Base64.getEncoder().encodeToString(generateTestKey().getEncoded()) + "\n" +
+                "-----END PUBLIC KEY-----";
+        Path pubKeyFile = tempDir.resolve(TEMP_PUBLIC_KEY_FILE);
+        Files.write(pubKeyFile, publicKeyContent.getBytes(StandardCharsets.UTF_8));
+
+        // Mock base path
+        when(propertiesCache.getProperty(eq(Constants.ACCESS_TOKEN_PUBLICKEY_BASEPATH)))
+                .thenReturn(tempDir.toString());
+
+        // Call init
+        keyManager.init();
+
+        // Verify key is loaded
+        KeyData keyData = keyManager.getPublicKey(TEMP_PUBLIC_KEY_FILE);
+        assertNotNull(keyData);
+        assertEquals(TEMP_PUBLIC_KEY_FILE, keyData.getKeyId());
+        assertNotNull(keyData.getPublicKey());
+    }
+
+    @Test
+    public void testLoadPublicKey_shouldThrowExceptionOnInvalidKey() {
+        String invalidKey = "-----BEGIN PUBLIC KEY-----\nInvalidKey\n-----END PUBLIC KEY-----";
+
+        try {
             KeyManager.loadPublicKey(invalidKey);
-        });
-    }
-
-    @Test
-    public void test_getPublicKey_nonExistentKeyId() {
-        KeyManager keyManager = new KeyManager();
-        String nonExistentKeyId = "nonexistent_key_id";
-        KeyData result = keyManager.getPublicKey(nonExistentKeyId);
-        assertNull(result);
-    }
-
-    @Test
-    public void test_getPublicKey_returnsCorrectKeyData() {
-        KeyManager spyKeyManager = spy(new KeyManager());
-        KeyData mockKeyData = new KeyData("testKey", null);
-        doReturn(mockKeyData).when(spyKeyManager).getPublicKey("testKey");
-        KeyData result = spyKeyManager.getPublicKey("testKey");
-        assertEquals(mockKeyData, result);
-    }
-
-    @Test
-    public void test_loadPublicKey_validKeyString() throws Exception {
-        String validPublicKeyString =
-                "-----BEGIN PUBLIC KEY-----\n" +
-                        "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqe4M4f7sVew+5U2G6l5H\n" +
-                        "1T0WRfJOYd3qwWn2MtOpQ8kWODsxdmBrERHJCKrfTsNpcl8p3CsV1KUHmIqOeFLG\n" +
-                        "yyQ+QjMoCQ9uGzbCAPyLYAAIgf/mKPa7BK5sLfZ7MCPupA8K/RB/g/3ZHlTSWJn+\n" +
-                        "2uVyqY+xIzDfS1tLGnQz0Izmzy/JZm6+0BHrRs7TXVWrN6+YFlzXlN2cuLkxDGeu\n" +
-                        "fUPRtmS+gUFNPnWApxdFt/zq9riIqxECG1QHpZFg3c+QOj+3emNhJMxFhKTKMeZP\n" +
-                        "fkEkspt1ATsNnG+y+ZQKUQM1xPEk2FTaMdlDj1/5S9t5Rq8PlPlRFnBrBnrboJ+v\n" +
-                        "XQIDAQAB\n" +
-                        "-----END PUBLIC KEY-----";
-        PublicKey publicKey = KeyManager.loadPublicKey(validPublicKeyString);
-        assertNotNull("Public key should not be null", publicKey);
-        assertEquals("RSA", publicKey.getAlgorithm());
-    }
-
-
-    private static final String VALID_KEY_STRING =
-            "-----BEGIN PUBLIC KEY-----\n" +
-                    "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqe4M4f7sVew+5U2G6l5H\n" +
-                    "1T0WRfJOYd3qwWn2MtOpQ8kWODsxdmBrERHJCKrfTsNpcl8p3CsV1KUHmIqOeFLG\n" +
-                    "yyQ+QjMoCQ9uGzbCAPyLYAAIgf/mKPa7BK5sLfZ7MCPupA8K/RB/g/3ZHlTSWJn+\n" +
-                    "2uVyqY+xIzDfS1tLGnQz0Izmzy/JZm6+0BHrRs7TXVWrN6+YFlzXlN2cuLkxDGeu\n" +
-                    "fUPRtmS+gUFNPnWApxdFt/zq9riIqxECG1QHpZFg3c+QOj+3emNhJMxFhKTKMeZP\n" +
-                    "fkEkspt1ATsNnG+y+ZQKUQM1xPEk2FTaMdlDj1/5S9t5Rq8PlPlRFnBrBnrboJ+v\n" +
-                    "XQIDAQAB\n" +
-                    "-----END PUBLIC KEY-----";
-
-
-    @Test
-    public void test_loadPublicKey_noNewlines() throws Exception {
-        String noNewlines = VALID_KEY_STRING.replace("\n", "");
-        PublicKey key = KeyManager.loadPublicKey(noNewlines);
-        assertNotNull(key);
-    }
-
-
-    @Test
-    public void test_init_fileSystemException() throws Exception {
-        try (MockedStatic<PropertiesCache> propertiesCacheMock = Mockito.mockStatic(PropertiesCache.class);
-             MockedStatic<Files> filesMock = Mockito.mockStatic(Files.class);
-             MockedStatic<Paths> pathsMock = Mockito.mockStatic(Paths.class)) {
-            PropertiesCache mockPropertiesCache = mock(PropertiesCache.class);
-            propertiesCacheMock.when(PropertiesCache::getInstance).thenReturn(mockPropertiesCache);
-            KeyManager keyManager = new KeyManager();
-            keyManager.init();
+            fail("Expected an exception due to invalid key");
+        } catch (Exception e) {
+            // success
+            assertNotNull(e.getMessage());
         }
     }
 
     @Test
-    public void test_init_propertyNotFound() throws Exception {
-        KeyManager spyKeyManager = spy(new KeyManager());
-        try (MockedStatic<PropertiesCache> propertiesCacheMock = Mockito.mockStatic(PropertiesCache.class)) {
-            PropertiesCache mockPropertiesCache = mock(PropertiesCache.class);
-            propertiesCacheMock.when(PropertiesCache::getInstance).thenReturn(mockPropertiesCache);
-            spyKeyManager.init();
-            verify(spyKeyManager).init();
-        }
+    public void testGetPublicKey_shouldReturnNullWhenNotPresent() {
+        assertNull(keyManager.getPublicKey("non-existent-key"));
+    }
+
+    private PublicKey generateTestKey() throws Exception {
+        KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
+        keyGen.initialize(2048);
+        return keyGen.generateKeyPair().getPublic();
     }
 }

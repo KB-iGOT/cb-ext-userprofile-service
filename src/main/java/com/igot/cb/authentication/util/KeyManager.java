@@ -1,15 +1,5 @@
 package com.igot.cb.authentication.util;
 
-import com.igot.cb.authentication.model.KeyData;
-
-import com.igot.cb.util.Constants;
-import com.igot.cb.util.PropertiesCache;
-import jakarta.annotation.PostConstruct;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
-
-
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -24,16 +14,27 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.springframework.stereotype.Component;
+
+import com.igot.cb.authentication.model.KeyData;
+import com.igot.cb.util.Constants;
+import com.igot.cb.util.PropertiesCache;
+
+import jakarta.annotation.PostConstruct;
+import lombok.extern.slf4j.Slf4j;
+
 /**
  * @author Mahesh RV
  */
 @Component
+@Slf4j
 public class KeyManager {
+  private final PropertiesCache propertiesCache;
+  private final Map<String, KeyData> keyMap = new HashMap<>();
 
-  private static final Logger logger = LoggerFactory.getLogger(KeyManager.class.getName());
-  private static final PropertiesCache propertiesCache = PropertiesCache.getInstance();
-
-  private static final Map<String, KeyData> keyMap = new HashMap<>();
+  public KeyManager(PropertiesCache propertiesCache) {
+    this.propertiesCache = propertiesCache;
+  }
 
   @PostConstruct
   public void init() {
@@ -51,11 +52,11 @@ public class KeyManager {
           // Store the KeyData object in the keyMap
           keyMap.put(path.getFileName().toString(), keyData);
         } catch (Exception e) {
-          logger.error("KeyManager:init: exception in reading public keys ", e);
+          log.error("KeyManager:init: exception in reading public keys ", e);
         }
       });
     } catch (Exception e) {
-      logger.error("KeyManager:init: exception in loading publickeys ", e);
+      log.error("KeyManager:init: exception in loading publickeys ", e);
     }
   }
 

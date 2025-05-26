@@ -3,6 +3,8 @@ package com.igot.cb;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.util.CbServerProperties;
+import com.igot.cb.util.PropertiesCache;
+
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
@@ -39,6 +41,11 @@ public class CbExtUserProfileApplication {
     @Bean
     public RestTemplate restTemplate() {
         return new RestTemplate(getClientHttpRequestFactory());
+    }
+
+    @Bean
+    public PropertiesCache propertiesCache() {
+        return PropertiesCache.getInstance();
     }
 
     private ClientHttpRequestFactory getClientHttpRequestFactory() {
