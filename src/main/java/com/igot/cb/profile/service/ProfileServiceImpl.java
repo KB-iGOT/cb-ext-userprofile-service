@@ -26,19 +26,19 @@ public class ProfileServiceImpl implements ProfileService {
 
     @Autowired
     private AccessTokenValidator accessTokenValidator;
-    
+
     @Autowired
     private CbServerProperties serverConfig;
-    
+
     @Autowired
     private CassandraOperation cassandraOperation;
-    
+
     @Autowired
     private CacheService cacheService;
-    
+
     @Autowired
     private ObjectMapper mapper;
-    
+
     @Autowired
     private ProjectUtil projectUtil;
 
@@ -329,6 +329,61 @@ public class ProfileServiceImpl implements ProfileService {
         return response;
     }
 
+    @Override
+    public ApiResponse listCompetencies(String userId, String userToken) {
+        ApiResponse response = ProjectUtil.createDefaultResponse("api.listCompetencies.read");
+        String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
+
+        if (userIdFromToken == null) {
+            ProjectUtil.errorResponse(response, "Invalid or missing access token", HttpStatus.UNAUTHORIZED);
+            return response;
+        }
+
+        String cacheKey = Constants.USER + ":competencies:" + userId;
+        try {
+            String cachedJson = cacheService.getCache(cacheKey);
+            Map<String, Object> competencies = (cachedJson != null) ? projectUtil.parseMap(cachedJson) : Map.of();
+
+            if (competencies.isEmpty()) {
+                Map<String, Object> queryParams = Map.of(Constants.USERID_KEY, userId);
+                List<String> fields = Arrays.asList(Constants.USERID_KEY, Constants.COURSE_ID, Constants.BATCH_ID,
+                        Constants.ACTIVE, Constants.STATUS);
+                List<Map<String, Object>> allEnrolmentRecords = cassandraOperation.getAllRecordsByPrimaryKey(
+                        Constants.KEYSPACE_SUNBIRD_COURSES,
+                        Constants.TABLE_USER_ENROLMENTS, queryParams, fields, 100);
+                List<String> completedCourseIdList = allEnrolmentRecords.stream()
+                        .filter(map -> Boolean.TRUE.equals(map.get(Constants.ACTIVE))
+                                && Integer.valueOf(2).equals(map.get(Constants.STATUS)))
+                        .map(map -> map.get(Constants.COURSE_ID)).filter(String.class::isInstance).map(String.class::cast)
+                        .distinct().toList();
+                if (completedCourseIdList.isEmpty()) {
+                    ProjectUtil.errorResponse(response, "No competencies found for user.", HttpStatus.NO_CONTENT);
+                    return response;
+                }
+                Map<String, Map<String, Object>> courseMetadata = getCourseMetadataBatched(completedCourseIdList, 100,
+                        Arrays.asList(Constants.COURSE_ID, Constants.COURSE_CATEGORY, Constants.COMPETENCIES_V7,
+                                Constants.NAME));
+                competencies = analyzeCompetencies(courseMetadata);
+                response.put("competencies", competencies);
+
+                if (competencies.isEmpty()) {
+                    ProjectUtil.errorResponse(response, "No competencies found for user.", HttpStatus.NO_CONTENT);
+                    return response;
+                }
+                cacheService.putCache(cacheKey, mapper.writeValueAsString(competencies));
+            }
+
+            response.setResponseCode(HttpStatus.OK);
+            response.put(Constants.RESPONSE, competencies);
+        } catch (Exception e) {
+            logger.error("Error fetching competencies for userId: {}", userId, e);
+            ProjectUtil.errorResponse(response, "Internal server error while fetching competencies",
+                    HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+
+        return response;
+    }
+
     // -------------------- HELPER METHODS --------------------
 
     private List<Map<String, Object>> addUUIDs(List<Map<String, Object>> list) {
@@ -338,7 +393,7 @@ public class ProfileServiceImpl implements ProfileService {
 
     private List<Map<String, Object>> getExistingContextData(String userId, String contextType) {
         Map<String, Object> query = Map.of(Constants.USERID_KEY, userId, Constants.CONTEXT_TYPE, contextType);
-        List<Map<String, Object>> rows = cassandraOperation.getRecordsByPropertiesByKey(Constants.DATABASE,
+        List<Map<String, Object>> rows = cassandraOperation.getRecordsByPropertiesByKey(Constants.KEYSPACE_SUNBIRD,
                 Constants.TABLE_USER_EXTENDED_PROFILE, query, null, null);
         if (rows != null && !rows.isEmpty()) {
             String json = (String) rows.get(0).get(Constants.CONTEXT_DATA);
@@ -358,7 +413,7 @@ public class ProfileServiceImpl implements ProfileService {
             query.put(Constants.USERID_KEY, userId);
             query.put(Constants.CONTEXT_TYPE, contextType);
             query.put(Constants.CONTEXT_DATA, finalJson);
-            ApiResponse insertResponse = (ApiResponse) cassandraOperation.insertRecord(Constants.DATABASE,
+            ApiResponse insertResponse = (ApiResponse) cassandraOperation.insertRecord(Constants.KEYSPACE_SUNBIRD,
                     Constants.TABLE_USER_EXTENDED_PROFILE, query);
             return Constants.SUCCESS.equalsIgnoreCase((String) insertResponse.get(Constants.RESPONSE));
         } catch (JsonProcessingException e) {
@@ -534,4 +589,110 @@ public class ProfileServiceImpl implements ProfileService {
         }
         return false;
     }
+
+    public Map<String, Map<String, Object>> getCourseMetadataBatched(List<String> courseIds, int batchSize,
+            List<String> fields) {
+        Map<String, Map<String, Object>> allResults = new LinkedHashMap<>();
+        if (courseIds == null || courseIds.isEmpty())
+            return allResults;
+
+        for (int i = 0; i < courseIds.size(); i += batchSize) {
+            int end = Math.min(i + batchSize, courseIds.size());
+            List<String> batch = courseIds.subList(i, end);
+
+            Map<String, String> courseDetailsStrMap = cacheService.getCourseMetadataAsJsonString(batch);
+
+            for (int j = 0; j < batch.size(); j++) {
+                String courseId = batch.get(j);
+                String json = courseDetailsStrMap.get(courseId);
+
+                if (json != null) {
+                    try {
+                        Map<String, Object> parsed = projectUtil.parseMap(json);
+                        if (parsed == null || parsed.isEmpty()) {
+                            logger.warn("Parsed JSON for key {} is empty or null", courseId);
+                            continue;
+                        }
+
+                        if (fields == null || fields.isEmpty()) {
+                            allResults.put(courseId, parsed);
+                        } else {
+                            // Filter only requested fields
+                            Map<String, Object> filtered = parsed.entrySet().stream()
+                                    .filter(e -> fields.contains(e.getKey()))
+                                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+                            if (!filtered.isEmpty()) {
+                                allResults.put(courseId, filtered);
+                            }
+                        }
+                    } catch (Exception e) {
+                        logger.error("Failed to parse JSON for key {}: {}", courseId, e.getMessage(), e);
+                    }
+                } else {
+                    logger.warn("No cached data found for courseId: {}", courseId);
+                }
+            }
+        }
+        return allResults;
+    }
+
+    public Map<String, Object> analyzeCompetencies(Map<String, Map<String, Object>> courseMetadata) {
+        // Result containers
+        Map<String, Long> areaCountMap = new HashMap<>();
+        Map<String, Map<String, Object>> themeGroupMap = new HashMap<>();
+
+        for (Map.Entry<String, Map<String, Object>> entry : courseMetadata.entrySet()) {
+            String courseId = entry.getKey();
+            Map<String, Object> course = entry.getValue();
+
+            Object compObj = course.get("competencies_v6");
+            if (!(compObj instanceof List<?> competencies))
+                continue;
+
+            for (Object comp : competencies) {
+                if (!(comp instanceof Map<?, ?> compMap))
+                    continue;
+
+                String areaName = String.valueOf(compMap.get("competencyAreaName"));
+                String themeName = String.valueOf(compMap.get("competencyThemeName"));
+                String subThemeName = String.valueOf(compMap.get("competencySubThemeName"));
+
+                // 1. Count by competencyAreaName
+                areaCountMap.merge(areaName, 1L, Long::sum);
+
+                // 2. Group by competencyThemeName
+                themeGroupMap.computeIfAbsent(themeName, k -> {
+                    Map<String, Object> m = new HashMap<>();
+                    m.put("competencySubThemeNames", new HashSet<String>());
+                    m.put("courseIds", new HashSet<String>());
+                    return m;
+                });
+
+                Set<String> subThemes = (Set<String>) themeGroupMap.get(themeName).get("competencySubThemeNames");
+                Set<String> courseIds = (Set<String>) themeGroupMap.get(themeName).get("courseIds");
+
+                if (subThemeName != null && !subThemeName.isBlank())
+                    subThemes.add(subThemeName);
+                courseIds.add(courseId);
+            }
+        }
+
+        // Prepare final output
+        Map<String, Object> result = new HashMap<>();
+        result.put("competencyAreaCounts", areaCountMap);
+
+        // Convert sets to lists for serialization/final response
+        Map<String, Map<String, Object>> groupedThemes = new LinkedHashMap<>();
+        for (Map.Entry<String, Map<String, Object>> entry : themeGroupMap.entrySet()) {
+            groupedThemes.put(entry.getKey(), Map.of(
+                    "competencySubThemeNames",
+                    new ArrayList<>((Set<?>) entry.getValue().get("competencySubThemeNames")),
+                    "courseIds", new ArrayList<>((Set<?>) entry.getValue().get("courseIds"))));
+        }
+
+        result.put("competencyThemeGroups", groupedThemes);
+        return result;
+    }
+
 }

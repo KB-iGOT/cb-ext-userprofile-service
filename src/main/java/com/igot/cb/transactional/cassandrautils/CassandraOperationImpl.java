@@ -15,6 +15,8 @@ import com.datastax.oss.driver.api.querybuilder.update.UpdateStart;
 import com.datastax.oss.driver.api.querybuilder.update.UpdateWithAssignments;
 import com.igot.cb.util.ApiResponse;
 import com.igot.cb.util.Constants;
+import com.igot.cb.util.ProjectUtil;
+
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.slf4j.Logger;
@@ -39,6 +41,9 @@ public class CassandraOperationImpl implements CassandraOperation {
 
     @Autowired
     CassandraConnectionManager connectionManager;
+
+    @Autowired
+    ProjectUtil projectUtil;
 
     public Select processQuery(String keyspaceName, String tableName, Map<String, Object> propertyMap,
             List<String> fields) {
@@ -224,15 +229,17 @@ public class CassandraOperationImpl implements CassandraOperation {
         return response;
     }
 
-    public List<Map<String, Object>> getAllRecordsForUserId(String keyspaceName, String tableName,
-            String userId, List<String> fields, int pageSize) {
+    public List<Map<String, Object>> getAllRecordsByPrimaryKey(String keyspaceName, String tableName,
+            Map<String, Object> primaryKey, List<String> fields, int pageSize) {
         List<Map<String, Object>> allResults = new ArrayList<>();
+        logger.info(
+                "CassandraOperationImpl::getAllRecordsByPrimaryKey: Fetching all records for table: {} with primaryKey: {}",
+                tableName,
+                projectUtil.convertToString(primaryKey));
         ByteBuffer pagingState = null;
-
         try {
-            Map<String, Object> propertyMap = Map.of("userid", userId);
             do {
-                Select selectQuery = processQuery(keyspaceName, tableName, propertyMap, fields);
+                Select selectQuery = processQuery(keyspaceName, tableName, primaryKey, fields);
                 SimpleStatement statement = selectQuery.limit(pageSize).build();
 
                 if (pagingState != null) {
@@ -247,10 +254,14 @@ public class CassandraOperationImpl implements CassandraOperation {
 
                 pagingState = resultSet.getExecutionInfo().getPagingState();
             } while (pagingState != null);
+            logger.info("CassandraOperationImpl::getAllRecordsByPrimaryKey: Fetched {} records from table: {}",
+                    allResults.size(), tableName);
         } catch (Exception e) {
-            logger.error("Failed to fetch all records for userId {}: {}", userId, e.getMessage(), e);
+            logger.error(
+                    "CassandraOperationImpl::getAllRecordsByPrimaryKey: Failed to fetch all records for table {}: with primaryKey: {}",
+                    tableName,
+                    projectUtil.convertToString(primaryKey), e);
         }
         return allResults;
     }
-
 }

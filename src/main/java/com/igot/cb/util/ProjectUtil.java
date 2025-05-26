@@ -14,12 +14,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.exceptions.CustomException;
 import com.igot.cb.exceptions.ResponseCode;
 
+import lombok.extern.slf4j.Slf4j;
+
 /**
  * This class will contains all the common utility methods.
  *
  * @author Karthikeyan R
  */
 @Component
+@Slf4j
 public class ProjectUtil {
 
     @Autowired
@@ -70,5 +73,14 @@ public class ProjectUtil {
 
     public Map<String, Object> parseMap(String json) throws IOException {
         return mapper.readValue(json, MAP_TYPE);
+    }
+
+    public String convertToString(Object object) {
+        try {
+            return mapper.writeValueAsString(object);
+        } catch (IOException e) {
+            log.error("Error converting object to string: {}", e.getMessage(), e);
+            return null;
+        }
     }
 }

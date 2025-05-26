@@ -88,7 +88,7 @@ public class ProfileController {
     @GetMapping("/extended/competencies/{userId}")
     public ResponseEntity<Object> getCompetencies(@PathVariable(Constants.USER_ID_RQST) String userId,
             @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken) {
-        ApiResponse response = profileService.readFullExtendedProfile(userId, Constants.COMPETENCIES, authToken);
+        ApiResponse response = profileService.listCompetencies(userId, authToken);
         return new ResponseEntity<>(response, HttpStatus.valueOf(response.getResponseCode().value()));
-    }   
+    }
 }

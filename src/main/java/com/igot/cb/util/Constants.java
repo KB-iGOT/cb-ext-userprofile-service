@@ -7,6 +7,7 @@ public class Constants {
 
     public static final String KEYSPACE_SUNBIRD = "sunbird";
     public static final String KEYSPACE_SUNBIRD_COURSES = "sunbird_courses";
+    public static final String TABLE_USER_ENROLMENTS = "user_enrolments";
     public static final String CORE_CONNECTIONS_PER_HOST_FOR_LOCAL = "coreConnectionsPerHostForLocal";
     public static final String CORE_CONNECTIONS_PER_HOST_FOR_REMOTE = "coreConnectionsPerHostForRemote";
     public static final String MAX_CONNECTIONS_PER_HOST_FOR_LOCAL = "maxConnectionsPerHostForLocal";
@@ -38,7 +39,6 @@ public class Constants {
     public static final String CREATED_ON = "createdOn";
     public static final String UPDATED_ON = "updatedOn";
     public static final String DATA = "data";
-    public static final String DATABASE = "sunbird";
     public static final String TABLE = "interest_capture";
     public static final String REGEX = "^\"|\"$";
     public static final String IS_ACTIVE = "isActive";
@@ -63,7 +63,7 @@ public class Constants {
     public static final String SUB = "sub";
     public static final String SSO_URL = "sso.url";
     public static final String SSO_REALM = "sso.realm";
-    public static final String ACCESS_TOKEN_PUBLICKEY_BASEPATH = "accesstoken.publickey.basepath";
+    public static final String ACCESS_TOKEN_PUBLICKEY_BASEPATH = "accesstoken_publickey_basepath";
     public static final String NO_DATA_FOUND = "No data found";
     public static final String SUCCESSFULLY_CREATED = "successfully created";
     public static final String ID = "id";
@@ -396,6 +396,10 @@ public class Constants {
     public static final String ACHIEVEMENTS = "achievements";
     public static final String LOCATION_DETAILS = "locationDetails";
     public static final String EDUCATION_QUALIFICATION = "educationalQualifications";
+    public static final String COURSE_ID = "courseId";
+    public static final String BATCH_ID = "batchId";
+    public static final String COMPETENCIES_V7 = "competencies_v7";
+    public static final String COURSE_CATEGORY = "courseCategory";
 
     private Constants() {
     }
