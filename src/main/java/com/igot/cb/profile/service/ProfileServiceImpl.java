@@ -450,11 +450,14 @@ public class ProfileServiceImpl implements ProfileService {
         String allKey = "user:extendedProfile:all:" + userId;
         try {
             String allJson = cacheService.getCache(allKey);
-            Map<String, List<Map<String, Object>>> allProfileData = (allJson != null && !allJson.isEmpty())
+            Map<String, Object> allProfileData = (allJson != null && !allJson.isEmpty())
                     ? mapper.readValue(allJson, new TypeReference<>() {
                     })
                     : new HashMap<>();
-            allProfileData.put(contextType, updatedContextData);
+            Map<String, Object> updatedContext = new HashMap<>();
+            updatedContext.put(Constants.DATA, updatedContextData);
+            updatedContext.put(Constants.COUNT, updatedContextData != null ? updatedContextData.size() : 0);
+            allProfileData.put(contextType, updatedContext);
             cacheService.putCache(allKey, mapper.writeValueAsString(allProfileData));
         } catch (Exception e) {
             logger.error("Error updating extendedProfile all cache for userId {}: {}", userId, e.getMessage());
