@@ -158,15 +158,18 @@ public class CassandraConnectionManagerImpl implements CassandraConnectionManage
     public static ConsistencyLevel getConsistencyLevel() {
         String consistency = PropertiesCache.getInstance().readProperty(Constants.SUNBIRD_CASSANDRA_CONSISTENCY_LEVEL);
         logger.info("CassandraConnectionManagerImpl:getConsistencyLevel: level = " + consistency);
-        if (StringUtils.isBlank(consistency)) return null;
-
+        if (StringUtils.isBlank(consistency))
+            consistency = Constants.DEFAULT_SUNBIRD_CASSANDRA_CONSISTENCY_LEVEL;
         try {
             return DefaultConsistencyLevel.valueOf(consistency.toUpperCase());
         } catch (IllegalArgumentException exception) {
-            logger.info("CassandraConnectionManagerImpl:getConsistencyLevel: Exception occurred with error message = "
-                    + exception.getMessage());
+            logger.error("CassandraConnectionManagerImpl:getConsistencyLevel: Exception occurred with error message: ",
+                     exception);
+            throw new CustomException(
+                    Constants.ERROR,
+                    exception.getMessage(),
+                    HttpStatus.INTERNAL_SERVER_ERROR);
         }
-        return null;
     }
 
 
