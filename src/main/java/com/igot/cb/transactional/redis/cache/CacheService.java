@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -74,6 +75,17 @@ public class CacheService {
 
     // Safely pair each courseId to its JSON string (handling nulls)
     Map<String, String> result = new LinkedHashMap<>();
+
+    if (CollectionUtils.isEmpty(values)) {
+      return result;
+    }
+
+    if (keys.size() != values.size()) {
+      log.error("Failed to get the course details from Redis Cache. KeySize: {}, Value retrieved: {}", keys.size(),
+          values.size());
+          return result;
+    }
+
     for (int i = 0; i < keys.size(); i++) {
       String json = values.get(i);
       if (json != null) {
