@@ -401,6 +401,9 @@ public class Constants {
     public static final String BATCH_ID = "batchId";
     public static final String COMPETENCIES_V7 = "competencies_v7";
     public static final String COURSE_CATEGORY = "courseCategory";
+    public static final String END_DATE = "endDate";
+    public static final String CURRENTLY_WORKING = "currentlyWorking";
+    public static final String TRUE = "true";
 
     private Constants() {
     }
