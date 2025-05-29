@@ -9,9 +9,7 @@ import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -19,10 +17,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Stream;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -63,6 +66,50 @@ public class ProfileServiceImplTest {
     @BeforeEach
     public void setUp() {
         MockitoAnnotations.openMocks(this);
+    }
+
+    static class TestContext {
+        String contextKey;
+        String dateField;
+        List<Map<String, Object>> testData;
+
+        TestContext(String contextKey, String dateField, List<Map<String, Object>> testData) {
+            this.contextKey = contextKey;
+            this.dateField = dateField;
+            this.testData = testData;
+        }
+    }
+
+    static Stream<TestContext> contextProvider() {
+        return Stream.of(
+                new TestContext(
+                        Constants.SERVICE_HISTORY,
+                        "startDate",
+                        List.of(
+                                new HashMap<>(Map.of("startDate", "2019-01-01T00:00:00Z", "dummyField", "dummyValue")),
+                                new HashMap<>(Map.of("startDate", "2023-06-15T00:00:00Z", "dummyField", "dummyValue")),
+                                new HashMap<>(Map.of("startDate", "2020-09-10T00:00:00Z", "dummyField", "dummyValue"))
+                        )
+                ),
+                new TestContext(
+                        Constants.ACHIEVEMENTS,
+                        "issuedDate",
+                        List.of(
+                                new HashMap<>(Map.of("issuedDate", "2019-01-01T00:00:00Z", "dummyField", "dummyValue")),
+                                new HashMap<>(Map.of("issuedDate", "2023-06-15T00:00:00Z", "dummyField", "dummyValue")),
+                                new HashMap<>(Map.of("issuedDate", "2020-09-10T00:00:00Z", "dummyField", "dummyValue"))
+                        )
+                ),
+                new TestContext(
+                        Constants.EDUCATION_QUALIFICATION,
+                        "startYear",
+                        List.of(
+                                new HashMap<>(Map.of("startYear", "2019", "dummyField", "dummyValue")),
+                                new HashMap<>(Map.of("startYear", "2023", "dummyField", "dummyValue")),
+                                new HashMap<>(Map.of("startYear", "2020", "dummyField", "dummyValue"))
+                        )
+                )
+        );
     }
 
     @Test
@@ -259,4 +306,35 @@ public class ProfileServiceImplTest {
         assertTrue(responseBody.containsKey("profileCompletion"));
         assertEquals(50.0, responseBody.get("profileCompletion"));
     }
+
+    @ParameterizedTest
+    @MethodSource("contextProvider")
+    public void testSaveExtendedProfile_shouldSortByDateField(TestContext testContext) throws Exception {
+        Map<String, Object> requestMap = new HashMap<>();
+        requestMap.put(Constants.USER_ID_RQST, USER_ID);
+        requestMap.put(testContext.contextKey, testContext.testData);
+
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestMap);
+
+        ApiResponse mockResponse = new ApiResponse();
+        mockResponse.put(Constants.RESPONSE, Constants.SUCCESS);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(TOKEN)).thenReturn(USER_ID);
+        when(serverProperties.getContextType()).thenReturn(new String[]{ testContext.contextKey });
+        when(serverProperties.getEducationalQualificationMandatoryFields()).thenReturn("dummyField");
+        when(serverProperties.getAchievementsMandatoryFields()).thenReturn("dummyField");
+        when(serverProperties.getServiceHistoryMandatoryFields()).thenReturn("dummyField");
+
+        when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), anyMap(), any(), any()))
+                .thenReturn(new ArrayList<>());
+
+        when(cassandraOperation.insertRecord(any(), any(), any())).thenReturn(mockResponse);
+
+        ApiResponse response = profileService.saveExtendedProfile(request, TOKEN);
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        assertNotNull(response.get(Constants.RESULT));
+    }
+
 }

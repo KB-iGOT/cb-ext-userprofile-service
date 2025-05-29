@@ -404,6 +404,10 @@ public class Constants {
     public static final String END_DATE = "endDate";
     public static final String CURRENTLY_WORKING = "currentlyWorking";
     public static final String TRUE = "true";
+    public static final String KARMA_POINTS = "karmaPoints";
+    public static final String PROFILE_COMPLETION = "profileCompletion";
+    public static final String POINTS = "points";
+    public static final String USER_KARMA_POINTS_TABLE = "user_karma_points";
 
     private Constants() {
     }
