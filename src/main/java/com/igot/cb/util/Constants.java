@@ -17,6 +17,7 @@ public class Constants {
     public static final String POOL_TIMEOUT = "poolTimeoutMillis";
     public static final String CASSANDRA_CONFIG_HOST = "cassandra.config.host";
     public static final String SUNBIRD_CASSANDRA_CONSISTENCY_LEVEL = "sunbird_cassandra_consistency_level";
+    public static final String DEFAULT_SUNBIRD_CASSANDRA_CONSISTENCY_LEVEL = "ONE";
     public static final String EXCEPTION_MSG_FETCH = "Exception occurred while fetching record from ";
     public static final String INSERT_INTO = "INSERT INTO ";
     public static final String DOT = ".";
@@ -63,7 +64,7 @@ public class Constants {
     public static final String SUB = "sub";
     public static final String SSO_URL = "sso.url";
     public static final String SSO_REALM = "sso.realm";
-    public static final String ACCESS_TOKEN_PUBLICKEY_BASEPATH = "accesstoken_publickey_basepath";
+    public static final String ACCESS_TOKEN_PUBLICKEY_BASEPATH = "accesstoken.publickey.basepath";
     public static final String NO_DATA_FOUND = "No data found";
     public static final String SUCCESSFULLY_CREATED = "successfully created";
     public static final String ID = "id";
@@ -400,6 +401,13 @@ public class Constants {
     public static final String BATCH_ID = "batchId";
     public static final String COMPETENCIES_V7 = "competencies_v7";
     public static final String COURSE_CATEGORY = "courseCategory";
+    public static final String END_DATE = "endDate";
+    public static final String CURRENTLY_WORKING = "currentlyWorking";
+    public static final String TRUE = "true";
+    public static final String KARMA_POINTS = "karmaPoints";
+    public static final String PROFILE_COMPLETION = "profileCompletion";
+    public static final String POINTS = "points";
+    public static final String USER_KARMA_POINTS_TABLE = "user_karma_points";
 
     private Constants() {
     }
