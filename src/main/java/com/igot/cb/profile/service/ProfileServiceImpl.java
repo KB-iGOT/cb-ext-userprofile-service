@@ -289,12 +289,12 @@ public class ProfileServiceImpl implements ProfileService {
     @Override
     public ApiResponse getBasicProfile(String userId, String userToken) {
         ApiResponse response = ProjectUtil.createDefaultResponse("api.getBasicProfile.read");
-//        String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
-//
-//        if (userIdFromToken == null) {
-//            ProjectUtil.errorResponse(response, "Invalid or missing access token", HttpStatus.UNAUTHORIZED);
-//            return response;
-//        }
+        String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
+
+        if (userIdFromToken == null) {
+            ProjectUtil.errorResponse(response, "Invalid or missing access token", HttpStatus.UNAUTHORIZED);
+            return response;
+        }
 
 //        boolean isSelfUser = userIdFromToken.equalsIgnoreCase(userId);
         boolean isSelfUser = true;
