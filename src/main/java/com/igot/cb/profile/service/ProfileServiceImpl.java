@@ -296,8 +296,7 @@ public class ProfileServiceImpl implements ProfileService {
             return response;
         }
 
-//        boolean isSelfUser = userIdFromToken.equalsIgnoreCase(userId);
-        boolean isSelfUser = true;
+        boolean isSelfUser = userIdFromToken.equalsIgnoreCase(userId);
         String cacheKey = Constants.USER + ":basicProfile:" + userId;
 
         try {
