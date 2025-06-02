@@ -1,5 +1,7 @@
 package com.igot.cb;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.util.CbServerProperties;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -14,6 +16,7 @@ import org.springframework.web.client.RestTemplate;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -59,5 +62,18 @@ public class CbExtUserProfileApplicationTest {
                     eq(CbExtUserProfileApplication.class),
                     any(String[].class)));
         }
+    }
+
+    @Test
+    void testObjectMapperBeanConfiguration() {
+        // Mock CbServerProperties just to satisfy constructor
+        CbServerProperties mockProps = mock(CbServerProperties.class);
+        CbExtUserProfileApplication app = new CbExtUserProfileApplication(mockProps);
+
+        ObjectMapper mapper = app.objectMapper();
+
+        assertNotNull(mapper);
+        assertFalse(mapper.isEnabled(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES),
+                "FAIL_ON_UNKNOWN_PROPERTIES should be disabled");
     }
 }

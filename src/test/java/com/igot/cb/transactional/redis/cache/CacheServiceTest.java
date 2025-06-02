@@ -1,11 +1,12 @@
 package com.igot.cb.transactional.redis.cache;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.*;
 
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -34,6 +35,9 @@ class CacheServiceTest {
 
     @InjectMocks
     private CacheService cacheService;
+    @Mock
+    private ValueOperations<String, String> valueOps;
+
 
     @BeforeEach
     void setUp() {
@@ -101,7 +105,7 @@ class CacheServiceTest {
     @Test
     void deleteCache_shouldDeleteCacheWhenKeyExists() {
         String key = "testKey";
-        when(redisTemplate.delete(key)).thenReturn(true);
+        lenient().when(redisTemplate.delete(key)).thenReturn(true);
         cacheService.deleteCache(key);
         verify(redisTemplate).delete(key);
     }
@@ -113,4 +117,45 @@ class CacheServiceTest {
         cacheService.deleteCache(key);
         verify(redisTemplate).delete(key);
     }
+
+
+
+    @Test
+    void testGetCourseMetadataAsJsonString_nullInput() {
+        Map<String, String> result = cacheService.getCourseMetadataAsJsonString(null);
+        assertTrue(result.isEmpty());
+    }
+
+
+
+    @Test
+    void testGetCourseMetadataAsJsonString_keyValueMismatch() {
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(redisTemplate.opsForValue().multiGet(anyList()))
+                .thenReturn(List.of("value1")); // mismatch with input key size
+
+        Map<String, String> result = cacheService.getCourseMetadataAsJsonString(List.of("do_1", "do_2"));
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void testGetCourseMetadataAsJsonString_success() {
+        // Given
+        List<String> courseIds = List.of("do_123", "do_456");
+        List<String> redisValues = List.of("{\"name\":\"Course 1\"}", "{\"name\":\"Course 2\"}");
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.multiGet(courseIds)).thenReturn(redisValues);
+
+        // When
+        Map<String, String> result = cacheService.getCourseMetadataAsJsonString(courseIds);
+
+        // Then
+        Map<String, String> expected = new LinkedHashMap<>();
+        expected.put("do_123", "{\"name\":\"Course 1\"}");
+        expected.put("do_456", "{\"name\":\"Course 2\"}");
+
+        assertEquals(expected, result);
+        verify(redisTemplate.opsForValue(), times(1)).multiGet(courseIds);
+    }
 }
+
