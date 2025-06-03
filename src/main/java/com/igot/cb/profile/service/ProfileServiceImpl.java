@@ -304,6 +304,7 @@ public class ProfileServiceImpl implements ProfileService {
             Map<String, Object> userProfile = (cachedJson != null)
                     ? mapper.readValue(cachedJson, Map.class)
                     : fetchFromDatabase(userId);
+            UserUtility.decryptSpecificUserData(userProfile, Arrays.asList(Constants.USERNAME_LOWERCASE));
 
             if (userProfile == null) {
                 response.setResponseCode(HttpStatus.NOT_FOUND);

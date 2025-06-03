@@ -4,7 +4,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
@@ -24,6 +26,12 @@ import lombok.extern.slf4j.Slf4j;
 @Component
 @Slf4j
 public class ProjectUtil {
+
+    public static PropertiesCache propertiesCache;
+
+    static {
+        propertiesCache = PropertiesCache.getInstance();
+    }
 
     @Autowired
     private ObjectMapper mapper;
@@ -83,4 +91,12 @@ public class ProjectUtil {
             return null;
         }
     }
+
+    public static String getConfigValue(String key) {
+        if (StringUtils.isNotBlank(System.getenv(key))) {
+            return System.getenv(key);
+        }
+        return propertiesCache.readProperty(key);
+    }
+
 }

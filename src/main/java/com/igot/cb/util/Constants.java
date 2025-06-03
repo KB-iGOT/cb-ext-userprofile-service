@@ -408,6 +408,11 @@ public class Constants {
     public static final String PROFILE_COMPLETION = "profileCompletion";
     public static final String POINTS = "points";
     public static final String USER_KARMA_POINTS_TABLE = "user_karma_points";
+    public static final String SUNBIRD_ENCRYPTION = "sunbird_encryption";
+    public static final String ON = "ON";
+    public static final String ENCRYPTION_KEY = "sunbird_encryption_key";
+    public static final String USER_ORG_SERVICE_PREFIX = "UOS_";
+    public static final String USERNAME_LOWERCASE = "username";
 
     private Constants() {
     }
