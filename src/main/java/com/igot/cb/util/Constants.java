@@ -413,6 +413,10 @@ public class Constants {
     public static final String ENCRYPTION_KEY = "sunbird_encryption_key";
     public static final String USER_ORG_SERVICE_PREFIX = "UOS_";
     public static final String USERNAME_LOWERCASE = "username";
+    public static final String USER_ENROLMENTS = "user_enrolments";
+    public static final String ISSUED_CERTIFICATES = "issued_certificates";
+    public static final String CERTIFICATE_COUNT = "certificateCount";
+    public static final String POSTCOUNT = "postCount";
 
     private Constants() {
     }
