@@ -6,14 +6,18 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.authentication.util.AccessTokenValidator;
 import com.igot.cb.transactional.cassandrautils.CassandraOperation;
 import com.igot.cb.transactional.redis.cache.CacheService;
+import com.igot.cb.transactional.service.RequestHandlerServiceImpl;
 import com.igot.cb.util.*;
 
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 
 import java.io.IOException;
 import java.time.OffsetDateTime;
@@ -41,6 +45,8 @@ public class ProfileServiceImpl implements ProfileService {
 
     @Autowired
     private ProjectUtil projectUtil;
+
+    @Autowired private RequestHandlerServiceImpl requestHandlerService;
 
     private static final Logger logger = LoggerFactory.getLogger(ProfileServiceImpl.class);
 
@@ -304,6 +310,7 @@ public class ProfileServiceImpl implements ProfileService {
             Map<String, Object> userProfile = (cachedJson != null)
                     ? mapper.readValue(cachedJson, Map.class)
                     : fetchFromDatabase(userId);
+            UserUtility.decryptSpecificUserData(userProfile, Arrays.asList(Constants.USERNAME_LOWERCASE));
 
             if (userProfile == null) {
                 response.setResponseCode(HttpStatus.NOT_FOUND);
@@ -314,8 +321,12 @@ public class ProfileServiceImpl implements ProfileService {
             double completion = calculateProfileCompletionPercentage(userProfile,
                     Constants.PROFILE_DETAILS_LOWERCASE, userId, userToken);
             int karmaPoints = getUserKarmaPoints(userId);
+            int certificateCount = getIssuedCertificateCount(userId);
+            int postCount = getUserPostCount(userId);
             userProfile.put(Constants.PROFILE_COMPLETION, completion);
             userProfile.put(Constants.KARMA_POINTS,karmaPoints);
+            userProfile.put(Constants.CERTIFICATE_COUNT, certificateCount);
+            userProfile.put(Constants.POSTCOUNT, postCount);
 
             if (!isSelfUser) {
                 sanitizeProfile(userProfile);
@@ -759,6 +770,87 @@ public class ProfileServiceImpl implements ProfileService {
         }
     }
 
+    private int getIssuedCertificateCount(String userId) {
+        String redisKey = "user:certCount:" + userId;
 
+        try {
+            String cachedValue = cacheService.getCache(redisKey);
+            if (cachedValue != null) {
+                return Integer.parseInt(cachedValue);
+            }
 
+            List<Map<String, Object>> records = cassandraOperation.getRecordsByPropertiesByKey(
+                    Constants.KEYSPACE_SUNBIRD_COURSES,
+                    Constants.USER_ENROLMENTS,
+                    Map.of(Constants.USERID_KEY, userId),
+                    List.of(Constants.ISSUED_CERTIFICATES),
+                    userId
+            );
+
+            int totalIssuedCertificates = 0;
+
+            for (Map<String, Object> record : records) {
+                if (MapUtils.isNotEmpty(record)) {
+                    Object certObj = record.get("issuedCertificates");
+                    if (certObj instanceof List) {
+                        List<Map<String, Object>> certList = (List<Map<String, Object>>) certObj;
+                        if (CollectionUtils.isNotEmpty(certList)) {
+                            totalIssuedCertificates += certList.size();
+                        }
+                    }
+                }
+            }
+
+            cacheService.putCache(redisKey, String.valueOf(totalIssuedCertificates));
+            return totalIssuedCertificates;
+
+        } catch (Exception e) {
+            logger.warn("Failed to fetch issued certificate count for userId {}: {}", userId, e.getMessage());
+            return 0;
+        }
+    }
+
+    private int getUserPostCount(String userId) {
+        String redisKey = "user:communityPostCount:" + userId;
+
+        try {
+            String cachedValue = cacheService.getCache(redisKey);
+            if (cachedValue != null) {
+                return Integer.parseInt(cachedValue);
+            }
+
+            int postCount = fetchPostCountFromApi(userId);
+            cacheService.putCache(redisKey, String.valueOf(postCount));
+            return postCount;
+
+        } catch (Exception e) {
+            logger.warn("Failed to fetch post count for userId {}: {}", userId, e.getMessage());
+            return 0;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private int fetchPostCountFromApi(String userId) {
+        String uri = serverConfig.getCommunityBaseUrl() + serverConfig.getCommunityPostCountApiUrl() + userId;
+
+        try {
+            Map<String, Object> response = (Map<String, Object>) requestHandlerService.fetchUsingGetWithHeadersProfile(uri, null);
+
+            return Optional.ofNullable(response)
+                    .map(rd -> (Map<String, Object>) rd.get(Constants.RESULT))
+                    .map(result -> (Map<String, Object>) result.get(Constants.RESPONSE))
+                    .map(resp -> resp.get(Constants.POSTCOUNT))
+                    .map(pc -> {
+                        if (pc instanceof Number) {
+                            return ((Number) pc).intValue();
+                        }
+                        return Integer.parseInt(pc.toString());
+                    })
+                    .orElse(0);
+
+        } catch (Exception e) {
+            logger.warn("Failed to fetch post count from community API for userId {}: {}", userId, e.getMessage());
+            return 0;
+        }
+    }
 }

@@ -12,6 +12,10 @@ import org.apache.commons.lang3.StringUtils;
 public enum ResponseCode {
     unAuthorized(ResponseMessage.Key.UNAUTHORIZED_USER, ResponseMessage.Message.UNAUTHORIZED_USER),
     internalError(ResponseMessage.Key.INTERNAL_ERROR, ResponseMessage.Message.INTERNAL_ERROR),
+    resourceNotFound(
+            ResponseMessage.Key.RESOURCE_NOT_FOUND, ResponseMessage.Message.RESOURCE_NOT_FOUND),
+    invalidParameterValue(
+            ResponseMessage.Key.INVALID_PARAMETER_VALUE, ResponseMessage.Message.INVALID_PARAMETER_VALUE),
 
     OK(200),
     CLIENT_ERROR(400),

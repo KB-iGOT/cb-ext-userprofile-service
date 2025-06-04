@@ -71,6 +71,12 @@ public class CbServerProperties {
   @Value("${profile.completion.field.weight}")
   private double fieldWeight;
 
+  @Value("${community.base.url}")
+  private String communityBaseUrl;
+
+  @Value("${community.post.count.api.url}")
+  private String communityPostCountApiUrl;
+
   public List<String> getBasicProfileFields() {
     return Arrays.asList(basicProfileFields.split(","));
   }
