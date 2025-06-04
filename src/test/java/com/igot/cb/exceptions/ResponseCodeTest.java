@@ -14,7 +14,7 @@ public class ResponseCodeTest {
 
     @Test
     public void testEnumValues() {
-        assertEquals(5, ResponseCode.values().length);
+        assertEquals(7, ResponseCode.values().length);
         assertNotNull(ResponseCode.unAuthorized);
         assertNotNull(ResponseCode.internalError);
         assertNotNull(ResponseCode.OK);
