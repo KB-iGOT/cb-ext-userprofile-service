@@ -17,7 +17,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
 
 import java.io.IOException;
 import java.time.OffsetDateTime;
@@ -319,7 +318,7 @@ public class ProfileServiceImpl implements ProfileService {
             }
 
             double completion = calculateProfileCompletionPercentage(userProfile,
-                    Constants.PROFILE_DETAILS_LOWERCASE, userId, userToken);
+                    userId, userToken);
             int karmaPoints = getUserKarmaPoints(userId);
             int certificateCount = getIssuedCertificateCount(userId);
             int postCount = getUserPostCount(userId);
@@ -538,12 +537,12 @@ public class ProfileServiceImpl implements ProfileService {
         if (records == null || records.isEmpty())
             return null;
         Map<String, Object> record = records.get(0);
-        String profileDetailsJson = (String) record.get(Constants.PROFILE_DETAILS_LOWERCASE);
+        String profileDetailsJson = (String) record.get(Constants.PROFILE_DETAILS);
 
         try {
             if (profileDetailsJson != null) {
                 Map<String, Object> profileDetailsMap = projectUtil.parseMap(profileDetailsJson);
-                record.put(Constants.PROFILE_DETAILS_LOWERCASE, profileDetailsMap);
+                record.put(Constants.PROFILE_DETAILS, profileDetailsMap);
             }
         } catch (IOException e) {
             logger.warn("Invalid profileDetails JSON for userId: {}", userId, e);
@@ -554,21 +553,21 @@ public class ProfileServiceImpl implements ProfileService {
     }
 
     private void sanitizeProfile(Map<String, Object> profile) {
-        Object detailsObj = profile.get(Constants.PROFILE_DETAILS_LOWERCASE);
+        Object detailsObj = profile.get(Constants.PROFILE_DETAILS);
         if (detailsObj instanceof Map<?, ?> detailsMap && detailsMap.containsKey(Constants.PERSONAL_DETAILS)) {
             detailsMap.remove(Constants.PERSONAL_DETAILS);
             logger.info("Removed personalDetails for non-self user.");
         }
     }
 
-    protected double calculateProfileCompletionPercentage(Map<String, Object> profileData, String nestedFieldKey,
-            String userId, String userToken) {
+    protected double calculateProfileCompletionPercentage(Map<String, Object> profileData,
+                                                          String userId, String userToken) {
         List<String> requiredFields = serverConfig.getProfileCompletionRequiredFields();
         if (profileData == null || requiredFields == null || requiredFields.isEmpty())
             return 0.0;
 
         double totalCompletion = 0.0;
-        Map<String, Object> nestedData = Optional.ofNullable(profileData.get(nestedFieldKey))
+        Map<String, Object> nestedData = Optional.ofNullable(profileData.get(Constants.PROFILE_DETAILS))
                 .filter(Map.class::isInstance)
                 .map(Map.class::cast)
                 .orElse(Collections.emptyMap());
