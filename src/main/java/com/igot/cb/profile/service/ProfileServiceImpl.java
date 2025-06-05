@@ -778,8 +778,7 @@ public class ProfileServiceImpl implements ProfileService {
             if (cachedValue != null) {
                 return Integer.parseInt(cachedValue);
             }
-
-            List<Map<String, Object>> records = cassandraOperation.getRecordsByPropertiesByKey(
+            List<Map<String, Object>> courseRecords = cassandraOperation.getRecordsByPropertiesByKey(
                     Constants.KEYSPACE_SUNBIRD_COURSES,
                     Constants.USER_ENROLMENTS,
                     Map.of(Constants.USERID_KEY, userId),
@@ -788,19 +787,34 @@ public class ProfileServiceImpl implements ProfileService {
             );
 
             int totalIssuedCertificates = 0;
+            totalIssuedCertificates += courseRecords.stream()
+                    .filter(MapUtils::isNotEmpty)
+                    .map(record -> record.get(Constants.ISSUED_CERTIFICATES_KEY))
+                    .filter(certObj -> certObj instanceof List<?>)
+                    .map(certObj -> (List<?>) certObj)
+                    .filter(CollectionUtils::isNotEmpty)
+                    .mapToInt(List::size)
+                    .sum();
 
-            for (Map<String, Object> record : records) {
-                if (MapUtils.isNotEmpty(record)) {
-                    Object certObj = record.get("issuedCertificates");
-                    if (certObj instanceof List) {
-                        List<Map<String, Object>> certList = (List<Map<String, Object>>) certObj;
-                        if (CollectionUtils.isNotEmpty(certList)) {
-                            totalIssuedCertificates += certList.size();
-                        }
-                    }
-                }
-            }
+            List<Map<String, Object>> eventRecords = cassandraOperation.getRecordsByPropertiesByKey(
+                    Constants.KEYSPACE_SUNBIRD_COURSES,
+                    Constants.USER_ENTITY_ENROLMENTS,
+                    Map.of(Constants.USERID_KEY, userId),
+                    List.of(Constants.ISSUED_CERTIFICATES,Constants.PROGRESS_KEY,Constants.STATUS),
+                    userId
+            );
 
+            int certificatesFromEvents = eventRecords.stream()
+                    .filter(MapUtils::isNotEmpty)
+                    .filter(r -> r.get(Constants.STATUS) instanceof Number && ((Number)r.get(Constants.STATUS)).intValue() == 2)
+                    .filter(r -> r.get(Constants.PROGRESS_KEY) instanceof Number && ((Number)r.get(Constants.PROGRESS_KEY)).intValue() == 100)
+                    .map(r -> r.get(Constants.ISSUED_CERTIFICATES_KEY))
+                    .filter(obj -> obj instanceof List<?>)
+                    .map(obj -> (List<?>) obj)
+                    .filter(CollectionUtils::isNotEmpty)
+                    .mapToInt(List::size)
+                    .sum();
+            totalIssuedCertificates += certificatesFromEvents;
             cacheService.putCache(redisKey, String.valueOf(totalIssuedCertificates));
             return totalIssuedCertificates;
 
