@@ -417,6 +417,8 @@ public class Constants {
     public static final String ISSUED_CERTIFICATES = "issued_certificates";
     public static final String CERTIFICATE_COUNT = "certificateCount";
     public static final String POSTCOUNT = "postCount";
+    public static final String USER_KARMA_POINTS_SUMMARY_TABLE = "user_karma_points_summary";
+    public static final String TOTAL_POINTS = "total_points";
 
     private Constants() {
     }

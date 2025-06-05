@@ -754,12 +754,12 @@ public class ProfileServiceImpl implements ProfileService {
                 return Integer.parseInt(redisValue);
             }
 
-            List<Map<String, Object>> records = cassandraOperation.getRecordsByPropertiesByKey(Constants.KEYSPACE_SUNBIRD,Constants.USER_KARMA_POINTS_TABLE,
-                    Map.of(Constants.USERID_KEY, userId), List.of(Constants.POINTS), userId);
-
-            int totalPoints = records.stream()
-                    .mapToInt(record -> (Integer) record.getOrDefault(Constants.POINTS, 0))
-                    .sum();
+            List<Map<String, Object>> records = cassandraOperation.getRecordsByPropertiesByKey(Constants.KEYSPACE_SUNBIRD,Constants.USER_KARMA_POINTS_SUMMARY_TABLE,
+                    Map.of(Constants.USERID_KEY, userId), List.of(Constants.TOTAL_POINTS), userId);
+            int totalPoints = 0;
+            if(!CollectionUtils.isEmpty(records)){
+                totalPoints=(int) records.get(0).get(Constants.TOTAL_POINTS);
+            }
 
             cacheService.putCache(redisKey, String.valueOf(totalPoints));
             return totalPoints;
@@ -768,6 +768,7 @@ public class ProfileServiceImpl implements ProfileService {
             return 0;
         }
     }
+
 
     private int getIssuedCertificateCount(String userId) {
         String redisKey = "user:certCount:" + userId;
