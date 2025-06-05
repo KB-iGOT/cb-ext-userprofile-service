@@ -85,7 +85,7 @@ public class ProfileServiceImpl implements ProfileService {
             List<Map<String, Object>> existingList = getExistingContextData(userId, contextType);
             existingList.addAll(dataWithUUIDs);
 
-            sortContextData(existingList, contextType);
+            //sortContextData(existingList, contextType);
             if (!saveContextData(userId, contextType, existingList)) {
                 ProjectUtil.errorResponse(response, "Failed to save data for contextType: " + contextType,
                         HttpStatus.INTERNAL_SERVER_ERROR);
@@ -136,7 +136,7 @@ public class ProfileServiceImpl implements ProfileService {
             }
 
             List<Map<String, Object>> mergedList = new ArrayList<>(dataMap.values());
-            sortContextData(mergedList, contextType);
+            //sortContextData(mergedList, contextType);
 
             if (!saveContextData(userId, contextType, mergedList)) {
                 ProjectUtil.errorResponse(response, "Failed to update data for contextType: " + contextType,
@@ -177,7 +177,7 @@ public class ProfileServiceImpl implements ProfileService {
 
             List<Map<String, Object>> existingData = getExistingContextData(userId, contextType);
             existingData.removeIf(e -> uuids.contains(e.get(Constants.UUID)));
-            sortContextData(existingData, contextType);
+            //sortContextData(existingData, contextType);
 
             if (!saveContextData(userId, contextType, existingData)) {
                 ProjectUtil.errorResponse(response, "Failed to delete data for contextType: " + contextType,
