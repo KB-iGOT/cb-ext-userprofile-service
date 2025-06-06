@@ -85,7 +85,7 @@ public class ProfileServiceImpl implements ProfileService {
             List<Map<String, Object>> existingList = getExistingContextData(userId, contextType);
             existingList.addAll(dataWithUUIDs);
 
-            sortContextData(existingList, contextType);
+            //sortContextData(existingList, contextType);
             if (!saveContextData(userId, contextType, existingList)) {
                 ProjectUtil.errorResponse(response, "Failed to save data for contextType: " + contextType,
                         HttpStatus.INTERNAL_SERVER_ERROR);
@@ -136,7 +136,7 @@ public class ProfileServiceImpl implements ProfileService {
             }
 
             List<Map<String, Object>> mergedList = new ArrayList<>(dataMap.values());
-            sortContextData(mergedList, contextType);
+            //sortContextData(mergedList, contextType);
 
             if (!saveContextData(userId, contextType, mergedList)) {
                 ProjectUtil.errorResponse(response, "Failed to update data for contextType: " + contextType,
@@ -177,7 +177,7 @@ public class ProfileServiceImpl implements ProfileService {
 
             List<Map<String, Object>> existingData = getExistingContextData(userId, contextType);
             existingData.removeIf(e -> uuids.contains(e.get(Constants.UUID)));
-            sortContextData(existingData, contextType);
+            //sortContextData(existingData, contextType);
 
             if (!saveContextData(userId, contextType, existingData)) {
                 ProjectUtil.errorResponse(response, "Failed to delete data for contextType: " + contextType,
@@ -754,12 +754,12 @@ public class ProfileServiceImpl implements ProfileService {
                 return Integer.parseInt(redisValue);
             }
 
-            List<Map<String, Object>> records = cassandraOperation.getRecordsByPropertiesByKey(Constants.KEYSPACE_SUNBIRD,Constants.USER_KARMA_POINTS_TABLE,
-                    Map.of(Constants.USERID_KEY, userId), List.of(Constants.POINTS), userId);
-
-            int totalPoints = records.stream()
-                    .mapToInt(record -> (Integer) record.getOrDefault(Constants.POINTS, 0))
-                    .sum();
+            List<Map<String, Object>> records = cassandraOperation.getRecordsByPropertiesByKey(Constants.KEYSPACE_SUNBIRD,Constants.USER_KARMA_POINTS_SUMMARY_TABLE,
+                    Map.of(Constants.USERID_KEY, userId), List.of(Constants.TOTAL_POINTS), userId);
+            int totalPoints = 0;
+            if(!CollectionUtils.isEmpty(records)){
+                totalPoints=(int) records.get(0).get(Constants.TOTAL_POINTS);
+            }
 
             cacheService.putCache(redisKey, String.valueOf(totalPoints));
             return totalPoints;
@@ -769,6 +769,7 @@ public class ProfileServiceImpl implements ProfileService {
         }
     }
 
+
     private int getIssuedCertificateCount(String userId) {
         String redisKey = "user:certCount:" + userId;
 
@@ -777,8 +778,7 @@ public class ProfileServiceImpl implements ProfileService {
             if (cachedValue != null) {
                 return Integer.parseInt(cachedValue);
             }
-
-            List<Map<String, Object>> records = cassandraOperation.getRecordsByPropertiesByKey(
+            List<Map<String, Object>> courseRecords = cassandraOperation.getRecordsByPropertiesByKey(
                     Constants.KEYSPACE_SUNBIRD_COURSES,
                     Constants.USER_ENROLMENTS,
                     Map.of(Constants.USERID_KEY, userId),
@@ -787,19 +787,34 @@ public class ProfileServiceImpl implements ProfileService {
             );
 
             int totalIssuedCertificates = 0;
+            totalIssuedCertificates += courseRecords.stream()
+                    .filter(MapUtils::isNotEmpty)
+                    .map(record -> record.get(Constants.ISSUED_CERTIFICATES_KEY))
+                    .filter(certObj -> certObj instanceof List<?>)
+                    .map(certObj -> (List<?>) certObj)
+                    .filter(CollectionUtils::isNotEmpty)
+                    .mapToInt(List::size)
+                    .sum();
 
-            for (Map<String, Object> record : records) {
-                if (MapUtils.isNotEmpty(record)) {
-                    Object certObj = record.get("issuedCertificates");
-                    if (certObj instanceof List) {
-                        List<Map<String, Object>> certList = (List<Map<String, Object>>) certObj;
-                        if (CollectionUtils.isNotEmpty(certList)) {
-                            totalIssuedCertificates += certList.size();
-                        }
-                    }
-                }
-            }
+            List<Map<String, Object>> eventRecords = cassandraOperation.getRecordsByPropertiesByKey(
+                    Constants.KEYSPACE_SUNBIRD_COURSES,
+                    Constants.USER_ENTITY_ENROLMENTS,
+                    Map.of(Constants.USERID_KEY, userId),
+                    List.of(Constants.ISSUED_CERTIFICATES,Constants.PROGRESS_KEY,Constants.STATUS),
+                    userId
+            );
 
+            int certificatesFromEvents = eventRecords.stream()
+                    .filter(MapUtils::isNotEmpty)
+                    .filter(r -> r.get(Constants.STATUS) instanceof Number && ((Number)r.get(Constants.STATUS)).intValue() == 2)
+                    .filter(r -> r.get(Constants.PROGRESS_KEY) instanceof Number && ((Number)r.get(Constants.PROGRESS_KEY)).intValue() == 100)
+                    .map(r -> r.get(Constants.ISSUED_CERTIFICATES_KEY))
+                    .filter(obj -> obj instanceof List<?>)
+                    .map(obj -> (List<?>) obj)
+                    .filter(CollectionUtils::isNotEmpty)
+                    .mapToInt(List::size)
+                    .sum();
+            totalIssuedCertificates += certificatesFromEvents;
             cacheService.putCache(redisKey, String.valueOf(totalIssuedCertificates));
             return totalIssuedCertificates;
 
