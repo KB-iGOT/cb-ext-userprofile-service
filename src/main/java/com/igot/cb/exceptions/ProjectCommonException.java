@@ -129,28 +129,6 @@ public class ProjectCommonException extends RuntimeException {
         this.responseCode = code;
     }
 
-    public static void throwClientErrorException(ResponseCode responseCode, String exceptionMessage) {
-        throw new ProjectCommonException(
-                responseCode,
-                StringUtils.isBlank(exceptionMessage) ? responseCode.getErrorMessage() : exceptionMessage,
-                ResponseCode.CLIENT_ERROR.getResponseCode());
-    }
-
-    public static void throwResourceNotFoundException() {
-        throw new ProjectCommonException(
-                ResponseCode.resourceNotFound,
-                MessageFormat.format(ResponseCode.resourceNotFound.getErrorMessage(), ""),
-                ResponseCode.resourceNotFound.getResponseCode());
-    }
-
-    public static void throwResourceNotFoundException(
-            ResponseCode responseCode, String exceptionMessage) {
-        throw new ProjectCommonException(
-                responseCode,
-                StringUtils.isBlank(exceptionMessage) ? responseCode.getErrorMessage() : exceptionMessage,
-                ResponseCode.resourceNotFound.getResponseCode());
-    }
-
     public static void throwServerErrorException(ResponseCode responseCode, String exceptionMessage) {
         throw new ProjectCommonException(
                 responseCode,
@@ -162,14 +140,4 @@ public class ProjectCommonException extends RuntimeException {
         throwServerErrorException(responseCode, responseCode.getErrorMessage());
     }
 
-    public static void throwClientErrorException(ResponseCode responseCode) {
-        throwClientErrorException(responseCode, responseCode.getErrorMessage());
-    }
-
-    public static void throwUnauthorizedErrorException() {
-        throw new ProjectCommonException(
-                ResponseCode.unAuthorized,
-                ResponseCode.unAuthorized.getErrorMessage(),
-                ResponseCode.unAuthorized.getResponseCode());
-    }
 }
