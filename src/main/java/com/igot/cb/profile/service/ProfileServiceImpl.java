@@ -852,9 +852,9 @@ public class ProfileServiceImpl implements ProfileService {
 
             return Optional.ofNullable(response)
                     .filter(MapUtils::isNotEmpty)
-                    .map(rd -> (Map<String, Object>) rd.get("result"))
+                    .map(rd -> (Map<String, Object>) rd.get(Constants.RESULT))
                     .filter(MapUtils::isNotEmpty)
-                    .map(result -> result.get("postCount"))
+                    .map(result -> result.get(Constants.POSTCOUNT))
                     .filter(pc -> pc instanceof Integer)
                     .map(Integer.class::cast)
                     .orElse(0);
