@@ -851,15 +851,12 @@ public class ProfileServiceImpl implements ProfileService {
             Map<String, Object> response = (Map<String, Object>) requestHandlerService.fetchUsingGetWithHeadersProfile(uri, null);
 
             return Optional.ofNullable(response)
+                    .filter(MapUtils::isNotEmpty)
                     .map(rd -> (Map<String, Object>) rd.get(Constants.RESULT))
-                    .map(result -> (Map<String, Object>) result.get(Constants.RESPONSE))
-                    .map(resp -> resp.get(Constants.POSTCOUNT))
-                    .map(pc -> {
-                        if (pc instanceof Number) {
-                            return ((Number) pc).intValue();
-                        }
-                        return Integer.parseInt(pc.toString());
-                    })
+                    .filter(MapUtils::isNotEmpty)
+                    .map(result -> result.get(Constants.POSTCOUNT))
+                    .filter(pc -> pc instanceof Integer)
+                    .map(Integer.class::cast)
                     .orElse(0);
 
         } catch (Exception e) {
