@@ -422,6 +422,10 @@ public class Constants {
     public static final String USER_ENTITY_ENROLMENTS = "user_entity_enrolments";
     public static final String ISSUED_CERTIFICATES_KEY = "issuedCertificates";
     public static final String PROGRESS_KEY = "progress";
+    public static final String USER_ROLES = "user_roles";
+    public static final String ROLE = "role";
+    public static final String SCOPE = "scope";
+    public static final String ORGANISATION_ID = "organisationId";
 
     private Constants() {
     }
