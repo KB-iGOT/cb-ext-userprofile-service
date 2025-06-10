@@ -326,6 +326,7 @@ public class ProfileServiceImpl implements ProfileService {
             userProfile.put(Constants.KARMA_POINTS,karmaPoints);
             userProfile.put(Constants.CERTIFICATE_COUNT, certificateCount);
             userProfile.put(Constants.POSTCOUNT, postCount);
+            userProfile.put("roles", getUserRoles(userId,(String)userProfile.get(Constants.ROOT_ORG_ID)));
 
             if (!isSelfUser) {
                 sanitizeProfile(userProfile);
@@ -863,5 +864,35 @@ public class ProfileServiceImpl implements ProfileService {
             logger.warn("Failed to fetch post count from community API for userId {}: {}", userId, e.getMessage());
             return 0;
         }
+    }
+
+    public List<String> getUserRoles(String userId, String rootOrgId) {
+        List<Map<String, Object>> records = cassandraOperation.getRecordsByPropertiesByKey(
+                Constants.KEYSPACE_SUNBIRD, Constants.USER_ROLES,
+                Map.of(Constants.USERID_KEY, userId), List.of(Constants.ROLE, Constants.SCOPE), userId
+        );
+        return records.stream()
+                .map(record -> {
+                    Object scopeObj = record.get(Constants.SCOPE);
+                    List<Map<String, Object>> scopes = new ArrayList<>();
+                    if (scopeObj instanceof List) {
+                        scopes = (List<Map<String, Object>>) scopeObj;
+                    } else if (scopeObj instanceof String scopeStr && !scopeStr.isBlank()) {
+                        try {
+                            scopes = mapper.readValue(scopeStr, new TypeReference<List<Map<String, Object>>>() {
+                            });
+                        } catch (Exception e) {
+                            logger.warn("Failed to parse scope JSON for userId {}: {}", userId, e.getMessage());
+                            return null;
+                        }
+                    }
+                    if (!scopes.isEmpty() && scopes.stream().allMatch(scope -> rootOrgId.equals(scope.get(Constants.ORGANISATION_ID)))) {
+                        return (String) record.get(Constants.ROLE);
+                    }
+                    return null;
+                })
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
     }
 }
