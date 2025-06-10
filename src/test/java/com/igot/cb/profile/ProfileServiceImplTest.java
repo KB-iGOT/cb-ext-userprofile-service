@@ -34,6 +34,7 @@ import com.igot.cb.util.ApiResponse;
 import com.igot.cb.util.CbServerProperties;
 import com.igot.cb.util.Constants;
 import com.igot.cb.util.ProjectUtil;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 public class ProfileServiceImplTest {
@@ -759,5 +760,496 @@ public class ProfileServiceImplTest {
         ApiResponse response = profileService.saveExtendedProfile(req, "token");
 
         assertEquals(HttpStatus.OK, response.getResponseCode());
+    }
+
+    @Test
+    public void testSaveExtendedProfile_Success() throws Exception {
+        String userId = "user-123";
+        String userToken = "valid-token";
+        Map<String, Object> educationItem = new HashMap<>();
+        educationItem.put("degree", "Masters");
+        educationItem.put("institute", "Test University");
+        Map<String, Object> requestData = new HashMap<>();
+        requestData.put(Constants.USER_ID_RQST, userId);
+        requestData.put("education", List.of(educationItem));
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestData);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userId);
+        when(serverProperties.getContextType()).thenReturn(new String[]{"education"});
+        when(serverProperties.getEducationalQualificationMandatoryFields()).thenReturn("degree,institute");
+        when(serverProperties.getAchievementsMandatoryFields()).thenReturn("");
+        when(serverProperties.getServiceHistoryMandatoryFields()).thenReturn("");
+        when(cassandraOperation.getRecordsByPropertiesByKey(
+                anyString(), anyString(), anyMap(), isNull(), isNull()
+        )).thenReturn(new ArrayList<>());
+        ApiResponse mockInsertResponse = new ApiResponse();
+        mockInsertResponse.put(Constants.RESPONSE, Constants.SUCCESS);
+        when(cassandraOperation.insertRecord(anyString(), anyString(), anyMap())).thenReturn(mockInsertResponse);
+        when(objectMapper.writeValueAsString(any())).thenReturn("[]"); // Fixed: use objectMapper instead of mapper
+        ApiResponse response = profileService.saveExtendedProfile(request, userToken);
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        assertNotNull(response.get(Constants.RESULT));
+        List<Map<String, Object>> result = (List<Map<String, Object>>) response.get(Constants.RESULT);
+        assertEquals(1, result.size());
+        assertTrue(result.get(0).containsKey(Constants.UUID));
+        assertEquals("Masters", result.get(0).get("degree"));
+        verify(accessTokenValidator).fetchUserIdFromAccessToken(userToken);
+        verify(cassandraOperation).insertRecord(anyString(), anyString(), anyMap());
+        verify(cacheService, times(1)).putCache(anyString(), any());
+    }
+
+    @Test
+    public void testSaveExtendedProfile_ValidationFailure_ReturnsBadRequest() {
+        String userId = "user-123";
+        String userToken = "valid-token";
+        Map<String, Object> educationItem = new HashMap<>();
+        educationItem.put("institute", "Test University");
+        Map<String, Object> requestData = new HashMap<>();
+        requestData.put(Constants.USER_ID_RQST, userId);
+        requestData.put(Constants.EDUCATIONAL_QUALIFICATIONS, List.of(educationItem));
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestData);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userId);
+        when(serverProperties.getContextType()).thenReturn(new String[]{Constants.EDUCATIONAL_QUALIFICATIONS});
+        when(serverProperties.getEducationalQualificationMandatoryFields()).thenReturn("degree,institute");
+        when(serverProperties.getAchievementsMandatoryFields()).thenReturn("");
+        when(serverProperties.getServiceHistoryMandatoryFields()).thenReturn("");
+        ApiResponse response = profileService.saveExtendedProfile(request, userToken);
+        assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
+        assertEquals(Constants.FAILED, response.getParams().getStatus());
+        assertNotNull(response.getParams().getErrMsg());
+        assertTrue(response.getParams().getErrMsg().contains("degree is mandatory"));
+    }
+
+    @Test
+    public void testSaveExtendedProfile_EmptyIncomingList_SkipsProcessingAndReturnsSuccess() {
+        String userId = "user-123";
+        String userToken = "valid-token";
+        Map<String, Object> requestData = new HashMap<>();
+        requestData.put(Constants.USER_ID_RQST, userId);
+        requestData.put(Constants.EDUCATIONAL_QUALIFICATIONS, Collections.emptyList());
+        Map<String, Object> validItem = new HashMap<>();
+        validItem.put("someField", "someValue");
+        requestData.put("otherContextType", List.of(validItem));
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestData);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userId);
+        when(serverProperties.getContextType()).thenReturn(new String[]{
+                Constants.EDUCATIONAL_QUALIFICATIONS, "otherContextType"
+        });
+        when(serverProperties.getEducationalQualificationMandatoryFields()).thenReturn("degree,institute");
+        when(serverProperties.getAchievementsMandatoryFields()).thenReturn("");
+        when(serverProperties.getServiceHistoryMandatoryFields()).thenReturn("");
+        when(cassandraOperation.getRecordsByPropertiesByKey(
+                anyString(), anyString(), anyMap(), isNull(), isNull()))
+                .thenReturn(new ArrayList<>());
+        ApiResponse mockInsertResponse = new ApiResponse();
+        mockInsertResponse.put(Constants.RESPONSE, Constants.SUCCESS);
+        when(cassandraOperation.insertRecord(anyString(), anyString(), anyMap())).thenReturn(mockInsertResponse);
+        ApiResponse response = profileService.saveExtendedProfile(request, userToken);
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        verify(cassandraOperation, never()).insertRecord(
+                eq(Constants.KEYSPACE_SUNBIRD),
+                eq(Constants.TABLE_USER_EXTENDED_PROFILE),
+                argThat(map -> map.containsKey(Constants.CONTEXT_TYPE) &&
+                        map.get(Constants.CONTEXT_TYPE).equals(Constants.EDUCATIONAL_QUALIFICATIONS))
+        );
+        verify(cassandraOperation, atLeastOnce()).insertRecord(
+                eq(Constants.KEYSPACE_SUNBIRD),
+                eq(Constants.TABLE_USER_EXTENDED_PROFILE),
+                argThat(map -> map.containsKey(Constants.CONTEXT_TYPE) &&
+                        map.get(Constants.CONTEXT_TYPE).equals("otherContextType"))
+        );
+    }
+
+    @Test
+    public void testSaveExtendedProfile_SaveContextDataFails_ReturnsError() throws Exception {
+        String userId = "user-123";
+        String userToken = "valid-token";
+        String contextType = Constants.EDUCATIONAL_QUALIFICATIONS;
+        Map<String, Object> educationItem = new HashMap<>();
+        educationItem.put("degree", "Masters");
+        educationItem.put("institute", "Test University");
+        Map<String, Object> requestData = new HashMap<>();
+        requestData.put(Constants.USER_ID_RQST, userId);
+        requestData.put(contextType, List.of(educationItem));
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestData);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userId);
+        when(serverProperties.getContextType()).thenReturn(new String[]{contextType});
+        when(serverProperties.getEducationalQualificationMandatoryFields()).thenReturn("degree,institute");
+        when(serverProperties.getAchievementsMandatoryFields()).thenReturn("");
+        when(serverProperties.getServiceHistoryMandatoryFields()).thenReturn("");
+        when(cassandraOperation.getRecordsByPropertiesByKey(
+                anyString(), anyString(), anyMap(), isNull(), isNull()))
+                .thenReturn(new ArrayList<>());
+        ApiResponse mockFailureResponse = new ApiResponse();
+        mockFailureResponse.put(Constants.RESPONSE, Constants.FAILED);
+        when(cassandraOperation.insertRecord(anyString(), anyString(), anyMap())).thenReturn(mockFailureResponse);
+        ApiResponse response = profileService.saveExtendedProfile(request, userToken);
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
+        assertEquals(Constants.FAILED, response.getParams().getStatus());
+        assertEquals("Failed to save data for contextType: " + contextType, response.getParams().getErrMsg());
+        verify(cassandraOperation).insertRecord(
+                eq(Constants.KEYSPACE_SUNBIRD),
+                eq(Constants.TABLE_USER_EXTENDED_PROFILE),
+                argThat(map -> map.get(Constants.CONTEXT_TYPE).equals(contextType))
+        );
+    }
+
+    @Test
+    public void testSaveExtendedProfile_UserIdMismatchWithToken_ReturnsBadRequest() {
+        String tokenUserId = "token-user-123";  // User ID from token
+        String requestUserId = "request-user-456";  // Different user ID in request
+        String userToken = "some-token";
+        Map<String, Object> requestData = new HashMap<>();
+        requestData.put(Constants.USER_ID_RQST, requestUserId);
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestData);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(tokenUserId);
+        ApiResponse response = profileService.saveExtendedProfile(request, userToken);
+        assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
+        assertEquals(Constants.FAILED, response.getParams().getStatus());
+        assertEquals("Invalid UserId in the request", response.getParams().getErrMsg());
+        verify(accessTokenValidator).fetchUserIdFromAccessToken(userToken);
+        verifyNoMoreInteractions(cassandraOperation, cacheService);
+    }
+
+    @Test
+    public void testSaveExtendedProfile_NullOrEmptyList_SkipsProcessing() {
+        String userId = "user-123";
+        String userToken = "valid-token";
+        Map<String, Object> requestData = new HashMap<>();
+        requestData.put(Constants.USER_ID_RQST, userId);
+        requestData.put(Constants.EDUCATIONAL_QUALIFICATIONS, Collections.emptyList());  // Empty list
+        requestData.put(Constants.SERVICE_HISTORY, null);  // Null list
+        Map<String, Object> achievementItem = new HashMap<>();
+        achievementItem.put("title", "Achievement 1");
+        achievementItem.put("issuer", "Issuer 1");
+        requestData.put(Constants.ACHIEVEMENTS, List.of(achievementItem));
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestData);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userId);
+        when(serverProperties.getContextType()).thenReturn(new String[]{
+                Constants.EDUCATIONAL_QUALIFICATIONS,
+                Constants.SERVICE_HISTORY,
+                Constants.ACHIEVEMENTS
+        });
+        when(serverProperties.getEducationalQualificationMandatoryFields()).thenReturn("");
+        when(serverProperties.getAchievementsMandatoryFields()).thenReturn("title,issuer");
+        when(serverProperties.getServiceHistoryMandatoryFields()).thenReturn("");
+        when(cassandraOperation.getRecordsByPropertiesByKey(
+                anyString(), anyString(), anyMap(), isNull(), isNull()))
+                .thenReturn(new ArrayList<>());
+        ApiResponse mockResponse = new ApiResponse();
+        mockResponse.put(Constants.RESPONSE, Constants.SUCCESS);
+        when(cassandraOperation.insertRecord(anyString(), anyString(), anyMap())).thenReturn(mockResponse);
+        ApiResponse response = profileService.saveExtendedProfile(request, userToken);
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        verify(cassandraOperation, never()).insertRecord(
+                eq(Constants.KEYSPACE_SUNBIRD),
+                eq(Constants.TABLE_USER_EXTENDED_PROFILE),
+                argThat(map -> map.get(Constants.CONTEXT_TYPE).equals(Constants.EDUCATIONAL_QUALIFICATIONS))
+        );
+        verify(cassandraOperation, never()).insertRecord(
+                eq(Constants.KEYSPACE_SUNBIRD),
+                eq(Constants.TABLE_USER_EXTENDED_PROFILE),
+                argThat(map -> map.get(Constants.CONTEXT_TYPE).equals(Constants.SERVICE_HISTORY))
+        );
+        verify(cassandraOperation).insertRecord(
+                eq(Constants.KEYSPACE_SUNBIRD),
+                eq(Constants.TABLE_USER_EXTENDED_PROFILE),
+                argThat(map -> map.get(Constants.CONTEXT_TYPE).equals(Constants.ACHIEVEMENTS))
+        );
+    }
+
+    @Test
+    public void testUpdateExtendedProfile_FiltersOutItemsWithoutUuid() throws IOException {
+        String userId = "user-123";
+        String userToken = "valid-token";
+        String contextType = "education";
+        String uuid1 = "uuid-1";
+        String uuid2 = "uuid-2";
+        List<Map<String, Object>> existingData = new ArrayList<>();
+        Map<String, Object> item1 = new HashMap<>();
+        item1.put(Constants.UUID, uuid1);
+        item1.put("degree", "Bachelor's");
+        existingData.add(item1);
+        Map<String, Object> item2 = new HashMap<>();
+        item2.put(Constants.UUID, uuid2);
+        item2.put("degree", "Master's");
+        existingData.add(item2);
+        Map<String, Object> item3 = new HashMap<>();
+        item3.put("degree", "PhD");
+        existingData.add(item3);
+        Map<String, Object> update = new HashMap<>();
+        update.put(Constants.UUID, uuid1);
+        update.put("degree", "Updated Bachelor's");
+        Map<String, Object> requestData = new HashMap<>();
+        requestData.put(Constants.USER_ID_RQST, userId);
+        requestData.put(contextType, List.of(update));
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestData);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userId);
+        when(serverProperties.getContextType()).thenReturn(new String[]{contextType});
+        when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), isNull(), isNull()))
+                .thenReturn(List.of(Map.of(Constants.CONTEXT_DATA, "[]")));
+        when(projectUtil.parseListOfMap(anyString())).thenReturn(existingData);
+        String updatedJsonData = "[{\"uuid\":\"uuid-1\",\"degree\":\"Updated Bachelor's\"},{\"uuid\":\"uuid-2\",\"degree\":\"Master's\"}]";
+        when(objectMapper.writeValueAsString(any())).thenReturn(updatedJsonData);
+        ApiResponse mockResponse = new ApiResponse();
+        mockResponse.put(Constants.RESPONSE, Constants.SUCCESS);
+        when(cassandraOperation.insertRecord(anyString(), anyString(), anyMap())).thenReturn(mockResponse);
+        ApiResponse response = profileService.updateExtendedProfile(request, userToken);
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        ArgumentCaptor<Map<String, Object>> insertCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(cassandraOperation).insertRecord(
+                eq(Constants.KEYSPACE_SUNBIRD),
+                eq(Constants.TABLE_USER_EXTENDED_PROFILE),
+                insertCaptor.capture());
+        Map<String, Object> savedData = insertCaptor.getValue();
+        assertEquals(updatedJsonData, savedData.get(Constants.CONTEXT_DATA));
+        String contextData = (String) savedData.get(Constants.CONTEXT_DATA);
+        assertTrue(contextData.contains(uuid1));
+        assertTrue(contextData.contains(uuid2));
+        assertTrue(contextData.contains("Updated Bachelor's"));
+        assertFalse(contextData.contains("PhD"));
+    }
+
+    @Test
+    public void testUpdateExtendedProfile_InvalidUuid_ReturnsBadRequest() throws IOException {
+        String userId = "user-123";
+        String userToken = "valid-token";
+        String contextType = "education";
+        String nonExistentUuid = "uuid-does-not-exist";
+        List<Map<String, Object>> existingData = new ArrayList<>();
+        existingData.add(Map.of(
+                Constants.UUID, "existing-uuid-1",
+                "degree", "Bachelor's"
+        ));
+        existingData.add(Map.of(
+                Constants.UUID, "existing-uuid-2",
+                "degree", "Master's"
+        ));
+        Map<String, Object> updateItem = new HashMap<>();
+        updateItem.put(Constants.UUID, nonExistentUuid);
+        updateItem.put("degree", "PhD");
+        Map<String, Object> requestData = new HashMap<>();
+        requestData.put(Constants.USER_ID_RQST, userId);
+        requestData.put(contextType, List.of(updateItem));
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestData);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userId);
+        when(serverProperties.getContextType()).thenReturn(new String[]{contextType});
+        when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), isNull(), isNull()))
+                .thenReturn(List.of(Map.of(Constants.CONTEXT_DATA, "[]")));
+        when(projectUtil.parseListOfMap(anyString())).thenReturn(existingData);
+        ApiResponse response = profileService.updateExtendedProfile(request, userToken);
+        assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
+        assertEquals(Constants.FAILED, response.getParams().getStatus());
+        assertEquals("Invalid or missing UUID in incoming data.", response.getParams().getErrMsg());
+        verify(cassandraOperation, never()).insertRecord(anyString(), anyString(), anyMap());
+    }
+
+    @Test
+    public void testUpdateExtendedProfile_SaveContextDataFails_ReturnsError() throws Exception {
+        String userId = "user-123";
+        String userToken = "valid-token";
+        String contextType = "education";
+        String uuid = "existing-uuid-1";
+        List<Map<String, Object>> existingData = new ArrayList<>();
+        Map<String, Object> existingItem = new HashMap<>();
+        existingItem.put(Constants.UUID, uuid);
+        existingItem.put("degree", "Bachelor's");
+        existingData.add(existingItem);
+        Map<String, Object> updateItem = new HashMap<>();
+        updateItem.put(Constants.UUID, uuid);
+        updateItem.put("degree", "Updated Degree");
+        Map<String, Object> requestData = new HashMap<>();
+        requestData.put(Constants.USER_ID_RQST, userId);
+        requestData.put(contextType, List.of(updateItem));
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestData);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userId);
+        when(serverProperties.getContextType()).thenReturn(new String[]{contextType});
+        when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), isNull(), isNull()))
+                .thenReturn(List.of(Map.of(Constants.CONTEXT_DATA, "[]")));
+        when(projectUtil.parseListOfMap(anyString())).thenReturn(existingData);
+        ApiResponse failureResponse = new ApiResponse();
+        failureResponse.put(Constants.RESPONSE, Constants.FAILED);
+        when(cassandraOperation.insertRecord(anyString(), anyString(), anyMap())).thenReturn(failureResponse);
+        ApiResponse response = profileService.updateExtendedProfile(request, userToken);
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
+        assertEquals(Constants.FAILED, response.getParams().getStatus());
+        assertEquals("Failed to update data for contextType: " + contextType, response.getParams().getErrMsg());
+        verify(cassandraOperation).insertRecord(
+                eq(Constants.KEYSPACE_SUNBIRD),
+                eq(Constants.TABLE_USER_EXTENDED_PROFILE),
+                argThat(map -> map.get(Constants.CONTEXT_TYPE).equals(contextType))
+        );
+    }
+
+    @Test
+    public void testUpdateExtendedProfile_UserIdMismatch_ReturnsBadRequest() {
+        String requestUserId = "user-123";
+        String tokenUserId = "different-user-456";
+        String userToken = "token-for-different-user";
+        Map<String, Object> requestData = new HashMap<>();
+        requestData.put(Constants.USER_ID_RQST, requestUserId);
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestData);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(tokenUserId);
+        ApiResponse response = profileService.updateExtendedProfile(request, userToken);
+        assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
+        assertEquals(Constants.FAILED, response.getParams().getStatus());
+        assertEquals("Invalid UserId in the request", response.getParams().getErrMsg());
+        verify(serverProperties, never()).getContextType();
+        verify(cassandraOperation, never()).getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), any(), any());
+    }
+
+
+    @Test
+    public void testUpdateExtendedProfile_EmptyIncomingList_SkipsProcessing() {
+        String userId = "user-123";
+        String userToken = "valid-token";
+        String contextType1 = "education";
+        String contextType2 = "workExperience";
+        Map<String, Object> requestData = new HashMap<>();
+        requestData.put(Constants.USER_ID_RQST, userId);
+        requestData.put(contextType1, Collections.emptyList());  // Empty list
+        requestData.put(contextType2, null);  // Null list
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestData);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userId);
+        when(serverProperties.getContextType()).thenReturn(new String[]{contextType1, contextType2});
+        ApiResponse response = profileService.updateExtendedProfile(request, userToken);
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        assertEquals(Constants.SUCCESS, response.get(Constants.RESPONSE));
+        verify(cassandraOperation, never()).getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), any(), any());
+        verify(cassandraOperation, never()).insertRecord(anyString(), anyString(), anyMap());
+    }
+
+    @Test
+    public void testUpdateExtendedProfile_NullUuid_ReturnsBadRequest() {
+        String userId = "user-123";
+        String userToken = "valid-token";
+        String contextType = "education";
+        Map<String, Object> updateWithNullUuid = new HashMap<>();
+        updateWithNullUuid.put("degree", "Updated Bachelor's");
+        Map<String, Object> requestData = new HashMap<>();
+        requestData.put(Constants.USER_ID_RQST, userId);
+        requestData.put(contextType, List.of(updateWithNullUuid));
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestData);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userId);
+        when(serverProperties.getContextType()).thenReturn(new String[]{contextType});
+        when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), any(), any()))
+                .thenReturn(new ArrayList<>());
+        ApiResponse response = profileService.updateExtendedProfile(request, userToken);
+        assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
+        assertEquals(Constants.FAILED, response.getParams().getStatus());
+        assertEquals("Invalid or missing UUID in incoming data.", response.getParams().getErrMsg());
+        verify(cassandraOperation).getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), any(), any());
+        verify(cassandraOperation, never()).insertRecord(anyString(), anyString(), anyMap());
+    }
+
+    @Test
+    public void testDeleteExtendedProfile_SaveContextDataFails_ReturnsError() throws Exception {
+        String userId = "user-123";
+        String userToken = "valid-token";
+        String contextType = "education";
+        String uuid = UUID.randomUUID().toString();
+        Map<String, Object> deleteItem = Map.of(Constants.UUID, uuid);
+        Map<String, Object> requestData = new HashMap<>();
+        requestData.put(Constants.USER_ID_RQST, userId);
+        requestData.put(contextType, List.of(deleteItem));
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestData);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userId);
+        when(serverProperties.getContextType()).thenReturn(new String[]{contextType});
+        when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), any(), any()))
+                .thenReturn(List.of(Map.of(Constants.CONTEXT_DATA, "[]")));
+        when(projectUtil.parseListOfMap(anyString()))
+                .thenReturn(new ArrayList<>(List.of(new HashMap<>(Map.of(Constants.UUID, uuid)))));
+        ApiResponse failedResponse = new ApiResponse();
+        failedResponse.put(Constants.RESPONSE, Constants.FAILED);
+        when(cassandraOperation.insertRecord(anyString(), anyString(), anyMap())).thenReturn(failedResponse);
+        ApiResponse response = profileService.deleteExtendedProfile(request, userToken);
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
+        assertEquals(Constants.FAILED, response.getParams().getStatus());
+        assertEquals("Failed to delete data for contextType: " + contextType, response.getParams().getErrMsg());
+    }
+
+    @Test
+    public void testGetExtendedProfileSummary_CachePutThrowsException_LogsWarning() throws Exception {
+        String userId = "user-123";
+        String userToken = "valid-token";
+        String contextType = "education";
+        List<Map<String, Object>> contextData = List.of(Map.of("field", "value"));
+        when(serverProperties.getContextType()).thenReturn(new String[]{contextType});
+        when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), any(), any()))
+                .thenReturn(List.of(Map.of(Constants.CONTEXT_DATA, "[{\"field\":\"value\"}]")));
+        when(projectUtil.parseListOfMap(anyString())).thenReturn(
+                new ArrayList<>(List.of(new HashMap<>(Map.of("field", "value"))))
+        );
+        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userId);
+        doThrow(new RuntimeException("Cache error")).when(cacheService).putCache(anyString(), anyString());
+        ApiResponse response = profileService.getExtendedProfileSummary(userId, userToken);
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        assertNotNull(response.get(Constants.RESPONSE));
+        verify(cacheService).putCache(anyString(), isNull());
+    }
+
+    @Test
+    void testDeleteExtendedProfile_UserIdMismatch_ReturnsBadRequest() {
+        String requestUserId = "user-123";
+        String tokenUserId = "different-user-456";
+        String userToken = "token-for-different-user";
+        Map<String, Object> requestData = new HashMap<>();
+        requestData.put(Constants.USER_ID_RQST, requestUserId);
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestData);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(tokenUserId);
+        ApiResponse response = profileService.deleteExtendedProfile(request, userToken);
+        assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
+        assertEquals("Invalid UserId in the request", response.getParams().getErrMsg());
+    }
+
+    @Test
+    void testDeleteExtendedProfile_ToDeleteListNullOrEmpty_SkipsProcessing() {
+        String userId = "user-123";
+        String userToken = "valid-token";
+        String contextType1 = "education";
+        String contextType2 = "workExperience";
+        Map<String, Object> requestData = new HashMap<>();
+        requestData.put(Constants.USER_ID_RQST, userId);
+        requestData.put(contextType1, null); // null list
+        requestData.put(contextType2, Collections.emptyList()); // empty list
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestData);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userId);
+        when(serverProperties.getContextType()).thenReturn(new String[]{contextType1, contextType2});
+        ApiResponse response = profileService.deleteExtendedProfile(request, userToken);
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        assertEquals(Constants.SUCCESS, response.get(Constants.RESPONSE));
+        verify(cassandraOperation, never()).getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), any(), any());
+        verify(cassandraOperation, never()).insertRecord(anyString(), anyString(), anyMap());
+        verify(cacheService, never()).putCache(anyString(), any());
+    }
+
+    @Test
+    void testReadFullExtendedProfile_NoContextData_ReturnsNoContent() throws Exception {
+        String userId = "user-123";
+        String userToken = "valid-token";
+        String contextType = "education";
+        String redisKey = "user:extendedProfile:" + contextType + ":" + userId;
+        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userId);
+        when(cacheService.getCache(redisKey)).thenReturn(null);
+        when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), any(), any()))
+                .thenReturn(null); // or Collections.emptyList()
+        lenient().when(projectUtil.parseListOfMap(anyString())).thenReturn(Collections.emptyList());
+        ApiResponse response = profileService.readFullExtendedProfile(userId, contextType, userToken);
+        assertEquals(HttpStatus.NO_CONTENT, response.getResponseCode());
+        assertEquals("No data found for user.", response.getParams().getErrMsg());
     }
 }
