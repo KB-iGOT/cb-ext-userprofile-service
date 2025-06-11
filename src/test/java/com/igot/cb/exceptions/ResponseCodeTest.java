@@ -101,4 +101,21 @@ public class ResponseCodeTest {
         }
     }
 
+    @Test
+    public void testGetResponseMethod() {
+        assertNull(ResponseCode.getResponse(null));
+        assertNull(ResponseCode.getResponse(""));
+        assertNull(ResponseCode.getResponse("   "));
+        assertEquals(ResponseCode.unAuthorized, ResponseCode.getResponse(Constants.UNAUTHORIZED));
+        assertEquals(ResponseCode.internalError,
+                ResponseCode.getResponse(ResponseMessage.Key.INTERNAL_ERROR));
+        assertEquals(ResponseCode.unAuthorized,
+                ResponseCode.getResponse(ResponseMessage.Key.UNAUTHORIZED_USER));
+        assertEquals(ResponseCode.resourceNotFound,
+                ResponseCode.getResponse(ResponseMessage.Key.RESOURCE_NOT_FOUND));
+        assertNull(ResponseCode.getResponse("INVALID_CODE"));
+        assertNull(ResponseCode.getResponse(ResponseCode.OK.getErrorCode()));
+        assertNull(ResponseCode.getResponse(ResponseCode.CLIENT_ERROR.getErrorCode()));
+        assertNull(ResponseCode.getResponse(ResponseCode.SERVER_ERROR.getErrorCode()));
+    }
 }
