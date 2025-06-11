@@ -15,6 +15,9 @@ import org.mockito.MockedStatic;
 import org.mockito.junit.MockitoJUnitRunner;
 import org.springframework.http.HttpStatus;
 
+import java.lang.reflect.Field;
+import java.util.Map;
+
 import static org.junit.Assert.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -23,10 +26,14 @@ import static org.mockito.Mockito.*;
 @RunWith(MockitoJUnitRunner.class)
 public class CassandraConnectionManagerImplTest {
 
-    @Mock private PropertiesCache propertiesCache;
-    @Mock private CqlSession mockSession;
-    @Mock private Metadata mockMetadata;
-    @Mock private Runtime mockRuntime;
+    @Mock
+    private PropertiesCache propertiesCache;
+    @Mock
+    private CqlSession mockSession;
+    @Mock
+    private Metadata mockMetadata;
+    @Mock
+    private Runtime mockRuntime;
 
     private CassandraConnectionManagerImpl cassandraConnectionManager;
 
@@ -35,6 +42,7 @@ public class CassandraConnectionManagerImplTest {
         // Create the test instance
         cassandraConnectionManager = new CassandraConnectionManagerImpl() {
             private CqlSession session = null;
+
             @Override
             public void createCassandraConnection() {
             }
@@ -139,6 +147,145 @@ public class CassandraConnectionManagerImplTest {
             assertEquals("ERROR", e.getCode());
             assertEquals("Test exception", e.getMessage());
             assertEquals(0, e.getResponseCode());
+        }
+    }
+
+    @Test
+    public void testGetSession_WithNullSessionInMap() throws Exception {
+        Field mapField = CassandraConnectionManagerImpl.class.getDeclaredField("cassandraSessionMap");
+        mapField.setAccessible(true);
+        Map<String, CqlSession> sessionMap = (Map<String, CqlSession>) mapField.get(null);
+        sessionMap.clear();
+        CassandraConnectionManagerImpl spyManager = spy(new CassandraConnectionManagerImpl() {
+            @Override
+            public void createCassandraConnection() {
+            }
+            @Override
+            public CqlSession createCassandraConnectionWithKeySpaces(String keyspace) {
+                return mockSession;
+            }
+        });
+        String testKeyspace = "testKeyspace";
+        CqlSession result = spyManager.getSession(testKeyspace);
+        assertEquals(mockSession, result);
+        verify(spyManager).createCassandraConnectionWithKeySpaces(testKeyspace);
+        assertEquals(mockSession, sessionMap.get(testKeyspace));
+    }
+
+    @Test
+    public void testGetSession_WithOpenSessionInMap() throws Exception {
+        Field mapField = CassandraConnectionManagerImpl.class.getDeclaredField("cassandraSessionMap");
+        mapField.setAccessible(true);
+        Map<String, CqlSession> sessionMap = (Map<String, CqlSession>) mapField.get(null);
+        sessionMap.clear();
+        when(mockSession.isClosed()).thenReturn(false);
+        String testKeyspace = "testKeyspace";
+        sessionMap.put(testKeyspace, mockSession);
+        CassandraConnectionManagerImpl spyManager = spy(new CassandraConnectionManagerImpl() {
+            @Override
+            public void createCassandraConnection() {
+            }
+            @Override
+            public CqlSession createCassandraConnectionWithKeySpaces(String keyspace) {
+                fail("Should not create a new session when an open one exists");
+                return null;
+            }
+        });
+        CqlSession result = spyManager.getSession(testKeyspace);
+        assertEquals(mockSession, result);
+    }
+
+    @Test
+    public void testGetSession_WithClosedSessionInMap() throws Exception {
+        Field mapField = CassandraConnectionManagerImpl.class.getDeclaredField("cassandraSessionMap");
+        mapField.setAccessible(true);
+        Map<String, CqlSession> sessionMap = (Map<String, CqlSession>) mapField.get(null);
+        sessionMap.clear();
+        CqlSession closedSession = mock(CqlSession.class);
+        when(closedSession.isClosed()).thenReturn(true);
+        String testKeyspace = "testKeyspace";
+        sessionMap.put(testKeyspace, closedSession);
+        CassandraConnectionManagerImpl spyManager = spy(new CassandraConnectionManagerImpl() {
+            @Override
+            public void createCassandraConnection() {
+            }
+            @Override
+            public CqlSession createCassandraConnectionWithKeySpaces(String keyspace) {
+                return mockSession;
+            }
+        });
+        CqlSession result = spyManager.getSession(testKeyspace);
+        assertEquals(mockSession, result);
+        assertEquals(mockSession, sessionMap.get(testKeyspace));
+    }
+
+
+    @Test
+    public void testCreateCassandraConnectionWithKeySpaces_WithValidKeyspace() {
+        // Setup mocking
+        CassandraConnectionManagerImpl spyManager = spy(cassandraConnectionManager);
+        try (MockedStatic<PropertiesCache> propertiesCacheMock = mockStatic(PropertiesCache.class)) {
+            propertiesCacheMock.when(PropertiesCache::getInstance).thenReturn(propertiesCache);
+            CqlSession result = spyManager.createCassandraConnectionWithKeySpaces("testKeyspace");
+            assertEquals(mockSession, result);
+        }
+    }
+
+    @Test
+    public void testCreateCassandraConnectionWithKeySpaces_WithoutKeyspace() {
+        CassandraConnectionManagerImpl spyManager = spy(cassandraConnectionManager);
+        try (MockedStatic<PropertiesCache> propertiesCacheMock = mockStatic(PropertiesCache.class)) {
+            propertiesCacheMock.when(PropertiesCache::getInstance).thenReturn(propertiesCache);
+            when(propertiesCache.getProperty(Constants.CASSANDRA_CONFIG_HOST)).thenReturn("localhost");
+            CqlSession result = spyManager.createCassandraConnectionWithKeySpaces(null);
+            assertEquals(mockSession, result);
+        }
+    }
+
+    @Test
+    public void testCreateCassandraConnectionWithKeySpaces_MultipleHosts() {
+        CassandraConnectionManagerImpl spyManager = spy(cassandraConnectionManager);
+        try (MockedStatic<PropertiesCache> propertiesCacheMock = mockStatic(PropertiesCache.class)) {
+            propertiesCacheMock.when(PropertiesCache::getInstance).thenReturn(propertiesCache);
+            when(propertiesCache.getProperty(Constants.CASSANDRA_CONFIG_HOST)).thenReturn("host1,host2,host3");
+            CqlSession result = spyManager.createCassandraConnectionWithKeySpaces("testKeyspace");
+        }
+    }
+
+    @Test
+    public void testCreateCassandraConnectionWithKeySpaces_EmptyHost() {
+        try (MockedStatic<PropertiesCache> propertiesCacheMock = mockStatic(PropertiesCache.class)) {
+            propertiesCacheMock.when(PropertiesCache::getInstance).thenReturn(propertiesCache);
+            when(propertiesCache.getProperty(Constants.CASSANDRA_CONFIG_HOST)).thenReturn("");
+            try {
+                cassandraConnectionManager.createCassandraConnectionWithKeySpaces("testKeyspace");
+                fail("Expected CustomException was not thrown");
+            } catch (CustomException e) {
+                assertEquals("ERROR", e.getCode());
+                assertEquals("Cassandra host is not configured", e.getMessage());
+            }
+        }
+    }
+
+    @Test
+    public void testCreateCassandraConnectionWithKeySpaces_InvalidConnectionParams_WithMock() {
+        CassandraConnectionManagerImpl testManager = new CassandraConnectionManagerImpl() {
+            @Override
+            public void createCassandraConnection() {
+            }
+        };
+
+        try (MockedStatic<PropertiesCache> propertiesCacheMock = mockStatic(PropertiesCache.class)) {
+            propertiesCacheMock.when(PropertiesCache::getInstance).thenReturn(propertiesCache);
+            when(propertiesCache.getProperty(Constants.CASSANDRA_CONFIG_HOST)).thenReturn("localhost");
+            when(propertiesCache.getProperty(Constants.CORE_CONNECTIONS_PER_HOST_FOR_LOCAL)).thenReturn("invalid");
+            try {
+                testManager.createCassandraConnectionWithKeySpaces("testKeyspace");
+                fail("Expected CustomException was not thrown");
+            } catch (CustomException e) {
+                assertEquals("ERROR", e.getCode());
+                assertTrue(e.getMessage().contains("For input string: \"invalid\""));
+            }
         }
     }
 }
