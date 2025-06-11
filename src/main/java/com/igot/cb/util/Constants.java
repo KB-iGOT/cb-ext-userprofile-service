@@ -426,6 +426,14 @@ public class Constants {
     public static final String ROLE = "role";
     public static final String SCOPE = "scope";
     public static final String ORGANISATION_ID = "organisationId";
+    public static final String ACTIVE_LOWERCASE = "active";
+    public static final String COMPETENCY_AREA_NAME = "competencyAreaName";
+    public static final String COMPETENCY_THEME_NAME = "competencyThemeName";
+    public static final String COMPETENCY_SUB_THEME_NAME = "competencySubThemeName";
+    public static final String COMPETENCY_SUB_THEME_NAMES = "competencySubThemeNames";
+    public static final String COURSE_IDS = "courseIds";
+    public static final String COMPETENCY_AREA_COUNTS = "competencyAreaCounts";
+    public static final String COMPETENCY_TEHEME_GROUPS = "competencyThemeGroups";
 
     private Constants() {
     }
