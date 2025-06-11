@@ -366,8 +366,8 @@ public class ProfileServiceImpl implements ProfileService {
                         Constants.KEYSPACE_SUNBIRD_COURSES,
                         Constants.TABLE_USER_ENROLMENTS, queryParams, fields, 100);
                 List<String> completedCourseIdList = allEnrolmentRecords.stream()
-                        .filter(map -> Boolean.TRUE.equals(map.get("active")) && Integer.valueOf(2).equals(map.get("status")))
-                        .map(map -> map.get("courseId"))
+                        .filter(map -> Boolean.TRUE.equals(map.get(Constants.ACTIVE_LOWERCASE)) && Integer.valueOf(2).equals(map.get(Constants.STATUS)))
+                        .map(map -> map.get(Constants.COURSE_ID))
                         .filter(Objects::nonNull)
                         .map(Object::toString)
                         .collect(Collectors.toList());
@@ -379,7 +379,7 @@ public class ProfileServiceImpl implements ProfileService {
                         Arrays.asList(Constants.COURSE_ID, Constants.COURSE_CATEGORY, Constants.COMPETENCIES_V6,
                                 Constants.NAME));
                 competencies = analyzeCompetencies(courseMetadata);
-                response.put("competencies", competencies);
+                response.put(Constants.COMPETENCIES, competencies);
 
                 if (competencies.isEmpty()) {
                     ProjectUtil.errorResponse(response, "No competencies found for user.", HttpStatus.NO_CONTENT);
@@ -670,7 +670,7 @@ public class ProfileServiceImpl implements ProfileService {
             String courseId = entry.getKey();
             Map<String, Object> course = entry.getValue();
 
-            Object compObj = course.get("competencies_v6");
+            Object compObj = course.get(Constants.COMPETENCIES_V6);
             if (!(compObj instanceof List<?> competencies))
                 continue;
 
@@ -678,9 +678,9 @@ public class ProfileServiceImpl implements ProfileService {
                 if (!(comp instanceof Map<?, ?> compMap))
                     continue;
 
-                String areaName = String.valueOf(compMap.get("competencyAreaName"));
-                String themeName = String.valueOf(compMap.get("competencyThemeName"));
-                String subThemeName = String.valueOf(compMap.get("competencySubThemeName"));
+                String areaName = String.valueOf(compMap.get(Constants.COMPETENCY_AREA_NAME));
+                String themeName = String.valueOf(compMap.get(Constants.COMPETENCY_THEME_NAME));
+                String subThemeName = String.valueOf(compMap.get(Constants.COMPETENCY_SUB_THEME_NAME));
 
                 // 1. Count by competencyAreaName
                 areaCountMap.merge(areaName, 1L, Long::sum);
@@ -688,13 +688,13 @@ public class ProfileServiceImpl implements ProfileService {
                 // 2. Group by competencyThemeName
                 themeGroupMap.computeIfAbsent(themeName, k -> {
                     Map<String, Object> m = new HashMap<>();
-                    m.put("competencySubThemeNames", new HashSet<String>());
-                    m.put("courseIds", new HashSet<String>());
+                    m.put(Constants.COMPETENCY_SUB_THEME_NAME, new HashSet<String>());
+                    m.put(Constants.COURSE_IDS, new HashSet<String>());
                     return m;
                 });
 
-                Set<String> subThemes = (Set<String>) themeGroupMap.get(themeName).get("competencySubThemeNames");
-                Set<String> courseIds = (Set<String>) themeGroupMap.get(themeName).get("courseIds");
+                Set<String> subThemes = (Set<String>) themeGroupMap.get(themeName).get(Constants.COMPETENCY_SUB_THEME_NAMES);
+                Set<String> courseIds = (Set<String>) themeGroupMap.get(themeName).get(Constants.COURSE_IDS);
 
                 if (subThemeName != null && !subThemeName.isBlank())
                     subThemes.add(subThemeName);
@@ -704,18 +704,18 @@ public class ProfileServiceImpl implements ProfileService {
 
         // Prepare final output
         Map<String, Object> result = new HashMap<>();
-        result.put("competencyAreaCounts", areaCountMap);
+        result.put(Constants.COMPETENCY_AREA_COUNTS, areaCountMap);
 
         // Convert sets to lists for serialization/final response
         Map<String, Map<String, Object>> groupedThemes = new LinkedHashMap<>();
         for (Map.Entry<String, Map<String, Object>> entry : themeGroupMap.entrySet()) {
             groupedThemes.put(entry.getKey(), Map.of(
-                    "competencySubThemeNames",
-                    new ArrayList<>((Set<?>) entry.getValue().get("competencySubThemeNames")),
-                    "courseIds", new ArrayList<>((Set<?>) entry.getValue().get("courseIds"))));
+                    Constants.COMPETENCY_SUB_THEME_NAME,
+                    new ArrayList<>((Set<?>) entry.getValue().get(Constants.COMPETENCY_SUB_THEME_NAME)),
+                    Constants.COURSE_IDS, new ArrayList<>((Set<?>) entry.getValue().get(Constants.COURSE_IDS))));
         }
 
-        result.put("competencyThemeGroups", groupedThemes);
+        result.put(Constants.COMPETENCY_TEHEME_GROUPS, groupedThemes);
         return result;
     }
 
