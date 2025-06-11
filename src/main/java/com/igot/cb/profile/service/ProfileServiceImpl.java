@@ -366,16 +366,17 @@ public class ProfileServiceImpl implements ProfileService {
                         Constants.KEYSPACE_SUNBIRD_COURSES,
                         Constants.TABLE_USER_ENROLMENTS, queryParams, fields, 100);
                 List<String> completedCourseIdList = allEnrolmentRecords.stream()
-                        .filter(map -> Boolean.TRUE.equals(map.get(Constants.ACTIVE))
-                                && Integer.valueOf(2).equals(map.get(Constants.STATUS)))
-                        .map(map -> map.get(Constants.COURSE_ID)).filter(String.class::isInstance).map(String.class::cast)
-                        .distinct().toList();
+                        .filter(map -> Boolean.TRUE.equals(map.get("active")) && Integer.valueOf(2).equals(map.get("status")))
+                        .map(map -> map.get("courseId"))
+                        .filter(Objects::nonNull)
+                        .map(Object::toString)
+                        .collect(Collectors.toList());
                 if (completedCourseIdList.isEmpty()) {
                     ProjectUtil.errorResponse(response, "No competencies found for user.", HttpStatus.NO_CONTENT);
                     return response;
                 }
                 Map<String, Map<String, Object>> courseMetadata = getCourseMetadataBatched(completedCourseIdList, 100,
-                        Arrays.asList(Constants.COURSE_ID, Constants.COURSE_CATEGORY, Constants.COMPETENCIES_V7,
+                        Arrays.asList(Constants.COURSE_ID, Constants.COURSE_CATEGORY, Constants.COMPETENCIES_V6,
                                 Constants.NAME));
                 competencies = analyzeCompetencies(courseMetadata);
                 response.put("competencies", competencies);
