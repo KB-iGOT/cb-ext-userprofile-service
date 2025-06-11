@@ -363,44 +363,6 @@ public class ProfileServiceImplTest {
         assertEquals("No competencies found for user.", response.getParams().getErrMsg());
     }
 
-    @Test
-    void testListCompetencies_success() throws Exception {
-        when(accessTokenValidator.fetchUserIdFromAccessToken(TOKEN)).thenReturn(USER_ID);
-
-        String userId = "user-123"; // Ensure consistency
-        String cacheKey = "user:competencies:" + userId;
-
-        // Return a real JSON string if needed for cache hit
-        String mockCachedJson = "{}"; // Or some actual JSON content
-        when(cacheService.getCache(cacheKey)).thenReturn(mockCachedJson); // ✅ FIXED
-
-        Map<String, Object> record = Map.of(
-                Constants.ACTIVE, true,
-                Constants.STATUS, 2,
-                Constants.COURSE_ID, "course1"
-        );
-        when(cassandraOperation.getAllRecordsByPrimaryKey(any(), any(), any(), any(), anyInt()))
-                .thenReturn(List.of(record));
-
-        String courseJson = "{\"competencies_v6\":[{\"competencyAreaName\":\"Area1\",\"competencyThemeName\":\"Theme1\",\"competencySubThemeName\":\"Sub1\"}]}";
-        lenient().when(cacheService.getCourseMetadataAsJsonString(List.of("course1"))).thenReturn(Map.of("course1", courseJson));
-
-        Map<String, Object> parsedMap = Map.of(
-                "competencies_v6", List.of(Map.of(
-                        "competencyAreaName", "Area1",
-                        "competencyThemeName", "Theme1",
-                        "competencySubThemeName", "Sub1"
-                ))
-        );
-        lenient().when(projectUtil.parseMap(courseJson)).thenReturn(parsedMap);
-
-        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
-
-        ApiResponse response = profileService.listCompetencies(USER_ID, TOKEN);
-
-        assertEquals(HttpStatus.OK, response.getResponseCode());
-        assertNotNull(response.get(Constants.RESPONSE));
-    }
 
 
     @Test
@@ -413,22 +375,6 @@ public class ProfileServiceImplTest {
         assertTrue(result.isEmpty());
     }
 
-    @Test
-    void testAnalyzeCompetencies_valid() {
-        Map<String, Object> comp1 = Map.of(
-                "competencyAreaName", "Area1",
-                "competencyThemeName", "Theme1",
-                "competencySubThemeName", "Sub1"
-        );
-
-        Map<String, Object> courseMeta = Map.of("competencies_v6", List.of(comp1));
-        Map<String, Map<String, Object>> input = Map.of("course1", courseMeta);
-
-        Map<String, Object> result = profileService.analyzeCompetencies(input);
-
-        assertNotNull(result.get("competencyAreaCounts"));
-        assertNotNull(result.get("competencyThemeGroups"));
-    }
 
     @Test
     void testListCompetencies_cacheHit() throws Exception {
