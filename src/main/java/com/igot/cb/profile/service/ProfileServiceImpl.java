@@ -710,12 +710,12 @@ public class ProfileServiceImpl implements ProfileService {
         Map<String, Map<String, Object>> groupedThemes = new LinkedHashMap<>();
         for (Map.Entry<String, Map<String, Object>> entry : themeGroupMap.entrySet()) {
             groupedThemes.put(entry.getKey(), Map.of(
-                    Constants.COMPETENCY_SUB_THEME_NAME,
-                    new ArrayList<>((Set<?>) entry.getValue().get(Constants.COMPETENCY_SUB_THEME_NAME)),
+                    Constants.COMPETENCY_SUB_THEME_NAMES,
+                    new ArrayList<>((Set<?>) entry.getValue().get(Constants.COMPETENCY_SUB_THEME_NAMES)),
                     Constants.COURSE_IDS, new ArrayList<>((Set<?>) entry.getValue().get(Constants.COURSE_IDS))));
         }
 
-        result.put(Constants.COMPETENCY_TEHEME_GROUPS, groupedThemes);
+        result.put(Constants.COMPETENCY_THEME_GROUPS, groupedThemes);
         return result;
     }
 

@@ -433,7 +433,7 @@ public class Constants {
     public static final String COMPETENCY_SUB_THEME_NAMES = "competencySubThemeNames";
     public static final String COURSE_IDS = "courseIds";
     public static final String COMPETENCY_AREA_COUNTS = "competencyAreaCounts";
-    public static final String COMPETENCY_TEHEME_GROUPS = "competencyThemeGroups";
+    public static final String COMPETENCY_THEME_GROUPS = "competencyThemeGroups";
 
     private Constants() {
     }
