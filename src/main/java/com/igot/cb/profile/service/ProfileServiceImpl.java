@@ -688,7 +688,7 @@ public class ProfileServiceImpl implements ProfileService {
                 // 2. Group by competencyThemeName
                 themeGroupMap.computeIfAbsent(themeName, k -> {
                     Map<String, Object> m = new HashMap<>();
-                    m.put(Constants.COMPETENCY_SUB_THEME_NAME, new HashSet<String>());
+                    m.put(Constants.COMPETENCY_SUB_THEME_NAMES, new HashSet<String>());
                     m.put(Constants.COURSE_IDS, new HashSet<String>());
                     return m;
                 });
