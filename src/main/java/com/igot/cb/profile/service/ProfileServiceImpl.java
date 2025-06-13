@@ -333,7 +333,9 @@ public class ProfileServiceImpl implements ProfileService {
             }
 
             cacheService.putCache(cacheKey, mapper.writeValueAsString(userProfile));
-            response.setResponse(userProfile);
+            Map<String,Object> responseMap = new HashMap<>();
+            responseMap.put("response", userProfile);
+            response.setResponse(responseMap);
         } catch (Exception e) {
             logger.error("Error fetching basic profile for userId: {}", userId, e);
             ProjectUtil.errorResponse(response, "Internal server error while fetching profile",
@@ -379,8 +381,7 @@ public class ProfileServiceImpl implements ProfileService {
                         Arrays.asList(Constants.COURSE_ID, Constants.COURSE_CATEGORY, Constants.COMPETENCIES_V6,
                                 Constants.NAME));
                 competencies = analyzeCompetencies(courseMetadata);
-                response.put(Constants.COMPETENCIES, competencies);
-
+                
                 if (competencies.isEmpty()) {
                     ProjectUtil.errorResponse(response, "No competencies found for user.", HttpStatus.NO_CONTENT);
                     return response;
