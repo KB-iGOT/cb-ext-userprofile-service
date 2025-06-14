@@ -22,7 +22,8 @@ import java.io.IOException;
 import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
-
+import java.util.stream.Stream;
+import java.util.stream.IntStream;
 @Service
 @SuppressWarnings("unchecked")
 public class ProfileServiceImpl implements ProfileService {
@@ -83,7 +84,12 @@ public class ProfileServiceImpl implements ProfileService {
 
             List<Map<String, Object>> dataWithUUIDs = addUUIDs(incomingList);
             List<Map<String, Object>> existingList = getExistingContextData(userId, contextType);
-            existingList.addAll(dataWithUUIDs);
+
+            if(contextType.equalsIgnoreCase(Constants.ACHIEVEMENTS)) {
+                mergeAndSortByIssuedDateOrTitle(existingList, dataWithUUIDs);
+            }else{
+                existingList.addAll(dataWithUUIDs);
+            }
 
             //sortContextData(existingList, contextType);
             if (!saveContextData(userId, contextType, existingList)) {
@@ -896,5 +902,40 @@ public class ProfileServiceImpl implements ProfileService {
                 .filter(Objects::nonNull)
                 .distinct()
                 .collect(Collectors.toList());
+    }
+
+    private void mergeAndSortByIssuedDateOrTitle(List<Map<String, Object>> existingList, List<Map<String, Object>> newList) {
+        List<Map<String, Object>> merged = Stream.concat(existingList.stream(), newList.stream())
+                .sorted((a, b) -> {
+                    OffsetDateTime dateA = parseOffsetDateTime(a.get(Constants.ISSUED_DATE));
+                    OffsetDateTime dateB = parseOffsetDateTime(b.get(Constants.ISSUED_DATE));
+                    if (dateA != null && dateB != null) {
+                        return dateB.compareTo(dateA);
+                    } else if (dateA == null && dateB == null) {
+                        String titleA = (String) a.get(Constants.TITLE);
+                        String titleB = (String) b.get(Constants.TITLE);
+                        if (titleA == null && titleB == null) return 0;
+                        if (titleA == null) return 1;
+                        if (titleB == null) return -1;
+                        return titleA.compareToIgnoreCase(titleB);
+                    } else if (dateA == null) {
+                        return 1;
+                    } else {
+                        return -1;
+                    }
+                })
+                .toList();
+        IntStream.range(0, merged.size()).forEach(i -> merged.get(i).put(Constants.INDEX, i));
+        existingList.clear();
+        existingList.addAll(merged);
+    }
+
+    private OffsetDateTime parseOffsetDateTime(Object dateObj) {
+        if (dateObj instanceof String str && !str.isBlank()) {
+            try {
+                return OffsetDateTime.parse(str);
+            } catch (Exception ignored) {}
+        }
+        return null;
     }
 }
