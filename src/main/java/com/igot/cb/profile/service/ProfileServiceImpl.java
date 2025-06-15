@@ -611,6 +611,8 @@ public class ProfileServiceImpl implements ProfileService {
             ApiResponse response = readFullExtendedProfile(userId, contextType, userToken);
             if (response != null && response.getResponseCode() == HttpStatus.OK) {
                 Map<String, Object> result = (Map<String, Object>) response.get(Constants.RESPONSE);
+                if (Constants.LOCATION_DETAILS.equalsIgnoreCase(contextType))
+                    return Stream.of(Constants.STATE, Constants.DISTRICT).allMatch(result::containsKey);
                 Object contextData = result.get(contextType);
                 return contextData instanceof Collection && !((Collection<?>) contextData).isEmpty();
             }
