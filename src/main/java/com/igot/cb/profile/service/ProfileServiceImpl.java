@@ -328,7 +328,7 @@ public class ProfileServiceImpl implements ProfileService {
             int karmaPoints = getUserKarmaPoints(userId);
             int certificateCount = getIssuedCertificateCount(userId);
             int postCount = getUserPostCount(userId);
-            userProfile.put(Constants.PROFILE_COMPLETION, completion);
+            userProfile.put(Constants.PROFILE_COMPLETION_PERCENTAGE, completion);
             userProfile.put(Constants.KARMA_POINTS,karmaPoints);
             userProfile.put(Constants.CERTIFICATE_COUNT, certificateCount);
             userProfile.put(Constants.POSTCOUNT, postCount);
