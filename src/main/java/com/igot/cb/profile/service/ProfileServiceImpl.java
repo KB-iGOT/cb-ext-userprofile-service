@@ -144,7 +144,7 @@ public class ProfileServiceImpl implements ProfileService {
             List<Map<String, Object>> mergedList = new ArrayList<>(dataMap.values());
             //sortContextData(mergedList, contextType);
 
-            if(Constants.ACHIEVEMENTS.equalsIgnoreCase(contextType)) {
+            if (Constants.ACHIEVEMENTS.equalsIgnoreCase(contextType)) {
                 mergeAndSortByIssuedDateOrTitle(mergedList, new ArrayList<>());
             }
             if (!saveContextData(userId, contextType, mergedList)) {
