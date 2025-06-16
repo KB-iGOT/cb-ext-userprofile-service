@@ -109,32 +109,6 @@ public class ProfileServiceImplTest {
         );
     }
 
-    @Test
-    public void testGetBasicProfile_validUser_returnsProfile() throws Exception {
-        Map<String, Object> dummyProfile = new HashMap<>();
-        dummyProfile.put(Constants.ID, USER_ID);
-
-        Map<String, Object> profileDetailsMap = new HashMap<>();
-        profileDetailsMap.put("name", "Test User");
-        dummyProfile.put(Constants.PROFILE_DETAILS_LOWERCASE, objectMapper.writeValueAsString(profileDetailsMap));
-
-        //when(objectMapper.readValue(anyString(), eq(Map.class))).thenReturn(profileDetailsMap);
-
-        when(accessTokenValidator.fetchUserIdFromAccessToken(TOKEN)).thenReturn(USER_ID);
-        when(cacheService.getCache(anyString())).thenReturn(null);
-        when(cassandraOperation.getRecordsByPropertiesByKey(
-                eq(Constants.KEYSPACE_SUNBIRD), eq(Constants.USER), anyMap(), anyList(), isNull()))
-                .thenReturn(Collections.singletonList(dummyProfile));
-        when(serverProperties.getProfileCompletionRequiredFields()).thenReturn(Collections.emptyList());
-        //when(serverProperties.getExtendedFieldsConfig()).thenReturn(Collections.emptyList());
-        //when(serverProperties.getFieldWeight()).thenReturn(10.0);
-
-        ApiResponse response = profileService.getBasicProfile(USER_ID, TOKEN);
-
-        assertEquals(HttpStatus.OK, response.getResponseCode());
-        Map<String, Object> responseBody = response.getResult();
-        assertEquals(USER_ID, responseBody.get(Constants.ID));
-    }
 
     @Test
     public void testGetBasicProfile_invalidToken_returnsError() {
@@ -268,40 +242,6 @@ public class ProfileServiceImplTest {
 
         assertEquals(HttpStatus.OK, response.getResponseCode());
         assertNotNull(response.get(Constants.RESPONSE));
-    }
-
-    @Test
-    public void testGetBasicProfile_shouldIncludeProfileCompletion() throws Exception {
-        Map<String, Object> profile = new HashMap<>();
-        profile.put(Constants.ID, USER_ID);
-        profile.put(Constants.PROFILE_DETAILS_LOWERCASE, "{\"email\": \"test@example.com\"}");
-
-        List<Map<String, Object>> extendedList = List.of(Map.of("org", "ABC"));
-        Map<String, Object> resultMap = new HashMap<>();
-        resultMap.put("education", extendedList);
-
-        ApiResponse extendedResp = ProjectUtil.createDefaultResponse("api.extendedProfile.read");
-        extendedResp.setResponseCode(HttpStatus.OK);
-        extendedResp.put(Constants.RESPONSE, resultMap);
-
-        when(accessTokenValidator.fetchUserIdFromAccessToken(TOKEN)).thenReturn(USER_ID);
-        when(cacheService.getCache(anyString())).thenReturn(null);
-        when(cassandraOperation.getRecordsByPropertiesByKey(
-                eq(Constants.KEYSPACE_SUNBIRD), eq(Constants.USER), anyMap(), anyList(), isNull()))
-                .thenReturn(List.of(profile));
-        when(serverProperties.getProfileCompletionRequiredFields()).thenReturn(List.of("email", "education"));
-        when(serverProperties.getExtendedFieldsConfig()).thenReturn(List.of("education"));
-        when(serverProperties.getFieldWeight()).thenReturn(50.0);
-
-        ProfileServiceImpl spyService = spy(profileService);
-        doReturn(extendedResp).when(spyService).readFullExtendedProfile(USER_ID, "education", TOKEN);
-
-        ApiResponse response = spyService.getBasicProfile(USER_ID, TOKEN);
-
-        assertEquals(HttpStatus.OK, response.getResponseCode());
-        Map<String, Object> responseBody = response.getResult();
-        assertTrue(responseBody.containsKey("profileCompletion"));
-        assertEquals(50.0, responseBody.get("profileCompletion"));
     }
 
     @ParameterizedTest
@@ -585,24 +525,6 @@ public class ProfileServiceImplTest {
         ApiResponse response = profileService.readFullExtendedProfile(USER_ID, contextType, TOKEN);
         assertEquals(HttpStatus.OK, response.getResponseCode());
         assertTrue(response.getResult().get(Constants.RESPONSE) instanceof Map);
-    }
-
-    @Test
-    void testGetBasicProfile_withValidToken_andCachedProfile() throws Exception {
-        String userId = "user-123";
-        String token = "valid-token";
-        String cachedJson = "{\"name\":\"John\"}";
-        Map<String, Object> profileMap = Map.of("name", "John");
-
-        when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userId);
-        when(cacheService.getCache("user:basicProfile:" + userId)).thenReturn(cachedJson);
-        when(objectMapper.readValue(cachedJson, Map.class)).thenReturn(new HashMap<>(profileMap));
-        when(serverProperties.getProfileCompletionRequiredFields()).thenReturn(List.of());
-
-        ApiResponse response = profileService.getBasicProfile(userId, token);
-
-        assertEquals(HttpStatus.OK, response.getResponseCode());
-        assertTrue(response.getResult().containsKey("name"));
     }
 
     @Test

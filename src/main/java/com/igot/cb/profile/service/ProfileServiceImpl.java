@@ -22,7 +22,8 @@ import java.io.IOException;
 import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
-
+import java.util.stream.Stream;
+import java.util.stream.IntStream;
 @Service
 @SuppressWarnings("unchecked")
 public class ProfileServiceImpl implements ProfileService {
@@ -83,7 +84,12 @@ public class ProfileServiceImpl implements ProfileService {
 
             List<Map<String, Object>> dataWithUUIDs = addUUIDs(incomingList);
             List<Map<String, Object>> existingList = getExistingContextData(userId, contextType);
-            existingList.addAll(dataWithUUIDs);
+
+            if(Constants.ACHIEVEMENTS.equalsIgnoreCase(contextType)) {
+                mergeAndSortByIssuedDateOrTitle(existingList, dataWithUUIDs);
+            }else{
+                existingList.addAll(dataWithUUIDs);
+            }
 
             //sortContextData(existingList, contextType);
             if (!saveContextData(userId, contextType, existingList)) {
@@ -138,6 +144,9 @@ public class ProfileServiceImpl implements ProfileService {
             List<Map<String, Object>> mergedList = new ArrayList<>(dataMap.values());
             //sortContextData(mergedList, contextType);
 
+            if (Constants.ACHIEVEMENTS.equalsIgnoreCase(contextType)) {
+                mergeAndSortByIssuedDateOrTitle(mergedList, new ArrayList<>());
+            }
             if (!saveContextData(userId, contextType, mergedList)) {
                 ProjectUtil.errorResponse(response, "Failed to update data for contextType: " + contextType,
                         HttpStatus.INTERNAL_SERVER_ERROR);
@@ -322,7 +331,7 @@ public class ProfileServiceImpl implements ProfileService {
             int karmaPoints = getUserKarmaPoints(userId);
             int certificateCount = getIssuedCertificateCount(userId);
             int postCount = getUserPostCount(userId);
-            userProfile.put(Constants.PROFILE_COMPLETION, completion);
+            userProfile.put(Constants.PROFILE_COMPLETION_PERCENTAGE, completion);
             userProfile.put(Constants.KARMA_POINTS,karmaPoints);
             userProfile.put(Constants.CERTIFICATE_COUNT, certificateCount);
             userProfile.put(Constants.POSTCOUNT, postCount);
@@ -333,7 +342,9 @@ public class ProfileServiceImpl implements ProfileService {
             }
 
             cacheService.putCache(cacheKey, mapper.writeValueAsString(userProfile));
-            response.setResponse(userProfile);
+            Map<String,Object> responseMap = new HashMap<>();
+            responseMap.put("response", userProfile);
+            response.setResponse(responseMap);
         } catch (Exception e) {
             logger.error("Error fetching basic profile for userId: {}", userId, e);
             ProjectUtil.errorResponse(response, "Internal server error while fetching profile",
@@ -379,8 +390,7 @@ public class ProfileServiceImpl implements ProfileService {
                         Arrays.asList(Constants.COURSE_ID, Constants.COURSE_CATEGORY, Constants.COMPETENCIES_V6,
                                 Constants.NAME));
                 competencies = analyzeCompetencies(courseMetadata);
-                response.put(Constants.COMPETENCIES, competencies);
-
+                
                 if (competencies.isEmpty()) {
                     ProjectUtil.errorResponse(response, "No competencies found for user.", HttpStatus.NO_CONTENT);
                     return response;
@@ -604,6 +614,8 @@ public class ProfileServiceImpl implements ProfileService {
             ApiResponse response = readFullExtendedProfile(userId, contextType, userToken);
             if (response != null && response.getResponseCode() == HttpStatus.OK) {
                 Map<String, Object> result = (Map<String, Object>) response.get(Constants.RESPONSE);
+                if (Constants.LOCATION_DETAILS.equalsIgnoreCase(contextType))
+                    return Stream.of(Constants.STATE, Constants.DISTRICT).allMatch(result::containsKey);
                 Object contextData = result.get(contextType);
                 return contextData instanceof Collection && !((Collection<?>) contextData).isEmpty();
             }
@@ -895,5 +907,40 @@ public class ProfileServiceImpl implements ProfileService {
                 .filter(Objects::nonNull)
                 .distinct()
                 .collect(Collectors.toList());
+    }
+
+    private void mergeAndSortByIssuedDateOrTitle(List<Map<String, Object>> existingList, List<Map<String, Object>> newList) {
+        List<Map<String, Object>> merged = Stream.concat(existingList.stream(), newList.stream())
+                .sorted((a, b) -> {
+                    OffsetDateTime dateA = parseOffsetDateTime(a.get(Constants.ISSUED_DATE));
+                    OffsetDateTime dateB = parseOffsetDateTime(b.get(Constants.ISSUED_DATE));
+                    if (dateA != null && dateB != null) {
+                        return dateB.compareTo(dateA);
+                    } else if (dateA == null && dateB == null) {
+                        String titleA = (String) a.get(Constants.TITLE);
+                        String titleB = (String) b.get(Constants.TITLE);
+                        if (titleA == null && titleB == null) return 0;
+                        if (titleA == null) return 1;
+                        if (titleB == null) return -1;
+                        return titleA.compareToIgnoreCase(titleB);
+                    } else if (dateA == null) {
+                        return 1;
+                    } else {
+                        return -1;
+                    }
+                })
+                .toList();
+        IntStream.range(0, merged.size()).forEach(i -> merged.get(i).put(Constants.INDEX, i));
+        existingList.clear();
+        existingList.addAll(merged);
+    }
+
+    private OffsetDateTime parseOffsetDateTime(Object dateObj) {
+        if (dateObj instanceof String str && !str.isBlank()) {
+            try {
+                return OffsetDateTime.parse(str);
+            } catch (Exception ignored) {}
+        }
+        return null;
     }
 }
