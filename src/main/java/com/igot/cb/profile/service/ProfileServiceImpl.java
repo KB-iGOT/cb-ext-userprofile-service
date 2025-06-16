@@ -144,6 +144,9 @@ public class ProfileServiceImpl implements ProfileService {
             List<Map<String, Object>> mergedList = new ArrayList<>(dataMap.values());
             //sortContextData(mergedList, contextType);
 
+            if (Constants.ACHIEVEMENTS.equalsIgnoreCase(contextType)) {
+                mergeAndSortByIssuedDateOrTitle(mergedList, new ArrayList<>());
+            }
             if (!saveContextData(userId, contextType, mergedList)) {
                 ProjectUtil.errorResponse(response, "Failed to update data for contextType: " + contextType,
                         HttpStatus.INTERNAL_SERVER_ERROR);
@@ -328,7 +331,7 @@ public class ProfileServiceImpl implements ProfileService {
             int karmaPoints = getUserKarmaPoints(userId);
             int certificateCount = getIssuedCertificateCount(userId);
             int postCount = getUserPostCount(userId);
-            userProfile.put(Constants.PROFILE_COMPLETION, completion);
+            userProfile.put(Constants.PROFILE_COMPLETION_PERCENTAGE, completion);
             userProfile.put(Constants.KARMA_POINTS,karmaPoints);
             userProfile.put(Constants.CERTIFICATE_COUNT, certificateCount);
             userProfile.put(Constants.POSTCOUNT, postCount);
