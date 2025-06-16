@@ -85,7 +85,7 @@ public class ProfileServiceImpl implements ProfileService {
             List<Map<String, Object>> dataWithUUIDs = addUUIDs(incomingList);
             List<Map<String, Object>> existingList = getExistingContextData(userId, contextType);
 
-            if(contextType.equalsIgnoreCase(Constants.ACHIEVEMENTS)) {
+            if(Constants.ACHIEVEMENTS.equalsIgnoreCase(contextType)) {
                 mergeAndSortByIssuedDateOrTitle(existingList, dataWithUUIDs);
             }else{
                 existingList.addAll(dataWithUUIDs);
