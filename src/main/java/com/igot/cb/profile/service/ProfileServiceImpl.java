@@ -144,6 +144,9 @@ public class ProfileServiceImpl implements ProfileService {
             List<Map<String, Object>> mergedList = new ArrayList<>(dataMap.values());
             //sortContextData(mergedList, contextType);
 
+            if(Constants.ACHIEVEMENTS.equalsIgnoreCase(contextType)) {
+                mergeAndSortByIssuedDateOrTitle(mergedList, new ArrayList<>());
+            }
             if (!saveContextData(userId, contextType, mergedList)) {
                 ProjectUtil.errorResponse(response, "Failed to update data for contextType: " + contextType,
                         HttpStatus.INTERNAL_SERVER_ERROR);
