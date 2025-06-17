@@ -436,6 +436,7 @@ public class Constants {
     public static final String COMPETENCY_THEME_GROUPS = "competencyThemeGroups";
     public static final String INDEX = "index";
     public static final String PROFILE_COMPLETION_PERCENTAGE = "profileCompletionPercentage";
+    public static final String PROFESSIONAL_DETAILS = "professionalDetails";
 
     private Constants() {
     }
