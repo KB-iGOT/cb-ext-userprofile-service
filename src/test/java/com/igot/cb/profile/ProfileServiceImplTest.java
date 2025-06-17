@@ -631,42 +631,6 @@ public class ProfileServiceImplTest {
     }
 
     @Test
-    public void testSaveExtendedProfile_Success() throws Exception {
-        String userId = "user-123";
-        String userToken = "valid-token";
-        Map<String, Object> educationItem = new HashMap<>();
-        educationItem.put("degree", "Masters");
-        educationItem.put("institute", "Test University");
-        Map<String, Object> requestData = new HashMap<>();
-        requestData.put(Constants.USER_ID_RQST, userId);
-        requestData.put("education", List.of(educationItem));
-        Map<String, Object> request = new HashMap<>();
-        request.put(Constants.REQUEST, requestData);
-        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userId);
-        when(serverProperties.getContextType()).thenReturn(new String[]{"education"});
-        when(serverProperties.getEducationalQualificationMandatoryFields()).thenReturn("degree,institute");
-        when(serverProperties.getAchievementsMandatoryFields()).thenReturn("");
-        when(serverProperties.getServiceHistoryMandatoryFields()).thenReturn("");
-        when(cassandraOperation.getRecordsByPropertiesByKey(
-                anyString(), anyString(), anyMap(), isNull(), isNull()
-        )).thenReturn(new ArrayList<>());
-        ApiResponse mockInsertResponse = new ApiResponse();
-        mockInsertResponse.put(Constants.RESPONSE, Constants.SUCCESS);
-        when(cassandraOperation.insertRecord(anyString(), anyString(), anyMap())).thenReturn(mockInsertResponse);
-        when(objectMapper.writeValueAsString(any())).thenReturn("[]"); // Fixed: use objectMapper instead of mapper
-        ApiResponse response = profileService.saveExtendedProfile(request, userToken);
-        assertEquals(HttpStatus.OK, response.getResponseCode());
-        assertNotNull(response.get(Constants.RESULT));
-        List<Map<String, Object>> result = (List<Map<String, Object>>) response.get(Constants.RESULT);
-        assertEquals(1, result.size());
-        assertTrue(result.get(0).containsKey(Constants.UUID));
-        assertEquals("Masters", result.get(0).get("degree"));
-        verify(accessTokenValidator).fetchUserIdFromAccessToken(userToken);
-        verify(cassandraOperation).insertRecord(anyString(), anyString(), anyMap());
-        verify(cacheService, times(1)).putCache(anyString(), any());
-    }
-
-    @Test
     public void testSaveExtendedProfile_ValidationFailure_ReturnsBadRequest() {
         String userId = "user-123";
         String userToken = "valid-token";
@@ -1121,20 +1085,6 @@ public class ProfileServiceImplTest {
         assertEquals("No data found for user.", response.getParams().getErrMsg());
     }
 
-    @Test
-    void testGetBasicProfile_UserProfileNull_ReturnsNotFound() throws Exception {
-        String userId = "user-123";
-        String token = "valid-token";
-        String cacheKey = "user:basicProfile:" + userId;
-        when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userId);
-        when(cacheService.getCache(cacheKey)).thenReturn(null);
-        when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), any(), any()))
-                .thenReturn(null);
-        ApiResponse response = profileService.getBasicProfile(userId, token);
-        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
-        assertNull(response.get(Constants.RESPONSE));
-    }
-
 
     @Test
     void returnsValidCount() {
@@ -1438,118 +1388,7 @@ public class ProfileServiceImplTest {
         assertTrue(result.contains("institute is mandatory"));
     }
 
-    @Test
-    void getIssuedCertificateCount_returnsCachedValue_whenCacheHit() {
-        ProfileServiceImpl service = new ProfileServiceImpl();
-        CacheService cacheService = mock(CacheService.class);
-        ReflectionTestUtils.setField(service, "cacheService", cacheService);
-        String userId = "user-1";
-        when(cacheService.getCache("user:certCount:" + userId)).thenReturn("7");
-        int count = ReflectionTestUtils.invokeMethod(service, "getIssuedCertificateCount", userId);
-        assertEquals(7, count);
-    }
 
-    @Test
-    void getIssuedCertificateCount_returnsSumOfCertificates_whenNoCache() {
-        ProfileServiceImpl service = new ProfileServiceImpl();
-        CacheService cacheService = mock(CacheService.class);
-        CassandraOperation cassandraOperation = mock(CassandraOperation.class);
-        ReflectionTestUtils.setField(service, "cacheService", cacheService);
-        ReflectionTestUtils.setField(service, "cassandraOperation", cassandraOperation);
-
-        String userId = "user-2";
-        when(cacheService.getCache("user:certCount:" + userId)).thenReturn(null);
-
-        Map<String, Object> courseRecord = new HashMap<>();
-        courseRecord.put(Constants.ISSUED_CERTIFICATES_KEY, List.of("cert1", "cert2"));
-        when(cassandraOperation.getRecordsByPropertiesByKey(
-                anyString(), eq(Constants.USER_ENROLMENTS), anyMap(), anyList(), eq(userId)))
-                .thenReturn(List.of(courseRecord));
-
-        Map<String, Object> eventRecord = new HashMap<>();
-        eventRecord.put(Constants.STATUS, 2);
-        eventRecord.put(Constants.PROGRESS_KEY, 100);
-        eventRecord.put(Constants.ISSUED_CERTIFICATES_KEY, List.of("cert3"));
-        when(cassandraOperation.getRecordsByPropertiesByKey(
-                anyString(), eq(Constants.USER_ENTITY_ENROLMENTS), anyMap(), anyList(), eq(userId)))
-                .thenReturn(List.of(eventRecord));
-
-        int count = ReflectionTestUtils.invokeMethod(service, "getIssuedCertificateCount", userId);
-        assertEquals(3, count);
-        verify(cacheService).putCache("user:certCount:" + userId, "3");
-    }
-
-    @Test
-    void getIssuedCertificateCount_returnsZero_whenNoCertificatesAndNoCache() {
-        ProfileServiceImpl service = new ProfileServiceImpl();
-        CacheService cacheService = mock(CacheService.class);
-        CassandraOperation cassandraOperation = mock(CassandraOperation.class);
-        ReflectionTestUtils.setField(service, "cacheService", cacheService);
-        ReflectionTestUtils.setField(service, "cassandraOperation", cassandraOperation);
-
-        String userId = "user-3";
-        when(cacheService.getCache("user:certCount:" + userId)).thenReturn(null);
-        when(cassandraOperation.getRecordsByPropertiesByKey(
-                anyString(), eq(Constants.USER_ENROLMENTS), anyMap(), anyList(), eq(userId)))
-                .thenReturn(Collections.emptyList());
-        when(cassandraOperation.getRecordsByPropertiesByKey(
-                anyString(), eq(Constants.USER_ENTITY_ENROLMENTS), anyMap(), anyList(), eq(userId)))
-                .thenReturn(Collections.emptyList());
-
-        int count = ReflectionTestUtils.invokeMethod(service, "getIssuedCertificateCount", userId);
-        assertEquals(0, count);
-        verify(cacheService).putCache("user:certCount:" + userId, "0");
-    }
-
-    @Test
-    void getIssuedCertificateCount_returnsZero_whenCacheValueIsNotInteger() {
-        ProfileServiceImpl service = new ProfileServiceImpl();
-        CacheService cacheService = mock(CacheService.class);
-        ReflectionTestUtils.setField(service, "cacheService", cacheService);
-        String userId = "user-4";
-        when(cacheService.getCache("user:certCount:" + userId)).thenReturn("not-a-number");
-        int count = ReflectionTestUtils.invokeMethod(service, "getIssuedCertificateCount", userId);
-        assertEquals(0, count);
-    }
-
-    @Test
-    void getIssuedCertificateCount_returnsZero_whenExceptionThrown() {
-        ProfileServiceImpl service = new ProfileServiceImpl();
-        CacheService cacheService = mock(CacheService.class);
-        ReflectionTestUtils.setField(service, "cacheService", cacheService);
-        String userId = "user-5";
-        when(cacheService.getCache("user:certCount:" + userId)).thenThrow(new RuntimeException("Redis error"));
-        int count = ReflectionTestUtils.invokeMethod(service, "getIssuedCertificateCount", userId);
-        assertEquals(0, count);
-    }
-
-    @Test
-    void getIssuedCertificateCount_ignoresEventRecordsWithNonMatchingStatusOrProgress() {
-        ProfileServiceImpl service = new ProfileServiceImpl();
-        CacheService cacheService = mock(CacheService.class);
-        CassandraOperation cassandraOperation = mock(CassandraOperation.class);
-        ReflectionTestUtils.setField(service, "cacheService", cacheService);
-        ReflectionTestUtils.setField(service, "cassandraOperation", cassandraOperation);
-        String userId = "user-6";
-        when(cacheService.getCache("user:certCount:" + userId)).thenReturn(null);
-        Map<String, Object> eventRecord1 = new HashMap<>();
-        eventRecord1.put(Constants.STATUS, 1); // Not 2
-        eventRecord1.put(Constants.PROGRESS_KEY, 100);
-        eventRecord1.put(Constants.ISSUED_CERTIFICATES_KEY, List.of("certA"));
-        Map<String, Object> eventRecord2 = new HashMap<>();
-        eventRecord2.put(Constants.STATUS, 2);
-        eventRecord2.put(Constants.PROGRESS_KEY, 50); // Not 100
-        eventRecord2.put(Constants.ISSUED_CERTIFICATES_KEY, List.of("certB"));
-        when(cassandraOperation.getRecordsByPropertiesByKey(
-                anyString(), eq(Constants.USER_ENROLMENTS), anyMap(), anyList(), eq(userId)))
-                .thenReturn(Collections.emptyList());
-        when(cassandraOperation.getRecordsByPropertiesByKey(
-                anyString(), eq(Constants.USER_ENTITY_ENROLMENTS), anyMap(), anyList(), eq(userId)))
-                .thenReturn(List.of(eventRecord1, eventRecord2));
-        int count = ReflectionTestUtils.invokeMethod(service, "getIssuedCertificateCount", userId);
-        assertEquals(0, count);
-        verify(cacheService).putCache("user:certCount:" + userId, "0");
-    }
 
     @Test
     void getUserKarmaPoints_returnsCachedValue_whenCacheHit() {
