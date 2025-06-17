@@ -588,7 +588,16 @@ public class ProfileServiceImpl implements ProfileService {
             boolean isFilled;
             try {
                 if (isExtendedProfileField(field)) {
-                    isFilled = hasExtendedProfileData(userId, field, userToken);
+                    isFilled = hasExtendedProfileData(userId, field, userToken)
+                            || (Constants.SERVICE_HISTORY.equalsIgnoreCase(field) &&
+                            Optional.ofNullable(profileData.get(Constants.PROFILE_DETAILS))
+                                    .filter(Map.class::isInstance)
+                                    .map(Map.class::cast)
+                                    .map(details -> details.get(Constants.PROFESSIONAL_DETAILS))
+                                    .filter(List.class::isInstance)
+                                    .map(List.class::cast)
+                                    .map(CollectionUtils::isNotEmpty)
+                                    .orElse(false));
                 } else {
                     Object value = profileData.getOrDefault(field, nestedData.get(field));
                     isFilled = value != null && !value.toString().trim().isEmpty();
