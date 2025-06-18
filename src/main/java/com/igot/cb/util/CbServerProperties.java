@@ -13,76 +13,129 @@ import java.util.List;
 @Setter
 public class CbServerProperties {
 
+    @Value("${redis.insights.index}")
+    private int redisInsightIndex;
 
-  @Value("${redis.insights.index}")
-  private int redisInsightIndex;
+    @Value("${search.result.redis.ttl}")
+    private long searchResultRedisTtl;
 
-  @Value("${search.result.redis.ttl}")
-  private long searchResultRedisTtl;
+    @Value("${sb.api.key}")
+    private String sbApiKey;
 
-  @Value("${sb.api.key}")
-  private String sbApiKey;
+    @Value("${http.client.request.factory.timeout}")
+    private int requestTimeoutMs;
 
-  @Value("${http.client.request.factory.timeout}")
-  private int requestTimeoutMs;
+    @Value("${http.pooling.client.cm.max.total.connections}")
+    private int maxTotalConnections;
 
-  @Value("${http.pooling.client.cm.max.total.connections}")
-  private int maxTotalConnections;
+    @Value("${http.pooling.client.cm.default.max.per.route}")
+    private int maxConnectionsPerRoute;
 
-  @Value("${http.pooling.client.cm.default.max.per.route}")
-  private int maxConnectionsPerRoute;
+    @Value("${redis.pool.max.total}")
+    private int redisPoolMaxTotal;
 
-  @Value("${redis.pool.max.total}")
-  private int redisPoolMaxTotal;
+    @Value("${redis.pool.max.idle}")
+    private int redisPoolMaxIdle;
 
-  @Value("${redis.pool.max.idle}")
-  private int redisPoolMaxIdle;
+    @Value("${redis.pool.min.idle}")
+    private int redisPoolMinIdle;
 
-  @Value("${redis.pool.min.idle}")
-  private int redisPoolMinIdle;
+    @Value("${redis.pool.max.wait}")
+    private int redisPoolMaxWait;
 
-  @Value("${redis.pool.max.wait}")
-  private int redisPoolMaxWait;
+    @Value("${redis.connection.timeout}")
+    private long redisConnectionTimeout;
 
-  @Value("${redis.connection.timeout}")
-  private long redisConnectionTimeout;
+    @Value("${validation.required-fields.educationalQualification}")
+    private String educationalQualificationMandatoryFields;
 
-  @Value("${validation.required-fields.educationalQualification}")
-  private String educationalQualificationMandatoryFields;
+    @Value("${validation.required-fields.serviceHistory}")
+    private String serviceHistoryMandatoryFields;
 
-  @Value("${validation.required-fields.serviceHistory}")
-  private String serviceHistoryMandatoryFields;
+    @Value("${validation.required-fields.achievement}")
+    private String achievementsMandatoryFields;
 
-  @Value("${validation.required-fields.achievement}")
-  private String achievementsMandatoryFields;
+    @Value("${context.types}")
+    private String[] contextType;
 
-  @Value("${context.types}")
-  private String[] contextType;
+    @Value("${basic.profile.fields}")
+    private String basicProfileFields;
 
-  @Value("${basic.profile.fields}")
-  private String basicProfileFields;
+    @Value("${profile.completion.required.fields}")
+    private String profileCompletionRequiredFields;
 
-  @Value("${profile.completion.required.fields}")
-  private String profileCompletionRequiredFields;
+    @Value("${profile.completion.extended.fields}")
+    private List<String> extendedFieldsConfig;
 
-  @Value("${profile.completion.extended.fields}")
-  private List<String> extendedFieldsConfig;
+    @Value("${profile.completion.field.weight}")
+    private double fieldWeight;
 
-  @Value("${profile.completion.field.weight}")
-  private double fieldWeight;
+    @Value("${community.base.url}")
+    private String communityBaseUrl;
 
-  @Value("${community.base.url}")
-  private String communityBaseUrl;
+    @Value("${community.post.count.api.url}")
+    private String communityPostCountApiUrl;
 
-  @Value("${community.post.count.api.url}")
-  private String communityPostCountApiUrl;
+    @Value("${redis.timeout}")
+    private String redisTimeout;
 
-  public List<String> getBasicProfileFields() {
-    return Arrays.asList(basicProfileFields.split(","));
-  }
+    @Value("${redis.host.name}")
+    private String redisHostName;
 
-  public List<String> getProfileCompletionRequiredFields() {
-    return Arrays.asList(profileCompletionRequiredFields.split(","));
-  }
+    @Value("${redis.port}")
+    private String redisPort;
+
+    @Value("${redis.data.host.name}")
+    private String redisDataHostName;
+
+    @Value("${redis.data.port}")
+    private String redisDataPort;
+
+    @Value("${cb.redis.maxIdle}")
+    private Integer redisMaxIdle;
+
+    @Value("${cb.redis.maxTotal}")
+    private Integer redisMaxTotal;
+
+    @Value("${cb.redis.minIdle}")
+    private Integer redisMinIdle;
+
+    @Value("${cb.redis.testOnBorrow}")
+    private Boolean redisTestOnBorrow;
+
+    @Value("${cb.redis.testOnReturn}")
+    private Boolean redisTestOnReturn;
+
+    @Value("${cb.redis.testWhileIdle}")
+    private Boolean redisTestWhileIdle;
+
+    @Value("${cb.redis.minEvictableIdleTimeMillis}")
+    private Long redisMinEvictableIdleTimeMillis;
+
+    @Value("${cb.redis.timeBetweenEvictionRunsMillis}")
+    private Long redisTimeBetweenEvictionRunsMillis;
+
+    @Value("${cb.redis.numTestsPerEvictionRun}")
+    private Integer redisNumTestsPerEvictionRun;
+
+    @Value("${cb.redis.blockWhenExhausted}")
+    private Boolean redisBlockWhenExhausted;
+
+    @Value("${cb.data.index}")
+    private int dataIndex;
+
+    @Value("${cb.cache.ttl}")
+    private int cacheTtl;
+
+    @Value("${cb.certificate.count.redis.key}")
+    private String certificateCountRedisKey;
+
+    public List<String> getBasicProfileFields() {
+        return Arrays.asList(basicProfileFields.split(","));
+    }
+
+    public List<String> getProfileCompletionRequiredFields() {
+        return Arrays.asList(profileCompletionRequiredFields.split(","));
+    }
 
 }

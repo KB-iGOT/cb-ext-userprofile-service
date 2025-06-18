@@ -1,99 +1,113 @@
 package com.igot.cb.transactional.redis.cache;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.stereotype.Service;
-import org.springframework.util.CollectionUtils;
+import com.igot.cb.util.CbServerProperties;
+
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import redis.clients.jedis.Jedis;
+import redis.clients.jedis.JedisPool;
 
 @Service
 @Slf4j
 public class CacheService {
 
-  @Autowired
-  RedisTemplate<String, String> redisTemplate;
+    private static int cache_ttl = 84600;
 
-  @Autowired
-  private ObjectMapper objectMapper;
+    @Autowired
+    private JedisPool jedisPool;
 
-  @Value("${spring.redis.cacheTtl}")
-  private long cacheTtl;
+    @Autowired
+    private JedisPool jedisDataPopulationPool;
 
-  public void putCache(String key, Object object) {
-    try {
-      String data = objectMapper.writeValueAsString(object);
-      redisTemplate.opsForValue().set(key, data, cacheTtl, TimeUnit.SECONDS);
-    } catch (Exception e) {
-      log.error("Error while putting data in Redis cache: {} ", e.getMessage());
-    }
-  }
+    @Autowired
+    CbServerProperties serverProperties;
 
-  public String getCache(String key) {
-    try {
-      return redisTemplate.opsForValue().get(key);
-    } catch (Exception e) {
-      log.error("Error while getting data from Redis cache: {} ", e.getMessage());
-      return null;
-    }
-  }
+    private static final Logger logger = LoggerFactory.getLogger(CacheService.class);
 
-  public void deleteCache(String key) {
-    boolean result = redisTemplate.delete(key);
-    if (result) {
-      log.info("Field deleted successfully from key {}.", key);
-    } else {
-      log.warn("Field not found in key {}.", key);
-    }
-  }
+    ObjectMapper objectMapper = new ObjectMapper();
 
-  public void putCache(String key, String jsonString) {
-    try {
-      redisTemplate.opsForValue().set(key, jsonString, cacheTtl, TimeUnit.SECONDS);
-    } catch (Exception e) {
-      log.error("Error while putting data in Redis cache: {} ", e.getMessage());
-    }
-  }
-
-  public Map<String, String> getCourseMetadataAsJsonString(List<String> courseIds) {
-    if (courseIds == null || courseIds.isEmpty())
-      return Map.of();
-
-    // Redis stores raw JSON under keys like "do_<id>", no prefix needed
-    List<String> keys = new ArrayList<>(courseIds);
-
-    List<String> values = redisTemplate.opsForValue().multiGet(keys);
-
-    // Safely pair each courseId to its JSON string (handling nulls)
-    Map<String, String> result = new LinkedHashMap<>();
-
-    if (CollectionUtils.isEmpty(values)) {
-      return result;
+    public String hget(String key, int index, String field, int ttlInSeconds) {
+        try (Jedis jedis = jedisDataPopulationPool.getResource()) {
+            jedis.select(index);
+            List<String> result = jedis.hmget(key, field);
+            if (result != null && !result.isEmpty()) {
+                jedis.expire(key, ttlInSeconds); // Reset TTL on access
+                return result.get(0);
+            }
+            return null;
+        } catch (Exception e) {
+            logger.error("Error in hget: ", e);
+            return null;
+        }
     }
 
-    if (keys.size() != values.size()) {
-      log.error("Failed to get the course details from Redis Cache. KeySize: {}, Value retrieved: {}", keys.size(),
-          values.size());
-          return result;
+    public void hset(String key, int index, String field, String value) {
+        try (Jedis jedis = jedisDataPopulationPool.getResource()) {
+            jedis.select(index);
+            jedis.hset(key, field, value);
+            jedis.expire(key, cache_ttl);
+
+        } catch (Exception e) {
+            logger.error("Error in hset: ", e);
+        }
     }
 
-    for (int i = 0; i < keys.size(); i++) {
-      String json = values.get(i);
-      if (json != null) {
-        result.put(keys.get(i), json);
-      }
+    public void putCache(String key, Object object, int ttl) {
+        try (Jedis jedis = jedisPool.getResource()) {
+            String data = objectMapper.writeValueAsString(object);
+            jedis.set(key, data);
+            jedis.expire(key, ttl);
+            logger.debug("Cache_key_value " + key + " is saved in redis");
+        } catch (Exception e) {
+            logger.error("Error in putCache", e);
+        }
     }
 
-    return result;
-  }
+    public void putCache(String key, Object object) {
+        putCache(key, object, cache_ttl);
+    }
 
+    public String getCache(String key) {
+        try (Jedis jedis = jedisPool.getResource()) {
+            return jedis.get(key);
+        } catch (Exception e) {
+            logger.error("Error while reading the cache",e);
+            return null;
+        }
+    }
+
+    public Map<String, String> getCourseMetadataAsJsonString(List<String> courseIds) {
+        if (courseIds == null || courseIds.isEmpty())
+            return Map.of();
+        List<String> keys = new ArrayList<>(courseIds);
+        Map<String, String> result = new LinkedHashMap<>();
+        try (Jedis jedis = jedisPool.getResource()) {
+            String[] keyArray = keys.toArray(new String[0]);
+            List<String> values = jedis.mget(keyArray);
+            if (values == null || values.isEmpty()) {
+                return result;
+            }
+            if (keys.size() != values.size()) {
+                log.error("Failed to get the course details from Redis Cache. KeySize: {}, Value retrieved: {}", keys.size(), values.size());
+                return result;
+            }
+            for (int i = 0; i < keys.size(); i++) {
+                String json = values.get(i);
+                if (json != null) {
+                    result.put(keys.get(i), json);
+                }
+            }
+        } catch (Exception e) {
+            log.error("Error in getCourseMetadataAsJsonString: ", e);
+        }
+        return result;
+    }
 }

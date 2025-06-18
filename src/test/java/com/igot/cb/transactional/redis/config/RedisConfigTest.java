@@ -24,72 +24,53 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.igot.cb.util.CbServerProperties;
+import redis.clients.jedis.JedisPool;
 
 @ExtendWith(MockitoExtension.class)
 class RedisConfigTest {
 
     @Mock
-    private CbServerProperties cbServerProperties;
+    private CbServerProperties cbProperties;
 
-    @InjectMocks
-    private RedisConfig redisConfig;
+    @Test
+    void jedisPool_ReturnsConfiguredJedisPool() {
+        when(cbProperties.getRedisHostName()).thenReturn("localhost");
+        when(cbProperties.getRedisPort()).thenReturn("6379");
+        when(cbProperties.getRedisMaxIdle()).thenReturn(5);
+        when(cbProperties.getRedisMaxTotal()).thenReturn(10);
+        when(cbProperties.getRedisMinIdle()).thenReturn(1);
+        when(cbProperties.getRedisTestOnBorrow()).thenReturn(true);
+        when(cbProperties.getRedisTestOnReturn()).thenReturn(false);
+        when(cbProperties.getRedisTestWhileIdle()).thenReturn(true);
+        when(cbProperties.getRedisMinEvictableIdleTimeMillis()).thenReturn(60000L);
+        when(cbProperties.getRedisNumTestsPerEvictionRun()).thenReturn(3);
+        when(cbProperties.getRedisBlockWhenExhausted()).thenReturn(true);
 
-    @BeforeEach
-    void setUp() {
-        ReflectionTestUtils.setField(redisConfig, "redisHost", "localhost");
-        ReflectionTestUtils.setField(redisConfig, "redisPort", 6379);
+        RedisConfig redisConfig = new RedisConfig();
+        ReflectionTestUtils.setField(redisConfig, "cbProperties", cbProperties);
+
+        JedisPool pool = redisConfig.jedisPool();
+        assertNotNull(pool);
     }
 
     @Test
-    void redisConnectionFactory_shouldReturnLettuceConnectionFactory() {
-        RedisConnectionFactory factory = redisConfig.redisConnectionFactory();
-        assertNotNull(factory);
-        assertTrue(factory instanceof LettuceConnectionFactory);
-        LettuceConnectionFactory lettuceFactory = (LettuceConnectionFactory) factory;
-        assertEquals("localhost", lettuceFactory.getHostName());
-        assertEquals(6379, lettuceFactory.getPort());
-        assertEquals(0, lettuceFactory.getDatabase());
-    }
-    
-    @Test
-    void buildPoolConfig_shouldConfigurePoolWithProperties() {
-        RedisConnectionFactory factory = redisConfig.redisConnectionFactory();
-        assertNotNull(factory);
-        verify(cbServerProperties).getRedisPoolMaxTotal();
-        verify(cbServerProperties).getRedisPoolMaxIdle();
-        verify(cbServerProperties).getRedisPoolMinIdle();
-        verify(cbServerProperties).getRedisPoolMaxWait();
-    }
+    void jedisDataPopulationPool_ReturnsConfiguredJedisPool() {
+        when(cbProperties.getRedisDataHostName()).thenReturn("localhost");
+        when(cbProperties.getRedisDataPort()).thenReturn("6380");
+        when(cbProperties.getRedisMaxIdle()).thenReturn(2);
+        when(cbProperties.getRedisMaxTotal()).thenReturn(4);
+        when(cbProperties.getRedisMinIdle()).thenReturn(1);
+        when(cbProperties.getRedisTestOnBorrow()).thenReturn(false);
+        when(cbProperties.getRedisTestOnReturn()).thenReturn(true);
+        when(cbProperties.getRedisTestWhileIdle()).thenReturn(false);
+        when(cbProperties.getRedisMinEvictableIdleTimeMillis()).thenReturn(120000L);
+        when(cbProperties.getRedisNumTestsPerEvictionRun()).thenReturn(2);
+        when(cbProperties.getRedisBlockWhenExhausted()).thenReturn(false);
 
-    @Test
-    void buildPoolConfig_setsCorrectPoolPropertiesFromCbServerProperties() {
-        when(cbServerProperties.getRedisPoolMaxTotal()).thenReturn(8);
-        when(cbServerProperties.getRedisPoolMaxIdle()).thenReturn(8);
-        when(cbServerProperties.getRedisPoolMinIdle()).thenReturn(0);
-        when(cbServerProperties.getRedisPoolMaxWait()).thenReturn(1000);
-        RedisConfig spyRedisConfig = spy(redisConfig);
-        GenericObjectPoolConfig<?> poolConfig = ReflectionTestUtils.invokeMethod(
-                spyRedisConfig, "buildPoolConfig");
-        assertNotNull(poolConfig);
-        assertEquals(8, poolConfig.getMaxTotal());
-        assertEquals(8, poolConfig.getMaxIdle());
-        assertEquals(0, poolConfig.getMinIdle());
-        assertEquals(Duration.ofMillis(1000), poolConfig.getMaxWaitDuration());
-        verify(cbServerProperties).getRedisPoolMaxTotal();
-        verify(cbServerProperties).getRedisPoolMaxIdle();
-        verify(cbServerProperties).getRedisPoolMinIdle();
-        verify(cbServerProperties).getRedisPoolMaxWait();
-    }
+        RedisConfig redisConfig = new RedisConfig();
+        ReflectionTestUtils.setField(redisConfig, "cbProperties", cbProperties);
 
-    @Test
-    void redisTemplate_shouldReturnProperlyConfiguredRedisTemplate() {
-        RedisConnectionFactory mockFactory = mock(RedisConnectionFactory.class);
-        RedisTemplate<String, String> template = redisConfig.redisTemplate(mockFactory);
-        assertNotNull(template);
-        assertEquals(mockFactory, template.getConnectionFactory());
-        assertTrue(template.getKeySerializer() instanceof StringRedisSerializer);
-        assertTrue(template.getValueSerializer() instanceof StringRedisSerializer);
-        assertTrue(template.getHashKeySerializer() instanceof StringRedisSerializer);
-        assertTrue(template.getHashValueSerializer() instanceof StringRedisSerializer);
+        JedisPool pool = redisConfig.jedisDataPopulationPool();
+        assertNotNull(pool);
     }
 }
