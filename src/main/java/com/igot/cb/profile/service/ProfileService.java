@@ -19,4 +19,8 @@ public interface ProfileService {
     ApiResponse getBasicProfile(String userId, String userToken);
 
     ApiResponse listCompetencies(String userId, String userToken);
+
+    ApiResponse updateAdditionalFields(Map<String, Object> request, String userToken);
+
+    ApiResponse getAdditionalFieldsByOrg(String userId, String orgId, String authToken);
 }
