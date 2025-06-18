@@ -323,7 +323,7 @@ public class ProfileServiceImpl implements ProfileService {
         try {
             String cachedJson = cacheService.getCache(cacheKey);
             Map<String, Object> userProfile;
-            if(!cachedJson.isEmpty()){
+            if (StringUtils.isNotEmpty(cachedJson)) {
                 if (cachedJson.trim().startsWith("\"") && cachedJson.contains("\\\"")) {
                     String unescaped = mapper.readValue(cachedJson, String.class);
                     userProfile = mapper.readValue(unescaped, new TypeReference<Map<String, Object>>() {});
