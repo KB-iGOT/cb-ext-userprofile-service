@@ -2,8 +2,11 @@ package com.igot.cb.profile.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.authentication.util.AccessTokenValidator;
+import com.igot.cb.profile.entity.CustomFieldEntity;
+import com.igot.cb.profile.repository.CustomFieldRepository;
 import com.igot.cb.transactional.cassandrautils.CassandraOperation;
 import com.igot.cb.transactional.redis.cache.CacheService;
 import com.igot.cb.transactional.service.RequestHandlerServiceImpl;
@@ -46,7 +49,11 @@ public class ProfileServiceImpl implements ProfileService {
     @Autowired
     private ProjectUtil projectUtil;
 
-    @Autowired private RequestHandlerServiceImpl requestHandlerService;
+    @Autowired
+    private RequestHandlerServiceImpl requestHandlerService;
+
+    @Autowired
+    private CustomFieldRepository customFieldRepository;
 
     private static final Logger logger = LoggerFactory.getLogger(ProfileServiceImpl.class);
 
@@ -951,5 +958,340 @@ public class ProfileServiceImpl implements ProfileService {
             } catch (Exception ignored) {}
         }
         return null;
+    }
+
+    /**
+     * Updates additional fields for a user in an organization
+     */
+    @Override
+    public ApiResponse updateAdditionalFields(Map<String, Object> request, String authToken) {
+        ApiResponse response = ProjectUtil.createDefaultResponse("api.update.additionalFields");
+        String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(authToken);
+
+        if (StringUtils.isBlank(authToken)) {
+            ProjectUtil.errorResponse(response, "Invalid or missing access token", HttpStatus.UNAUTHORIZED);
+            return response;
+        }
+
+        String validationError = validateAdditionalFieldsRequest(request);
+        if (validationError != null) {
+            ProjectUtil.errorResponse(response, validationError, HttpStatus.BAD_REQUEST);
+            return response;
+        }
+
+        String userId = (String) request.get(Constants.USER_ID);
+        String organisationId = (String) request.get(Constants.ORGANISATION_ID);
+        List<Map<String, Object>> customFieldValues = (List<Map<String, Object>>) request.get(Constants.CUSTOM_FIELD_VALUES);
+
+        if (!StringUtils.equalsIgnoreCase(userIdFromToken, userId)) {
+            ProjectUtil.errorResponse(response, "User ID in token does not match request", HttpStatus.UNAUTHORIZED);
+            return response;
+        }
+
+        String contextType = Constants.ORG_ADDITIONAL_PROPERTIES;
+
+        try {
+            List<Map<String, Object>> existingData = getExistingContextData(userId, contextType);
+
+            List<Map<String, Object>> restructuredData = restructureByOrgId(existingData, organisationId, customFieldValues);
+
+            if (!saveContextData(userId, contextType, restructuredData)) {
+                ProjectUtil.errorResponse(response, "Failed to save additional fields", HttpStatus.INTERNAL_SERVER_ERROR);
+                return response;
+            }
+
+            response.setResponseCode(HttpStatus.OK);
+            response.put(Constants.RESPONSE, Constants.SUCCESS);
+        } catch (Exception e) {
+            logger.error("Error updating additional fields for userId: {}, orgId: {}", userId, organisationId, e);
+            ProjectUtil.errorResponse(response, "Internal server error", HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+        return response;
+    }
+
+    /**
+     * Validates the request body for updating additional fields
+     *
+     * @param request The request body to validate
+     * @return Error message if validation fails, null if validation passes
+     */
+    private String validateAdditionalFieldsRequest(Map<String, Object> request) {
+        StringBuffer str = new StringBuffer();
+        List<String> errList = new ArrayList<>();
+
+        String userId = (String) request.get(Constants.USER_ID_RQST);
+        if (StringUtils.isBlank(userId)) {
+            errList.add(Constants.USER_ID_RQST);
+        }
+
+        String organisationId = (String) request.get(Constants.ORGANISATION_ID);
+        if (StringUtils.isBlank(organisationId)) {
+            errList.add(Constants.ORGANISATION_ID);
+        }
+
+        List<Map<String, Object>> customFieldValues = (List<Map<String, Object>>) request.get(Constants.CUSTOM_FIELD_VALUES);
+        if (CollectionUtils.isEmpty(customFieldValues)) {
+            errList.add(Constants.CUSTOM_FIELD_VALUES);
+        }
+
+        if (!errList.isEmpty()) {
+            str.append(Constants.FAILED_DUE_TO_MISSING_PARAMS).append(errList).append(".");
+            return str.toString();
+        }
+
+        for (Map<String, Object> field : customFieldValues) {
+            String customFieldId = (String) field.get(Constants.CUSTOM_FIELD_ID);
+            String fieldType = (String) field.get(Constants.FIELD_TYPE);
+
+            if (StringUtils.isBlank(customFieldId)) {
+                str.append("Each custom field must have a customFieldId. ");
+                return str.toString();
+            }
+
+            if (StringUtils.isBlank(fieldType)) {
+                str.append("Each custom field must have a type. ");
+                return str.toString();
+            }
+
+            CustomFieldEntity customFieldEntity = getCustomFieldById(customFieldId);
+            if (customFieldEntity == null) {
+                str.append("Custom field with ID ").append(customFieldId).append(" does not exist. ");
+                return str.toString();
+            }
+
+            if (!customFieldEntity.getIsActive()) {
+                str.append("Custom field with ID ").append(customFieldId).append(" is not active. ");
+                return str.toString();
+            }
+
+            String orgId = customFieldEntity.getCustomFieldData().get(Constants.ORGANISATION_ID).asText();
+            if (!StringUtils.equals(orgId, organisationId)) {
+                str.append("Custom field ").append(customFieldId)
+                        .append(" is not configured for organization ").append(organisationId).append(". ");
+                return str.toString();
+            }
+
+            String requestedAttributeName = (String) field.get(Constants.ATTRIBUTE_NAME);
+            String actualAttributeName = customFieldEntity.getCustomFieldData().get(Constants.ATTRIBUTE_NAME).asText();
+            if (!StringUtils.equals(requestedAttributeName, actualAttributeName)) {
+                str.append("Invalid attribute name for custom field ").append(customFieldId).append(". ");
+                return str.toString();
+            }
+
+            String storedType = customFieldEntity.getCustomFieldData().get(Constants.TYPE).asText();
+            if (Constants.TEXT.equals(fieldType)) {
+                if (field.get(Constants.VALUE) == null) {
+                    str.append("Text field ").append(customFieldId).append(" must have a value. ");
+                    return str.toString();
+                }
+
+                if (!Constants.TEXT.equals(storedType)) {
+                    str.append("Custom field ").append(customFieldId).append(" is not of type text. ");
+                    return str.toString();
+                }
+            } else if (Constants.MASTER_LIST.equals(fieldType)) {
+                List<Map<String, Object>> values = (List<Map<String, Object>>) field.get(Constants.VALUES);
+                if (CollectionUtils.isEmpty(values)) {
+                    str.append("MasterList field ").append(customFieldId).append(" must have values. ");
+                    return str.toString();
+                }
+
+                if (!Constants.MASTER_LIST.equals(storedType)) {
+                    str.append("Custom field ").append(customFieldId).append(" is not of type masterList. ");
+                    return str.toString();
+                }
+
+                String valueValidationError = validateMasterListValues(customFieldEntity, values);
+                if (valueValidationError != null) {
+                    str.append(valueValidationError);
+                    return str.toString();
+                }
+            } else {
+                str.append("Unsupported field type: ").append(fieldType).append(". ");
+                return str.toString();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Validates the values for a masterList custom field
+     *
+     * @param entity          CustomFieldEntity containing the valid values
+     * @param requestedValues Values from the request to validate
+     * @return Error message if validation fails, null if validation passes
+     */
+    private String validateMasterListValues(CustomFieldEntity entity, List<Map<String, Object>> requestedValues) {
+        try {
+            JsonNode customFieldData = entity.getCustomFieldData().get(Constants.CUSTOM_FIELD_DATA);
+            if (customFieldData == null || !customFieldData.isArray()) {
+                return "Invalid master list field definition.";
+            }
+
+            // Check for duplicate levels - only one entry per level is allowed
+            Map<Integer, Integer> levelCounts = new HashMap<>();
+            for (Map<String, Object> value : requestedValues) {
+                Integer level = (Integer) value.get(Constants.LEVEL);
+                if (level == null) {
+                    return "Each master list value must have a level.";
+                }
+
+                levelCounts.put(level, levelCounts.getOrDefault(level, 0) + 1);
+                if (levelCounts.get(level) > 1) {
+                    return "Only one value allowed per level. Found multiple entries at level " + level;
+                }
+            }
+
+            // Sort values by level to validate parent-child relationships
+            List<Map<String, Object>> sortedValues = requestedValues.stream()
+                    .sorted(Comparator.comparing(map -> (Integer) map.get(Constants.LEVEL)))
+                    .collect(Collectors.toList());
+
+            // Track parent node for hierarchical validation
+            JsonNode currentParentNode = null;
+
+            // Validate each value in the hierarchy
+            for (Map<String, Object> value : sortedValues) {
+                String attributeName = (String) value.get(Constants.ATTRIBUTE_NAME);
+                String valueStr = String.valueOf(value.get(Constants.VALUE));
+                Integer level = (Integer) value.get(Constants.LEVEL);
+
+                if (StringUtils.isBlank(attributeName) || valueStr == null || level == null) {
+                    return "Each master list value must have attribute name, value and level.";
+                }
+
+                // For level 1, find matching node by value
+                if (level == 1) {
+                    currentParentNode = null;
+                    for (JsonNode node : customFieldData) {
+                        if (node.has(Constants.FIELD_VALUE) && valueStr.equals(node.get(Constants.FIELD_VALUE).asText())) {
+                            currentParentNode = node;
+                            break;
+                        }
+                    }
+
+                    if (currentParentNode == null) {
+                        return "Invalid value '" + valueStr + "' at level 1";
+                    }
+                }
+                // For higher levels, find in children of current parent by value
+                else if (currentParentNode != null) {
+                    JsonNode childValues = currentParentNode.get(Constants.FIELD_VALUES);
+                    JsonNode nextParent = null;
+
+                    if (childValues != null && childValues.isArray()) {
+                        for (JsonNode childNode : childValues) {
+                            if (childNode.has(Constants.FIELD_VALUE) &&
+                                    valueStr.equals(childNode.get(Constants.FIELD_VALUE).asText())) {
+                                nextParent = childNode;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (nextParent == null) {
+                        return "Invalid value '" + valueStr + "' at level " + level +
+                                ". Not found under parent '" + currentParentNode.get(Constants.FIELD_VALUE).asText() + "'";
+                    }
+
+                    currentParentNode = nextParent;
+                } else {
+                    return "Invalid hierarchy structure. Parent node not found for level " + level;
+                }
+            }
+
+            return null;
+        } catch (Exception e) {
+            logger.error("Error validating master list values: {}", e.getMessage());
+            return "Error validating master list values.";
+        }
+    }
+
+    /**
+     * Restructures data to group by organization ID
+     */
+    private List<Map<String, Object>> restructureByOrgId(List<Map<String, Object>> existingData,
+                                                         String currentOrgId,
+                                                         List<Map<String, Object>> newCustomFieldValues) {
+
+        Map<String, List<Map<String, Object>>> orgMap = new HashMap<>();
+        for (Map<String, Object> item : existingData) {
+            if (item.containsKey(Constants.ORGANISATION_ID) && item.containsKey(Constants.CUSTOM_FIELD_VALUES)) {
+                String orgId = (String) item.get(Constants.ORGANISATION_ID);
+                orgMap.put(orgId, (List<Map<String, Object>>) item.get(Constants.CUSTOM_FIELD_VALUES));
+            } else if (item.containsKey(Constants.ORGANISATION_ID)) {
+                String orgId = (String) item.get(Constants.ORGANISATION_ID);
+                orgMap.computeIfAbsent(orgId, k -> new ArrayList<>()).add(item);
+            }
+        }
+        orgMap.put(currentOrgId, newCustomFieldValues);
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Map.Entry<String, List<Map<String, Object>>> entry : orgMap.entrySet()) {
+            Map<String, Object> orgData = new HashMap<>();
+            orgData.put(Constants.ORGANISATION_ID, entry.getKey());
+            orgData.put(Constants.CUSTOM_FIELD_VALUES, entry.getValue());
+            result.add(orgData);
+        }
+        return result;
+    }
+
+    /**
+     * Retrieves a custom field from PostgreSQL by its ID
+     *
+     * @param customFieldId ID of the custom field to retrieve
+     * @return CustomFieldEntity if found, null otherwise
+     */
+    private CustomFieldEntity getCustomFieldById(String customFieldId) {
+        try {
+            return customFieldRepository.findByCustomFiledIdAndIsActiveTrue(customFieldId).orElse(null);
+        } catch (Exception e) {
+            logger.error("Error retrieving custom field with ID {}: {}", customFieldId, e.getMessage(), e);
+            return null;
+        }
+    }
+
+    @Override
+    public ApiResponse getAdditionalFieldsByOrg(String userId, String orgId, String authToken) {
+        ApiResponse response = ProjectUtil.createDefaultResponse("api.get.additionalFieldsByOrg");
+        String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(authToken);
+
+        if (StringUtils.isBlank(authToken)) {
+            ProjectUtil.errorResponse(response, "Invalid or missing access token", HttpStatus.UNAUTHORIZED);
+            return response;
+        }
+
+        if (!StringUtils.equalsIgnoreCase(userIdFromToken, userId)) {
+            ProjectUtil.errorResponse(response, "User ID in token does not match request", HttpStatus.UNAUTHORIZED);
+            return response;
+        }
+
+        try {
+            String contextType = Constants.ORG_ADDITIONAL_PROPERTIES;
+            List<Map<String, Object>> dataList = getExistingContextData(userId, contextType);
+
+            // Find data for the specified organization
+            Map<String, Object> orgData = null;
+            for (Map<String, Object> item : dataList) {
+                String itemOrgId = (String) item.get(Constants.ORGANISATION_ID);
+                if (orgId.equals(itemOrgId)) {
+                    orgData = item;
+                    break;
+                }
+            }
+
+            if (MapUtils.isEmpty(orgData)) {
+                response.setResponseCode(HttpStatus.OK);
+                response.put(Constants.RESPONSE, Collections.emptyMap());
+                return response;
+            }
+            response.setResponseCode(HttpStatus.OK);
+            response.put(Constants.RESPONSE, orgData);
+            return response;
+        } catch (Exception e) {
+            logger.error("Error retrieving additional fields for userId: {} and orgId: {}", userId, orgId, e);
+            ProjectUtil.errorResponse(response, "Internal server error", HttpStatus.INTERNAL_SERVER_ERROR);
+            return response;
+        }
     }
 }

@@ -33,7 +33,6 @@ public class Constants {
     public static final String ERROR_MESSAGE = "errmsg";
     public static final String DEMAND_ID = "demand_id";
     public static final String DEMAND_ID_RQST = "demandId";
-    public static final String USER_ID = "user_id";
     public static final String USER_ID_RQST = "userId";
     public static final String INTEREST_FLAG = "interest_flag";
     public static final String INTEREST_FLAG_RQST = "interestFlag";
@@ -437,6 +436,19 @@ public class Constants {
     public static final String INDEX = "index";
     public static final String PROFILE_COMPLETION_PERCENTAGE = "profileCompletionPercentage";
     public static final String PROFESSIONAL_DETAILS = "professionalDetails";
+    public static final String USER_ID = "userId";
+    public static final String CUSTOM_FIELD_VALUES = "customFieldValues";
+    public static final String FAILED_DUE_TO_MISSING_PARAMS = "Failed Due To Missing Params - ";
+    public static final String CUSTOM_FIELD_ID = "customFieldId";
+    public static final String FIELD_TYPE = "type";
+    public static final String TEXT = "text";
+    public static final String MASTER_LIST = "masterList";
+    public static final String VALUES = "values";
+    public static final String ATTRIBUTE_NAME = "attributeName";
+    public static final String ORG_ADDITIONAL_PROPERTIES = "orgAdditionalProperties";
+    public static final String FIELD_VALUE = "fieldValue";
+    public static final String CUSTOM_FIELD_DATA = "customFieldData";
+    public static final String FIELD_VALUES = "fieldValues";
 
     private Constants() {
     }

@@ -91,4 +91,21 @@ public class ProfileController {
         ApiResponse response = profileService.listCompetencies(userId, authToken);
         return new ResponseEntity<>(response, HttpStatus.valueOf(response.getResponseCode().value()));
     }
+
+    @PostMapping(value = "/update/additionalFields")
+    public ResponseEntity<ApiResponse> updateAdditionalFields(
+            @RequestHeader(Constants.X_AUTH_TOKEN) String authToken,
+            @RequestBody Map<String, Object> requestBody) {
+        ApiResponse response = profileService.updateAdditionalFields(requestBody, authToken);
+        return new ResponseEntity<>(response, response.getResponseCode());
+    }
+
+    @GetMapping("/getAdditionalFields/{userId}/{orgId}")
+    public ResponseEntity<Object> getAdditionalFieldsByOrg(
+            @PathVariable String userId,
+            @PathVariable String orgId,
+            @RequestHeader(value = Constants.X_AUTH_TOKEN) String authToken) {
+        ApiResponse response = profileService.getAdditionalFieldsByOrg(userId, orgId, authToken);
+        return new ResponseEntity<>(response, response.getResponseCode());
+    }
 }
