@@ -322,9 +322,17 @@ public class ProfileServiceImpl implements ProfileService {
 
         try {
             String cachedJson = cacheService.getCache(cacheKey);
-            Map<String, Object> userProfile = (cachedJson != null)
-                    ? mapper.readValue(cachedJson, Map.class)
-                    : fetchFromDatabase(userId);
+            Map<String, Object> userProfile;
+            if(!cachedJson.isEmpty()){
+                if (cachedJson.trim().startsWith("\"") && cachedJson.contains("\\\"")) {
+                    String unescaped = mapper.readValue(cachedJson, String.class);
+                    userProfile = mapper.readValue(unescaped, new TypeReference<Map<String, Object>>() {});
+                } else {
+                    userProfile = mapper.readValue(cachedJson, new TypeReference<Map<String, Object>>() {});
+                }
+            }else{
+                userProfile = fetchFromDatabase(userId);
+            }
             UserUtility.decryptSpecificUserData(userProfile, Arrays.asList(Constants.USERNAME_LOWERCASE));
 
             if (userProfile == null) {
@@ -801,10 +809,10 @@ public class ProfileServiceImpl implements ProfileService {
 
 
     private int getIssuedCertificateCount(String userId) {
-        String redisKey = "user:certCount:" + userId;
+        String redisKey = serverConfig.getCertificateCountRedisKey();
 
         try {
-            String cachedValue = cacheService.getCache(redisKey);
+            String cachedValue = cacheService.hget(redisKey,serverConfig.getDataIndex(),userId,serverConfig.getCacheTtl());
             if (cachedValue != null) {
                 return Integer.parseInt(cachedValue);
             }
@@ -845,7 +853,7 @@ public class ProfileServiceImpl implements ProfileService {
                     .mapToInt(List::size)
                     .sum();
             totalIssuedCertificates += certificatesFromEvents;
-            cacheService.putCache(redisKey, String.valueOf(totalIssuedCertificates));
+            cacheService.hset(redisKey,serverConfig.getDataIndex(),userId, String.valueOf(totalIssuedCertificates));
             return totalIssuedCertificates;
 
         } catch (Exception e) {
