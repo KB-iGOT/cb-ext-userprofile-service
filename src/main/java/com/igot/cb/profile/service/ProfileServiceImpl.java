@@ -881,7 +881,7 @@ public class ProfileServiceImpl implements ProfileService {
             }
 
             int postCount = fetchPostCountFromApi(userId);
-            cacheService.putCache(redisKey, String.valueOf(postCount));
+            cacheService.putCache(redisKey, postCount);
             return postCount;
 
         } catch (Exception e) {
