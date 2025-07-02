@@ -984,6 +984,7 @@ public class ProfileServiceImpl implements ProfileService {
     /**
      * Updates additional fields for a user in an organization
      */
+    @Override
     public ApiResponse updateAdditionalFields(Map<String, Object> request, String authToken) {
         ApiResponse response = ProjectUtil.createDefaultResponse("api.update.additionalFields");
         String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(authToken);
