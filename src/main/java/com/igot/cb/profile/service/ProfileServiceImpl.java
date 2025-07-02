@@ -8,6 +8,7 @@ import com.igot.cb.authentication.util.AccessTokenValidator;
 import com.igot.cb.profile.entity.CustomFieldEntity;
 import com.igot.cb.profile.repository.CustomFieldRepository;
 import com.igot.cb.transactional.cassandrautils.CassandraOperation;
+import com.igot.cb.transactional.elasticsearch.service.EsUtilServiceImpl;
 import com.igot.cb.transactional.redis.cache.CacheService;
 import com.igot.cb.transactional.service.RequestHandlerServiceImpl;
 import com.igot.cb.util.*;
@@ -54,6 +55,9 @@ public class ProfileServiceImpl implements ProfileService {
 
     @Autowired
     private CustomFieldRepository customFieldRepository;
+
+    @Autowired
+    private EsUtilServiceImpl esUtilService;
 
     private static final Logger logger = LoggerFactory.getLogger(ProfileServiceImpl.class);
 
@@ -1017,6 +1021,15 @@ public class ProfileServiceImpl implements ProfileService {
                 return response;
             }
 
+            // Transform for ES and update
+            List<Map<String, Object>> esOrgCustomFields = transformOrgCustomFieldsForES(restructuredData);
+            boolean updated = esUtilService.updateUserOrgCustomFields(userId, organisationId, esOrgCustomFields);
+
+            if (!updated) {
+                ProjectUtil.errorResponse(response, "Failed to update orgCustomFields in ES", HttpStatus.INTERNAL_SERVER_ERROR);
+                return response;
+            }
+
             response.setResponseCode(HttpStatus.OK);
             response.put(Constants.RESPONSE, Constants.SUCCESS);
         } catch (Exception e) {
@@ -1310,5 +1323,36 @@ public class ProfileServiceImpl implements ProfileService {
             ProjectUtil.errorResponse(response, "Internal server error", HttpStatus.INTERNAL_SERVER_ERROR);
             return response;
         }
+    }
+
+    private List<Map<String, Object>> transformOrgCustomFieldsForES(List<Map<String, Object>> restructuredData) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Map<String, Object> orgEntry : restructuredData) {
+            String orgId = (String) orgEntry.get(Constants.ORGANISATION_ID);
+            List<Map<String, Object>> customFieldValues = (List<Map<String, Object>>) orgEntry.get(Constants.CUSTOM_FIELD_VALUES);
+            List<Map<String, Object>> fields = new ArrayList<>();
+
+            for (Map<String, Object> field : customFieldValues) {
+                String type = (String) field.get(Constants.FIELD_TYPE);
+                if (Constants.MASTER_LIST.equals(type)) {
+                    List<Map<String, Object>> values = (List<Map<String, Object>>) field.get(Constants.VALUES);
+                    for (Map<String, Object> value : values) {
+                        String attr = (String) value.get(Constants.ATTRIBUTE_NAME);
+                        Object val = value.get(Constants.VALUE);
+                        fields.add(Map.of(attr, val));
+                    }
+                } else if (Constants.TEXT.equals(type)) {
+                    String attr = (String) field.get(Constants.ATTRIBUTE_NAME);
+                    Object val = field.get(Constants.VALUE);
+                    fields.add(Map.of(attr, val));
+                }
+            }
+
+            Map<String, Object> orgFields = new HashMap<>();
+            orgFields.put(Constants.ORG_ID, orgId);
+            orgFields.put(Constants.FIELDS, fields);
+            result.add(orgFields);
+        }
+        return result;
     }
 }

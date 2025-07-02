@@ -138,4 +138,6 @@ public class CbServerProperties {
         return Arrays.asList(profileCompletionRequiredFields.split(","));
     }
 
+    @Value("${user.profile.index}")
+    public String userProfileIndex;
 }
