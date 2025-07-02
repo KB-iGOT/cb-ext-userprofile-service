@@ -451,6 +451,7 @@ public class Constants {
     public static final String FIELD_VALUES = "fieldValues";
     public static final String EMPLOYMENT_DETAILS = "employmentDetails";
     public static final String ABOUT_ME = "aboutme";
+    public static final String ORG_CUSTOM_FIELDS = "orgCustomFields";
 
     private Constants() {
     }
