@@ -1175,10 +1175,10 @@ public class ProfileServiceImplTest {
     void testGetUserPostCount_cacheHit() {
         ProfileServiceImpl service = new ProfileServiceImpl();
         ReflectionTestUtils.setField(service, "cacheService", cacheService);
-        when(cacheService.getCache("user:communityPostCount:user1")).thenReturn("10");
+        when(cacheService.getCache("user:postCount_user1")).thenReturn("10");
         int count = ReflectionTestUtils.invokeMethod(service, "getUserPostCount", "user1");
         assertEquals(10, count);
-        verify(cacheService).getCache("user:communityPostCount:user1");
+        verify(cacheService).getCache("user:postCount_user1");
         verifyNoMoreInteractions(cacheService);
     }
 
@@ -1186,7 +1186,7 @@ public class ProfileServiceImplTest {
     void testGetUserPostCount_cacheValueNotInteger_returnsZero() {
         ProfileServiceImpl service = new ProfileServiceImpl();
         ReflectionTestUtils.setField(service, "cacheService", cacheService);
-        when(cacheService.getCache("user:communityPostCount:user3")).thenReturn("not-a-number");
+        when(cacheService.getCache("user:postCount_user3")).thenReturn("not-a-number");
         int count = ReflectionTestUtils.invokeMethod(service, "getUserPostCount", "user3");
         assertEquals(0, count);
     }
@@ -1195,7 +1195,7 @@ public class ProfileServiceImplTest {
     void testGetUserPostCount_exception_returnsZero() {
         ProfileServiceImpl service = new ProfileServiceImpl();
         ReflectionTestUtils.setField(service, "cacheService", cacheService);
-        when(cacheService.getCache("user:communityPostCount:user4")).thenThrow(new RuntimeException("Redis error"));
+        when(cacheService.getCache("user:postCount_user4")).thenThrow(new RuntimeException("Redis error"));
         int count = ReflectionTestUtils.invokeMethod(service, "getUserPostCount", "user4");
         assertEquals(0, count);
     }
