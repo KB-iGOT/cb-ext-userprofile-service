@@ -876,7 +876,7 @@ public class ProfileServiceImpl implements ProfileService {
     }
 
     private int getUserPostCount(String userId) {
-        String redisKey = "user:communityPostCount:" + userId;
+        String redisKey = "user:postCount_" + userId;
 
         try {
             String cachedValue = cacheService.getCache(redisKey);
