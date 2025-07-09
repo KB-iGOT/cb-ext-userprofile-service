@@ -67,32 +67,26 @@ public abstract class CharacterDecoder {
      * @exception IOException The input stream is unexpectedly out of data
      */
     public void decodeBuffer(InputStream aStream, OutputStream bStream) throws IOException {
-        int i;
-        int totalBytes = 0;
-
         PushbackInputStream ps = new PushbackInputStream(aStream);
         decodeBufferPrefix(ps, bStream);
-        while (true) {
-            int length;
 
-            try {
-                length = decodeLinePrefix(ps, bStream);
-                for (i = 0; (i + bytesPerAtom()) < length; i += bytesPerAtom()) {
-                    decodeAtom(ps, bStream, bytesPerAtom());
-                    totalBytes += bytesPerAtom();
-                }
-                if ((i + bytesPerAtom()) == length) {
-                    decodeAtom(ps, bStream, bytesPerAtom());
-                    totalBytes += bytesPerAtom();
-                } else {
-                    decodeAtom(ps, bStream, length - i);
-                    totalBytes += (length - i);
-                }
-                decodeLineSuffix(ps, bStream);
-            } catch (IOException e) {
-                break;
+        int totalBytes = 0;
+        int length;
+        int atomSize = bytesPerAtom();
+
+        // Use the “safe” wrapper in the loop condition
+        while ((length = safeDecodeLinePrefix(ps, bStream)) != -1) {
+            int i = 0;
+            for (; i + atomSize < length; i += atomSize) {
+                decodeAtom(ps, bStream, atomSize);
+                totalBytes += atomSize;
             }
+            decodeAtom(ps, bStream, length - i);
+            totalBytes += (length - i);
+
+            decodeLineSuffix(ps, bStream);
         }
+
         decodeBufferSuffix(ps, bStream);
     }
 
@@ -131,6 +125,15 @@ public abstract class CharacterDecoder {
         return ByteBuffer.wrap(decodeBuffer(in));
     }
 
-
+    /** Helper that turns “throws IOException on EOF” into “return –1.” */
+    private int safeDecodeLinePrefix(PushbackInputStream in, OutputStream out)
+            throws IOException {
+        try {
+            return decodeLinePrefix(in, out);
+        } catch (IOException eof) {
+            // assume any IOException here means EOF
+            return -1;
+        }
+    }
 
 }
