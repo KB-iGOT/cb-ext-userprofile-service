@@ -322,12 +322,7 @@ public class ProfileServiceImpl implements ProfileService {
         }
 
         boolean isSelfUser = userIdFromToken.equalsIgnoreCase(userId);
-        String cacheKey;
-        if (isSelfUser) {
-            cacheKey = Constants.USER + ":basicProfile:" + userId;
-        } else {
-            cacheKey = Constants.USER + ":basicProfile:notSelfUser:" + userId;
-        }
+        String cacheKey = Constants.USER + ":basicProfile:" + userId;
 
         try {
             String cachedJson = cacheService.getCache(cacheKey);
