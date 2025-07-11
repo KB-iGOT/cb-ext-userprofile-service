@@ -327,15 +327,25 @@ public class ProfileServiceImpl implements ProfileService {
         try {
             String cachedJson = cacheService.getCache(cacheKey);
             Map<String, Object> userProfile;
+            List<String> basicProfileFieldsList=serverConfig.getBasicProfileFields();
             if (StringUtils.isNotEmpty(cachedJson)) {
                 userProfile = mapper.readValue(cachedJson, new TypeReference<Map<String, Object>>() {
                 });
+                List<String> cachedKeyList = new ArrayList<>(userProfile.keySet());
+                List<String> differenceList = basicProfileFieldsList.stream()
+                        .filter(key -> !cachedKeyList.contains(key)).collect(Collectors.toList());
+                if (!differenceList.isEmpty()) {
+                    Map<String, Object> userDetails = fetchFromDatabase(userId, differenceList);
+                    if (MapUtils.isNotEmpty(userDetails)) {
+                        userProfile.putAll(userDetails);
+                    }
+                }
             }else{
-                userProfile = fetchFromDatabase(userId);
+                userProfile = fetchFromDatabase(userId, basicProfileFieldsList);
             }
             UserUtility.decryptSpecificUserData(userProfile, Arrays.asList(Constants.USERNAME_LOWERCASE));
 
-            if (userProfile == null) {
+            if (MapUtils.isEmpty(userProfile)) {
                 response.setResponseCode(HttpStatus.NOT_FOUND);
                 response.put(Constants.RESPONSE, Collections.emptyMap());
                 return response;
@@ -352,11 +362,11 @@ public class ProfileServiceImpl implements ProfileService {
             userProfile.put(Constants.POSTCOUNT, postCount);
             userProfile.put("roles", getUserRoles(userId,(String)userProfile.get(Constants.ROOT_ORG_ID)));
 
+            cacheService.putCache(cacheKey,userProfile);
             if (!isSelfUser) {
                 sanitizeProfile(userProfile);
             }
 
-            cacheService.putCache(cacheKey,userProfile);
             Map<String,Object> responseMap = new HashMap<>();
             responseMap.put("response", userProfile);
             response.setResponse(responseMap);
@@ -556,10 +566,10 @@ public class ProfileServiceImpl implements ProfileService {
                 .orElse(null);
     }
 
-    private Map<String, Object> fetchFromDatabase(String userId) {
+    private Map<String, Object> fetchFromDatabase(String userId, List<String> keyList) {
         Map<String, Object> queryParams = Map.of(Constants.ID, userId);
         List<Map<String, Object>> records = cassandraOperation.getRecordsByPropertiesByKey(
-                Constants.KEYSPACE_SUNBIRD, Constants.USER, queryParams, serverConfig.getBasicProfileFields(), null);
+                Constants.KEYSPACE_SUNBIRD, Constants.USER, queryParams, keyList, null);
 
         if (records == null || records.isEmpty())
             return null;
