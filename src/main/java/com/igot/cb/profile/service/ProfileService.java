@@ -2,6 +2,7 @@ package com.igot.cb.profile.service;
 
 import com.igot.cb.util.ApiResponse;
 
+import java.util.List;
 import java.util.Map;
 
 public interface ProfileService {
@@ -23,4 +24,6 @@ public interface ProfileService {
     ApiResponse updateAdditionalFields(Map<String, Object> request, String userToken);
 
     ApiResponse getAdditionalFieldsByOrg(String userId, String orgId, String authToken);
+
+    public Map<String, Object> readUserDataFromDB(String userId, List<String> keyList);
 }
