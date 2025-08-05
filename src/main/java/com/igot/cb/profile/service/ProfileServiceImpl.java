@@ -20,10 +20,12 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import com.igot.cb.common.OutboundRequestHandlerServiceImpl;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -76,6 +78,12 @@ public class ProfileServiceImpl implements ProfileService {
     
     @Autowired
     private EsUtilServiceImpl esUtilService;
+
+    @Value("${profile.visible.allowed.fields}")
+    private String profileVisibleAllowedFields;
+
+    @Autowired
+    OutboundRequestHandlerServiceImpl outboundRequestHandlerService;
 
     // -------------------- Service METHODS --------------------
 
@@ -373,7 +381,7 @@ public class ProfileServiceImpl implements ProfileService {
             userProfile.put(Constants.ROLES, getUserRoles(userId,(String)userProfile.get(Constants.ROOT_ORG_ID)));
 
             if (!isSelfUser) {
-                sanitizeProfile(userProfile);
+                sanitizeProfile(userProfile, userToken);
             }
 
             Map<String,Object> responseMap = new HashMap<>();
@@ -607,12 +615,74 @@ public class ProfileServiceImpl implements ProfileService {
         return userObj;
     }
 
-    private void sanitizeProfile(Map<String, Object> profile) {
+    private void sanitizeProfile(Map<String, Object> profile, String userToken) {
         Object detailsObj = profile.get(Constants.PROFILE_DETAILS);
-        if (detailsObj instanceof Map<?, ?> detailsMap && detailsMap.containsKey(Constants.PERSONAL_DETAILS)) {
-            detailsMap.remove(Constants.PERSONAL_DETAILS);
-            log.info("Removed personalDetails for non-self user.");
+
+        if (detailsObj instanceof Map<?, ?> detailsMap) {
+            Object preferenceObj = detailsMap.get(Constants.PROFILE_PREFERENCE);
+
+            // If profilePreference is not set or is 0 (public), return all details
+            if (!(preferenceObj instanceof Integer) || ((Integer) preferenceObj) == 0) {
+                return;
+            }
+
+            int profilePref = (Integer) preferenceObj;
+
+            // Shared allowed keys from config
+            List<String> allowedKeys = Arrays.asList(profileVisibleAllowedFields.split(","));
+            Map<String, Object> filteredDetails = new HashMap<>();
+
+            if (profilePref == 1) {
+                // PRIVATE_NO_ONE: show only configured fields
+                for (String key : allowedKeys) {
+                    if (detailsMap.containsKey(key)) {
+                        filteredDetails.put(key, detailsMap.get(key));
+                    }
+                }
+                profile.put(Constants.PROFILE_DETAILS, filteredDetails);
+                log.info("Sanitized profileDetails for PRIVATE_NO_ONE (1). Allowed fields: {}", allowedKeys);
+            } else if (profilePref == 10) {
+                Map<String, Object> connectionResponse = getConnection(
+                        (String) profile.get(Constants.USER_ID_RQST),
+                        (String) profile.get(Constants.AUTH_TOKEN),
+                        userToken);
+                Object statusObj = connectionResponse.get(Constants.STATUS);
+                if (statusObj != null && "Approved".equalsIgnoreCase(statusObj.toString())) {
+                    return;
+                    // Status is Approved
+                }else {
+                    for (String key : allowedKeys) {
+                        if (detailsMap.containsKey(key)) {
+                            filteredDetails.put(key, detailsMap.get(key));
+                        }
+                    }
+                    profile.put(Constants.PROFILE_DETAILS, filteredDetails);
+                    log.info("Sanitized profileDetails for PRIVATE_CONNECTIONS (10). Allowed fields: {}", allowedKeys);
+                }
+            } else {
+                // For any other profilePreference value, just remove personalDetails
+                if (detailsMap.containsKey(Constants.PERSONAL_DETAILS)) {
+                    detailsMap.remove(Constants.PERSONAL_DETAILS);
+                    log.info("Removed personalDetails for non-self user due to unrecognized profilePreference.");
+                }
+            }
         }
+    }
+
+    public Map<String, Object> getConnection(String userId, String authToken, String userAuthToken) {
+        Map<String, String> header = new HashMap<>();
+        if (StringUtils.isNotEmpty(authToken)) {
+            header.put(Constants.AUTH_TOKEN, authToken);
+        }
+        if (StringUtils.isNotEmpty(userAuthToken)) {
+            header.put(Constants.X_AUTH_TOKEN, userAuthToken);
+        }
+        Map<String, Object> readData = (Map<String, Object>) outboundRequestHandlerService
+                .fetchUsingGetWithHeadersProfile(serverConfig.hubGraphService + serverConfig.connectionApi + userId,
+                        header);
+        Map<String, Object> result = (Map<String, Object>) readData.get(Constants.RESULT);
+        Map<String, Object> responseMap = (Map<String, Object>) result.get(Constants.RESPONSE);
+        return responseMap;
     }
 
     protected double calculateProfileCompletionPercentage(Map<String, Object> profileData,
