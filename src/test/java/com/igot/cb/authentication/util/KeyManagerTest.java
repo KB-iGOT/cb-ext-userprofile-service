@@ -16,6 +16,9 @@ import java.security.KeyPairGenerator;
 import java.security.PublicKey;
 import java.util.Base64;
 import java.util.Comparator;
+import java.nio.file.NoSuchFileException;
+import java.util.Collections;
+import java.util.Map;
 
 import org.junit.After;
 import org.junit.Before;
@@ -24,6 +27,8 @@ import org.junit.runner.RunWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
+import org.mockito.Mockito;
+import org.mockito.Spy;
 
 import com.igot.cb.authentication.model.KeyData;
 import com.igot.cb.util.Constants;
@@ -78,6 +83,48 @@ public class KeyManagerTest {
     }
 
     @Test
+    public void testInit_shouldHandleExceptionInFilesWalk() throws Exception {
+        // Simulate Files.walk throwing exception
+        when(propertiesCache.getProperty(eq(Constants.ACCESS_TOKEN_PUBLICKEY_BASEPATH)))
+                .thenReturn("/non/existent/path");
+        // Should not throw, just log
+        keyManager.init();
+        // No keys loaded
+        assertNull(keyManager.getPublicKey("any.pem"));
+    }
+
+    @Test
+    public void testInit_shouldHandleExceptionInReadingFile() throws Exception {
+        // Create a file with invalid content
+        Path pubKeyFile = tempDir.resolve("bad_key.pem");
+        Files.write(pubKeyFile, "not-a-key".getBytes(StandardCharsets.UTF_8));
+        when(propertiesCache.getProperty(eq(Constants.ACCESS_TOKEN_PUBLICKEY_BASEPATH)))
+                .thenReturn(tempDir.toString());
+        // Should not throw, just log
+        keyManager.init();
+        // Key should not be loaded
+        assertNull(keyManager.getPublicKey("bad_key.pem"));
+    }
+
+    @Test
+    public void testConstructorAndGetPublicKey() {
+        KeyManager km = new KeyManager(propertiesCache);
+        // Should return null for any key
+        assertNull(km.getPublicKey("foo.pem"));
+    }
+
+    @Test
+    public void testLoadPublicKey_validKey() throws Exception {
+        PublicKey pubKey = generateTestKey();
+        String publicKeyContent = "-----BEGIN PUBLIC KEY-----\n" +
+                Base64.getEncoder().encodeToString(pubKey.getEncoded()) + "\n" +
+                "-----END PUBLIC KEY-----";
+        PublicKey loaded = KeyManager.loadPublicKey(publicKeyContent);
+        assertNotNull(loaded);
+        assertEquals(pubKey.getAlgorithm(), loaded.getAlgorithm());
+    }
+
+    @Test
     public void testLoadPublicKey_shouldThrowExceptionOnInvalidKey() {
         String invalidKey = "-----BEGIN PUBLIC KEY-----\nInvalidKey\n-----END PUBLIC KEY-----";
 
@@ -101,3 +148,4 @@ public class KeyManagerTest {
         return keyGen.generateKeyPair().getPublic();
     }
 }
+
