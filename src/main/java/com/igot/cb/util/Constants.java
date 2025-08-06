@@ -452,6 +452,9 @@ public class Constants {
     public static final String EMPLOYMENT_DETAILS = "employmentDetails";
     public static final String ABOUT_ME = "aboutme";
     public static final String ORG_CUSTOM_FIELDS = "orgCustomFields";
+    public static final String PROFILE_PREFERENCE = "profilePreference";
+    public static final String AUTH_TOKEN = "Authorization";
+    public static final String APPROVED = "Approved";
 
     private Constants() {
     }
