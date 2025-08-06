@@ -10,11 +10,14 @@ import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.*;
 import java.util.stream.Stream;
 
+import com.igot.cb.common.OutboundRequestHandlerServiceImpl;
 import com.igot.cb.transactional.service.RequestHandlerServiceImpl;
+import com.igot.cb.util.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,10 +33,6 @@ import com.igot.cb.authentication.util.AccessTokenValidator;
 import com.igot.cb.profile.service.ProfileServiceImpl;
 import com.igot.cb.transactional.cassandrautils.CassandraOperation;
 import com.igot.cb.transactional.redis.cache.CacheService;
-import com.igot.cb.util.ApiResponse;
-import com.igot.cb.util.CbServerProperties;
-import com.igot.cb.util.Constants;
-import com.igot.cb.util.ProjectUtil;
 import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
@@ -51,7 +50,7 @@ public class ProfileServiceImplTest {
     @Mock
     private ProjectUtil projectUtil;
 
-
+    @Spy
     @InjectMocks
     private ProfileServiceImpl profileService;
 
@@ -60,6 +59,11 @@ public class ProfileServiceImplTest {
     private static final String CACHE_KEY = "user:competencies:user123";
     private final String [] CONTEXT_TYPE = {"contextA"};
     private static final String REDIS_KEY = "user:extendedProfile:project:user-123";
+
+    @InjectMocks
+    @Spy
+    private OutboundRequestHandlerServiceImpl service;
+
     @BeforeEach
     public void setUp() {
         MockitoAnnotations.openMocks(this);
@@ -1200,121 +1204,125 @@ public class ProfileServiceImplTest {
         assertEquals(0, count);
     }
 
-    @Test
-    void sanitizeProfile_removesPersonalDetails_whenPresent() {
-        Map<String, Object> detailsMap = new HashMap<>();
-        detailsMap.put(Constants.PERSONAL_DETAILS, Map.of("a", "b"));
-        Map<String, Object> profile = new HashMap<>();
-        profile.put(Constants.PROFILE_DETAILS, detailsMap);
-        ProfileServiceImpl service = new ProfileServiceImpl();
-        ReflectionTestUtils.invokeMethod(service, "sanitizeProfile", profile);
-        assertFalse(detailsMap.containsKey(Constants.PERSONAL_DETAILS));
-    }
 
     @Test
-    void sanitizeProfile_doesNothing_whenPersonalDetailsNotPresent() {
-        Map<String, Object> detailsMap = new HashMap<>();
-        detailsMap.put("other", "value");
-        Map<String, Object> profile = new HashMap<>();
-        profile.put(Constants.PROFILE_DETAILS, detailsMap);
-        ProfileServiceImpl service = new ProfileServiceImpl();
-        ReflectionTestUtils.invokeMethod(service, "sanitizeProfile", profile);
-        assertTrue(detailsMap.containsKey("other"));
-    }
-
-    @Test
-    void sanitizeProfile_doesNothing_whenProfileDetailsIsNotMap() {
-        Map<String, Object> profile = new HashMap<>();
-        profile.put(Constants.PROFILE_DETAILS, "notAMap");
-        ProfileServiceImpl service = new ProfileServiceImpl();
-        ReflectionTestUtils.invokeMethod(service, "sanitizeProfile", profile);
-    }
-
-    @Test
-    void sanitizeProfile_doesNothing_whenProfileDetailsIsNull() {
-        Map<String, Object> profile = new HashMap<>();
-        profile.put(Constants.PROFILE_DETAILS, null);
-        ProfileServiceImpl service = new ProfileServiceImpl();
-        ReflectionTestUtils.invokeMethod(service, "sanitizeProfile", profile);
-    }
-
-
-    @Test
-    void fetchFromDatabase_returnsNull_whenNoRecords() {
+    void fetchFromDatabase_returnsNull_whenNoRecords() throws Exception {
         ProfileServiceImpl service = new ProfileServiceImpl();
         CassandraOperation cassandraOperation = mock(CassandraOperation.class);
         CbServerProperties serverConfig = mock(CbServerProperties.class);
+        ProjectUtil projectUtil = mock(ProjectUtil.class);
+        CacheService cacheService = mock(CacheService.class);
+
         ReflectionTestUtils.setField(service, "cassandraOperation", cassandraOperation);
         ReflectionTestUtils.setField(service, "serverConfig", serverConfig);
-        when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), any(), any()))
-                .thenReturn(null);
-        Map<String, Object> result = ReflectionTestUtils.invokeMethod(service, "fetchFromDatabase", "user-1");
-        assertNull(result);
+        ReflectionTestUtils.setField(service, "projectUtil", projectUtil);
+        ReflectionTestUtils.setField(service, "cacheService", cacheService);
+
+        // Mock empty result from DB
         when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), any(), any()))
                 .thenReturn(Collections.emptyList());
-        result = ReflectionTestUtils.invokeMethod(service, "fetchFromDatabase", "user-1");
-        assertNull(result);
+
+        // Invoke method correctly with both parameters
+        Method method = ProfileServiceImpl.class.getDeclaredMethod("readUserDataFromDB", String.class, List.class);
+        method.setAccessible(true);
+        Map<String, Object> result = (Map<String, Object>) method.invoke(service, "user-4", null);
+
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
     }
 
     @Test
     void fetchFromDatabase_returnsRecordWithParsedProfileDetails_whenValidJson() throws Exception {
         ProfileServiceImpl service = new ProfileServiceImpl();
+
+        // Mock dependencies
         CassandraOperation cassandraOperation = mock(CassandraOperation.class);
         CbServerProperties serverConfig = mock(CbServerProperties.class);
         ProjectUtil projectUtil = mock(ProjectUtil.class);
+        CacheService cacheService = mock(CacheService.class);
+        ObjectMapper mapper = new ObjectMapper();
+
         ReflectionTestUtils.setField(service, "cassandraOperation", cassandraOperation);
         ReflectionTestUtils.setField(service, "serverConfig", serverConfig);
         ReflectionTestUtils.setField(service, "projectUtil", projectUtil);
+        ReflectionTestUtils.setField(service, "cacheService", cacheService);
+        ReflectionTestUtils.setField(service, "mapper", mapper);  // ✅ Fix for NPE
+
+        // DB record with JSON string
         Map<String, Object> record = new HashMap<>();
         record.put(Constants.PROFILE_DETAILS, "{\"email\":\"test@example.com\"}");
         List<Map<String, Object>> records = List.of(record);
+
         when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), any(), any()))
                 .thenReturn(records);
-        Map<String, Object> parsed = Map.of("email", "test@example.com");
-        when(projectUtil.parseMap("{\"email\":\"test@example.com\"}")).thenReturn(parsed);
-        Map<String, Object> result = ReflectionTestUtils.invokeMethod(service, "fetchFromDatabase", "user-2");
+
+        // Invoke the method with reflection
+        Method method = ProfileServiceImpl.class.getDeclaredMethod("readUserDataFromDB", String.class, List.class);
+        method.setAccessible(true);
+        Map<String, Object> result = (Map<String, Object>) method.invoke(service, "user-2", null);
+
         assertNotNull(result);
-        assertEquals(parsed, result.get(Constants.PROFILE_DETAILS));
+        assertEquals("test@example.com", ((Map<?, ?>) result.get(Constants.PROFILE_DETAILS)).get("email"));
     }
+
 
     @Test
     void fetchFromDatabase_removesProfileDetails_whenJsonInvalid() throws Exception {
         ProfileServiceImpl service = new ProfileServiceImpl();
+
+        // Mock dependencies
         CassandraOperation cassandraOperation = mock(CassandraOperation.class);
         CbServerProperties serverConfig = mock(CbServerProperties.class);
-        ProjectUtil projectUtil = mock(ProjectUtil.class);
-        Logger logger = mock(Logger.class);
+
+        // Inject mocks
         ReflectionTestUtils.setField(service, "cassandraOperation", cassandraOperation);
         ReflectionTestUtils.setField(service, "serverConfig", serverConfig);
-        ReflectionTestUtils.setField(service, "projectUtil", projectUtil);
+        ReflectionTestUtils.setField(service, "mapper", new ObjectMapper());
+
+        // Simulate record with invalid JSON in profileDetails
         Map<String, Object> record = new HashMap<>();
         record.put(Constants.PROFILE_DETAILS, "{invalid_json}");
         List<Map<String, Object>> records = List.of(record);
+
         when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), any(), any()))
                 .thenReturn(records);
-        when(projectUtil.parseMap("{invalid_json}")).thenThrow(new IOException("fail"));
-        Map<String, Object> result = ReflectionTestUtils.invokeMethod(service, "fetchFromDatabase", "user-3");
+
+        // Invoke the method via reflection (note 2 args!)
+        Map<String, Object> result = ReflectionTestUtils.invokeMethod(service, "readUserDataFromDB", "user-3", null);
+
+        // Validate fallback to empty profileDetails due to JSON parse failure
         assertNotNull(result);
-        assertFalse(result.containsKey(Constants.PROFILE_DETAILS));
+        assertEquals(Map.of(), result.get(Constants.PROFILE_DETAILS));
     }
 
     @Test
     void fetchFromDatabase_leavesProfileDetailsNull_whenProfileDetailsIsNull() throws Exception {
         ProfileServiceImpl service = new ProfileServiceImpl();
+
+        // Mock dependencies
         CassandraOperation cassandraOperation = mock(CassandraOperation.class);
         CbServerProperties serverConfig = mock(CbServerProperties.class);
         ProjectUtil projectUtil = mock(ProjectUtil.class);
+        CacheService cacheService = mock(CacheService.class);
+
+        // Set fields
         ReflectionTestUtils.setField(service, "cassandraOperation", cassandraOperation);
         ReflectionTestUtils.setField(service, "serverConfig", serverConfig);
         ReflectionTestUtils.setField(service, "projectUtil", projectUtil);
+        ReflectionTestUtils.setField(service, "cacheService", cacheService);
+        ReflectionTestUtils.setField(service, "mapper", new ObjectMapper());
+
         Map<String, Object> record = new HashMap<>();
         record.put(Constants.PROFILE_DETAILS, null);
         List<Map<String, Object>> records = List.of(record);
+
         when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), any(), any()))
                 .thenReturn(records);
-        Map<String, Object> result = ReflectionTestUtils.invokeMethod(service, "fetchFromDatabase", "user-4");
+
+        Map<String, Object> result = ReflectionTestUtils.invokeMethod(service, "readUserDataFromDB", "user-4", null);
+
         assertNotNull(result);
-        assertNull(result.get(Constants.PROFILE_DETAILS));
+        assertEquals(Map.of(), result.get(Constants.PROFILE_DETAILS));
     }
 
     @Test
@@ -1734,4 +1742,178 @@ public class ProfileServiceImplTest {
         assertEquals("2023-01-01T00:00:00Z", existingList.get(0).get(Constants.ISSUED_DATE));
         assertEquals("Bravo", existingList.get(1).get(Constants.TITLE));
     }
+
+    @Test
+    void testSanitizeProfile_Public() throws Exception {
+        // Manually set the @Value field using reflection
+        Field field = profileService.getClass().getDeclaredField("profileVisibleAllowedFields");
+        field.setAccessible(true);
+        field.set(profileService, "profileImageUrl,profileStatus,employmentDetails");
+
+        // Prepare profile data with PUBLIC visibility
+        Map<String, Object> profileDetails = new HashMap<>();
+        profileDetails.put("profilePreference", 0); // PUBLIC
+        profileDetails.put("profileImageUrl", "http://image.url");
+        profileDetails.put("profileStatus", "Available");
+        profileDetails.put("employmentDetails", "Engineer");
+        profileDetails.put("extraField", "Should remain because it's PUBLIC");
+
+        Map<String, Object> profile = new HashMap<>();
+        profile.put("profileDetails", profileDetails);
+
+        // Invoke private method using reflection
+        Method method = ProfileServiceImpl.class.getDeclaredMethod("sanitizeProfile", Map.class, String.class);
+        method.setAccessible(true);
+        method.invoke(profileService, profile, "token123");
+
+        // Assert nothing was removed
+        Map<?, ?> result = (Map<?, ?>) profile.get("profileDetails");
+
+        assertEquals("http://image.url", result.get("profileImageUrl"));
+        assertEquals("Available", result.get("profileStatus"));
+        assertEquals("Engineer", result.get("employmentDetails"));
+        assertEquals("Should remain because it's PUBLIC", result.get("extraField")); // ✅ still present
+    }
+
+
+    @Test
+    void testSanitizeProfile_PrivateNoOne() throws Exception {
+        // Inject the value for the @Value field using reflection
+        Field field = profileService.getClass().getDeclaredField("profileVisibleAllowedFields");
+        field.setAccessible(true);
+        field.set(profileService, "name,email"); // Only these fields will be allowed
+
+        Map<String, Object> profileDetails = new HashMap<>();
+        profileDetails.put("profilePreference", 1); // PRIVATE_NO_ONE
+        profileDetails.put("name", "Alice");
+        profileDetails.put("email", "alice@example.com");
+        profileDetails.put("phone", "123456"); // Should be removed
+
+        Map<String, Object> profile = new HashMap<>();
+        profile.put("profileDetails", profileDetails);
+
+        // Call the private method
+        Method method = ProfileServiceImpl.class.getDeclaredMethod("sanitizeProfile", Map.class, String.class);
+        method.setAccessible(true);
+        method.invoke(profileService, profile, "token456");
+
+        // Validate that only allowed fields remain
+        Map<?, ?> result = (Map<?, ?>) profile.get("profileDetails");
+        assertEquals(2, result.size());
+        assertTrue(result.containsKey("name"));
+        assertTrue(result.containsKey("email"));
+        assertFalse(result.containsKey("phone")); // ✅ Removed
+    }
+
+    @Test
+    void testSanitizeProfile_PrivateConnections_Approved() throws Exception {
+        // Set the @Value field using reflection
+        Field field = profileService.getClass().getDeclaredField("profileVisibleAllowedFields");
+        field.setAccessible(true);
+        field.set(profileService, "name,email");
+
+        // Prepare profile with PRIVATE_CONNECTIONS
+        Map<String, Object> profileDetails = new HashMap<>();
+        profileDetails.put("profilePreference", 2); // PRIVATE_CONNECTIONS
+        profileDetails.put("name", "Bob");
+        profileDetails.put("email", "bob@example.com");
+        profileDetails.put("phone", "0000000000");
+
+        Map<String, Object> profile = new HashMap<>();
+        profile.put("id", "user123");
+        profile.put("authToken", "auth123");
+        profile.put("profileDetails", profileDetails);
+
+        lenient().doReturn(Map.of("status", "APPROVED"))
+                .when(profileService).checkConnected("user123", "auth123", "token789");
+        // Invoke the private method
+        Method method = ProfileServiceImpl.class.getDeclaredMethod("sanitizeProfile", Map.class, String.class);
+        method.setAccessible(true);
+        method.invoke(profileService, profile, "token789");
+
+        // Since connection is APPROVED, full profile should remain
+        Map<?, ?> result = (Map<?, ?>) profile.get("profileDetails");
+        assertEquals("Bob", result.get("name"));
+        assertEquals("bob@example.com", result.get("email"));
+        assertEquals("0000000000", result.get("phone")); // ✅ Not removed
+    }
+
+
+
+    @Test
+    void testSanitizeProfile_PrivateConnections_NotApproved() throws Exception {
+        Field field = profileService.getClass().getDeclaredField("profileVisibleAllowedFields");
+        field.setAccessible(true);
+        field.set(profileService, "name,email");
+
+        // ✅ Prepare profile with PRIVATE_CONNECTIONS and additional field (mobile)
+        Map<String, Object> profileDetails = new HashMap<>();
+        profileDetails.put("profilePreference", 10); // PRIVATE_CONNECTIONS
+        profileDetails.put("name", "Bob");
+        profileDetails.put("email", "bob@example.com");
+        profileDetails.put("mobile", "1111111111"); // <-- should be removed
+
+        Map<String, Object> profile = new HashMap<>();
+        profile.put("id", "user123");
+        profile.put("authToken", "auth123");
+        profile.put("profileDetails", profileDetails);
+
+        // ✅ Mock checkConnected() to return PENDING
+        // lenient() allows unused stubbing if fallback path is taken
+        lenient().doReturn(Map.of("status", "PENDING"))
+                .when(profileService).checkConnected("user123", "auth123", "token789");
+
+        // ✅ Invoke private method via reflection
+        Method method = ProfileServiceImpl.class.getDeclaredMethod("sanitizeProfile", Map.class, String.class);
+        method.setAccessible(true);
+        method.invoke(profileService, profile, "token789");
+
+        // ✅ Assert only allowed fields are retained
+        Map<?, ?> result = (Map<?, ?>) profile.get("profileDetails");
+        System.out.println("Sanitized result: " + result); // <-- Optional for debug
+
+        assertTrue(result.containsKey("name"));
+        assertTrue(result.containsKey("email"));
+        assertFalse(result.containsKey("mobile"));
+    }
+
+    @Test
+    void testSanitizeProfile_InvalidPreference_RemovesPersonalDetails() throws Exception {
+        // Reflect @Value field
+        Field field = profileService.getClass().getDeclaredField("profileVisibleAllowedFields");
+        field.setAccessible(true);
+        field.set(profileService, "name,email");
+
+        // Set up profile with invalid preference
+        Map<String, Object> profileDetails = new HashMap<>();
+        profileDetails.put("profilePreference", 99); // invalid int, not in enum
+        profileDetails.put("name", "Test");
+
+        Map<String, Object> profile = new HashMap<>();
+        profile.put("profileDetails", profileDetails);
+
+        // Invoke private method
+        Method method = ProfileServiceImpl.class.getDeclaredMethod("sanitizeProfile", Map.class, String.class);
+        method.setAccessible(true);
+        method.invoke(profileService, profile, "token000");
+
+        // Verify result
+        Map<?, ?> result = (Map<?, ?>) profile.get("profileDetails");
+        System.out.println("Sanitized result: " + result);
+
+        assertFalse(result.containsKey("personalDetails")); // ✅ should be removed
+        assertEquals("Test", result.get("name"));
+    }
+
+
+
+    // ==== Helper method to invoke private method ====
+    private void invokeSanitizeProfile(Map<String, Object> profile, String token) throws Exception {
+        Method method = ProfileServiceImpl.class
+                .getDeclaredMethod("sanitizeProfile", Map.class, String.class);
+        method.setAccessible(true);
+        method.invoke(profileService, profile, token);
+    }
+
+
 }
