@@ -21,6 +21,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import com.igot.cb.common.OutboundRequestHandlerServiceImpl;
+import com.igot.cb.util.*;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -40,11 +41,6 @@ import com.igot.cb.transactional.cassandrautils.CassandraOperation;
 import com.igot.cb.transactional.elasticsearch.service.EsUtilServiceImpl;
 import com.igot.cb.transactional.redis.cache.CacheService;
 import com.igot.cb.transactional.service.RequestHandlerServiceImpl;
-import com.igot.cb.util.ApiResponse;
-import com.igot.cb.util.CbServerProperties;
-import com.igot.cb.util.Constants;
-import com.igot.cb.util.ProjectUtil;
-import com.igot.cb.util.UserUtility;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -619,51 +615,61 @@ public class ProfileServiceImpl implements ProfileService {
         Object detailsObj = profile.get(Constants.PROFILE_DETAILS);
 
         if (detailsObj instanceof Map<?, ?> detailsMap) {
-            Object preferenceObj = detailsMap.get(Constants.PROFILE_PREFERENCE);
+            ProfilePreference profilePref = ProfilePreference.PUBLIC; // default to PUBLIC
 
-            // If profilePreference is not set or is 0 (public), return all details
-            if (!(preferenceObj instanceof Integer) || ((Integer) preferenceObj) == 0) {
-                return;
+            Object preferenceObj = detailsMap.get(Constants.PROFILE_PREFERENCE);
+            if (preferenceObj instanceof Integer) {
+                ProfilePreference resolvedPref = ProfilePreference.fromValue((Integer) preferenceObj);
+                if (resolvedPref != null) {
+                    profilePref = resolvedPref;
+                }
             }
 
-            int profilePref = (Integer) preferenceObj;
+            // If PUBLIC, return everything
+            if (ProfilePreference.PUBLIC.equals(profilePref)) {
+                return;
+            }
 
             // Shared allowed keys from config
             List<String> allowedKeys = Arrays.asList(profileVisibleAllowedFields.split(","));
             Map<String, Object> filteredDetails = new HashMap<>();
 
-            if (profilePref == 1) {
-                // PRIVATE_NO_ONE: show only configured fields
+            // If PRIVATE_NO_ONE
+            if (ProfilePreference.PRIVATE_NO_ONE.equals(profilePref)) {
                 for (String key : allowedKeys) {
                     if (detailsMap.containsKey(key)) {
                         filteredDetails.put(key, detailsMap.get(key));
                     }
                 }
                 profile.put(Constants.PROFILE_DETAILS, filteredDetails);
-                log.info("Sanitized profileDetails for PRIVATE_NO_ONE (1). Allowed fields: {}", allowedKeys);
-            } else if (profilePref == 10) {
+                log.info("Sanitized profileDetails for PRIVATE_NO_ONE ({}). Allowed fields: {}", profilePref.getValue(), allowedKeys);
+
+            } else if (ProfilePreference.PRIVATE_CONNECTIONS.equals(profilePref)) {
                 Map<String, Object> connectionResponse = checkConnected(
                         (String) profile.get(Constants.ID),
                         (String) profile.get(Constants.AUTH_TOKEN),
                         userToken);
-                Object statusObj = connectionResponse.get(Constants.STATUS);
-                if (statusObj != null && Constants.APPROVED.equalsIgnoreCase(statusObj.toString())) {
-                    return;
-                    // Status is Approved
-                } else {
-                    for (String key : allowedKeys) {
-                        if (detailsMap.containsKey(key)) {
-                            filteredDetails.put(key, detailsMap.get(key));
-                        }
+
+                if (connectionResponse != null) {
+                    Object statusObj = connectionResponse.get(Constants.STATUS);
+                    if (statusObj != null && Constants.APPROVED.equalsIgnoreCase(statusObj.toString())) {
+                        return; // If connection approved, allow full profile
                     }
-                    profile.put(Constants.PROFILE_DETAILS, filteredDetails);
-                    log.info("Sanitized profileDetails for PRIVATE_CONNECTIONS (10). Allowed fields: {}", allowedKeys);
                 }
+
+                for (String key : allowedKeys) {
+                    if (detailsMap.containsKey(key)) {
+                        filteredDetails.put(key, detailsMap.get(key));
+                    }
+                }
+                profile.put(Constants.PROFILE_DETAILS, filteredDetails);
+                log.info("Sanitized profileDetails for PRIVATE_CONNECTIONS ({}). Allowed fields: {}", profilePref.getValue(), allowedKeys);
+
             } else {
-                // For any other profilePreference value, just remove personalDetails
+                // Fallback case – remove personalDetails
                 if (detailsMap.containsKey(Constants.PERSONAL_DETAILS)) {
                     detailsMap.remove(Constants.PERSONAL_DETAILS);
-                    log.info("Removed personalDetails for non-self user due to unrecognized profilePreference.");
+                    log.info("Removed personalDetails due to unrecognized profilePreference.");
                 }
             }
         }
@@ -677,11 +683,24 @@ public class ProfileServiceImpl implements ProfileService {
         if (StringUtils.isNotEmpty(userAuthToken)) {
             header.put(Constants.X_AUTH_TOKEN, userAuthToken);
         }
+        Map<String, Object> responseMap = new HashMap<>();
         Map<String, Object> readData = (Map<String, Object>) outboundRequestHandlerService
                 .fetchUsingGetWithHeadersProfile(serverConfig.hubGraphService + serverConfig.connectionApi + userId,
                         header);
-        Map<String, Object> result = (Map<String, Object>) readData.get(Constants.RESULT);
-        Map<String, Object> responseMap = (Map<String, Object>) result.get(Constants.RESPONSE);
+        if (readData != null) {
+            Object resultObj = readData.get(Constants.RESULT);
+            if (resultObj instanceof Map<?, ?> resultMap) {
+                Object responseObj = resultMap.get(Constants.RESPONSE);
+                if (responseObj instanceof Map<?, ?> responseData) {
+                    for (Map.Entry<?, ?> entry : responseData.entrySet()) {
+                        if (entry.getKey() instanceof String) {
+                            responseMap.put((String) entry.getKey(), entry.getValue());
+                        }
+                    }
+                }
+            }
+        }
+
         return responseMap;
     }
 
