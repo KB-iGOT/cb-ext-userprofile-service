@@ -78,6 +78,9 @@ public class ProfileServiceImpl implements ProfileService {
     @Value("${profile.visible.allowed.fields}")
     private String profileVisibleAllowedFields;
 
+    @Value("${user.basic.details.filtered}")
+    private String basicDetailsFilteredKeys;
+
     @Autowired
     OutboundRequestHandlerServiceImpl outboundRequestHandlerService;
 
@@ -368,7 +371,6 @@ public class ProfileServiceImpl implements ProfileService {
                 response.put(Constants.RESPONSE, Collections.emptyMap());
                 return response;
             }
-
             userProfile.put(Constants.PROFILE_COMPLETION_PERCENTAGE, calculateProfileCompletionPercentage(userProfile,
                     userId, userToken));
             userProfile.put(Constants.KARMA_POINTS, getUserKarmaPoints(userId));
@@ -615,6 +617,10 @@ public class ProfileServiceImpl implements ProfileService {
         Object detailsObj = profile.get(Constants.PROFILE_DETAILS);
 
         if (detailsObj instanceof Map<?, ?> detailsMap) {
+            if (detailsMap.containsKey(Constants.PERSONAL_DETAILS)) {
+                detailsMap.remove(Constants.PERSONAL_DETAILS);
+                log.info("Removed personalDetails due to unrecognized profilePreference.");
+            }
             ProfilePreference profilePref = ProfilePreference.PUBLIC; // default to PUBLIC
 
             Object preferenceObj = detailsMap.get(Constants.PROFILE_PREFERENCE);
@@ -630,6 +636,8 @@ public class ProfileServiceImpl implements ProfileService {
                 return;
             }
 
+            // Load keys from property
+            List<String> filteredKeys = Arrays.asList(basicDetailsFilteredKeys.split(","));
             // Shared allowed keys from config
             List<String> allowedKeys = Arrays.asList(profileVisibleAllowedFields.split(","));
             Map<String, Object> filteredDetails = new HashMap<>();
@@ -641,6 +649,7 @@ public class ProfileServiceImpl implements ProfileService {
                         filteredDetails.put(key, detailsMap.get(key));
                     }
                 }
+                filteredKeys.forEach(profile::remove);
                 profile.put(Constants.PROFILE_DETAILS, filteredDetails);
                 log.info("Sanitized profileDetails for PRIVATE_NO_ONE ({}). Allowed fields: {}", profilePref.getValue(), allowedKeys);
 
@@ -656,7 +665,7 @@ public class ProfileServiceImpl implements ProfileService {
                         return; // If connection approved, allow full profile
                     }
                 }
-
+                filteredKeys.forEach(profile::remove);
                 for (String key : allowedKeys) {
                     if (detailsMap.containsKey(key)) {
                         filteredDetails.put(key, detailsMap.get(key));

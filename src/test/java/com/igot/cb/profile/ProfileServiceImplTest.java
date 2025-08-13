@@ -67,6 +67,11 @@ public class ProfileServiceImplTest {
     @BeforeEach
     public void setUp() {
         MockitoAnnotations.openMocks(this);
+        ReflectionTestUtils.setField(
+                profileService,
+                "basicDetailsFilteredKeys",
+                "profileCompletionPercentage,karmaPoints,certificateCount,postCount"
+        );
     }
 
     static class TestContext {
