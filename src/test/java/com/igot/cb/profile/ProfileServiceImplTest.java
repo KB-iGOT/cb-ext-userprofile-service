@@ -1921,4 +1921,42 @@ public class ProfileServiceImplTest {
     }
 
 
+    @Test
+    void testSanitizeProfile_Private_RemovesFilteredKeys() {
+        // Arrange
+        ProfileServiceImpl service = new ProfileServiceImpl();
+
+        // Inject config value for filtered keys
+        ReflectionTestUtils.setField(service, "basicDetailsFilteredKeys",
+                "profileCompletionPercentage,karmaPoints,certificateCount,postCount");
+
+        // Allowed visible fields for config
+        ReflectionTestUtils.setField(service, "profileVisibleAllowedFields", "firstName,profileImageUrl");
+
+        Map<String, Object> profileDetails = new HashMap<>();
+        profileDetails.put("profilePreference", ProfilePreference.PRIVATE_NO_ONE.getValue());
+        profileDetails.put("firstName", "TestUser");
+        profileDetails.put("profileCompletionPercentage", 85.0);
+        profileDetails.put("karmaPoints", 50);
+        profileDetails.put("certificateCount", 3);
+        profileDetails.put("postCount", 10);
+
+        Map<String, Object> profile = new HashMap<>();
+        profile.put(Constants.PROFILE_DETAILS, profileDetails);
+
+        // Act
+        ReflectionTestUtils.invokeMethod(service, "sanitizeProfile", profile, "dummyUserToken");
+
+        // Assert
+        @SuppressWarnings("unchecked")
+        Map<String, Object> updatedDetails = (Map<String, Object>) profile.get(Constants.PROFILE_DETAILS);
+
+        assertFalse(updatedDetails.containsKey("profileCompletionPercentage"));
+        assertFalse(updatedDetails.containsKey("karmaPoints"));
+        assertFalse(updatedDetails.containsKey("certificateCount"));
+        assertFalse(updatedDetails.containsKey("postCount"));
+        assertTrue(updatedDetails.containsKey("firstName")); // allowed field should remain
+    }
+
+
 }
