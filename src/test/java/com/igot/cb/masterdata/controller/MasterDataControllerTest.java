@@ -29,7 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @ExtendWith(MockitoExtension.class)
 @SuppressWarnings("unchecked")
-public class MasterDataControllerTest {
+class MasterDataControllerTest {
 
     private MockMvc mockMvc;
 
@@ -40,12 +40,12 @@ public class MasterDataControllerTest {
     private MasterDataController masterDataController;
 
     @BeforeEach
-    public void setup() {
+    void setup() {
         mockMvc = MockMvcBuilders.standaloneSetup(masterDataController).build();
     }
 
     @Test
-    public void testGetInstitutionsList() throws Exception {
+    void testGetInstitutionsList() throws Exception {
         String authToken = "test-auth-token";
         ApiResponse mockResponse = ProjectUtil.createDefaultResponse("TEST_API");
         mockResponse.setResponseCode(HttpStatus.OK);
@@ -59,7 +59,7 @@ public class MasterDataControllerTest {
     }
 
     @Test
-    public void testGetDegreesList() throws Exception {
+    void testGetDegreesList() throws Exception {
         String authToken = "test-auth-token";
         ApiResponse mockResponse = ProjectUtil.createDefaultResponse("TEST_API");
         mockResponse.setResponseCode(HttpStatus.OK);
@@ -73,7 +73,7 @@ public class MasterDataControllerTest {
     }
 
     @Test
-    public void testUpdateInstitution() throws Exception {
+    void testUpdateInstitution() throws Exception {
         String authToken = "test-auth-token";
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("institutionName", "Test Institution");
@@ -93,7 +93,7 @@ public class MasterDataControllerTest {
     }
 
     @Test
-    public void testUpdateDegree() throws Exception {
+    void testUpdateDegree() throws Exception {
         String authToken = "test-auth-token";
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("degreeName", "Test Degree");

@@ -93,6 +93,7 @@ public class Base64UtilTest {
             assertNotNull(result);
             assertEquals(0, result.length);
         } catch (IllegalArgumentException e) {
+            //
         }
     }
 

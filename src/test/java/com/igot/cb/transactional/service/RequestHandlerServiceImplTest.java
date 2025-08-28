@@ -43,7 +43,7 @@ public class RequestHandlerServiceImplTest {
 
     @Before
     public void setUp() {
-        MockitoAnnotations.initMocks(this); // Initialize mocks
+        MockitoAnnotations.openMocks(this); // Initialize mocks
     }
 
     @Test
@@ -76,7 +76,7 @@ public class RequestHandlerServiceImplTest {
         );
         when(restTemplate.postForObject(anyString(), any(HttpEntity.class), eq(Map.class)))
                 .thenThrow(exception);
-        Map<String, Object> response = requestHandlerServiceImpl.fetchResultUsingPost(uri, request, headersValues);
+        requestHandlerServiceImpl.fetchResultUsingPost(uri, request, headersValues);
         verify(restTemplate).postForObject(eq(uri), any(HttpEntity.class), eq(Map.class));
     }
 
@@ -100,7 +100,7 @@ public class RequestHandlerServiceImplTest {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         HttpEntity<Object> entity = new HttpEntity<>(request, headers);
-        when(restTemplate.postForObject(eq(uri), eq(entity), eq(Map.class))).thenReturn(expectedResponse);
+        when(restTemplate.postForObject(uri, entity, Map.class)).thenReturn(expectedResponse);
         when(objectMapper.writeValueAsString(request)).thenThrow(JsonProcessingException.class);
         Map<String, Object> response = requestHandlerServiceImpl.fetchResultUsingPost(uri, request, headersValues);
         assertNull(response);  // Expect null as the response will not be properly serialized due to the exception

@@ -1,30 +1,23 @@
 package com.igot.cb.common;
 
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
-import static org.junit.jupiter.api.Assertions.*;
-
-import java.util.*;
-
-import com.fasterxml.jackson.core.JsonProcessingException;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.runner.RunWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
-import org.mockito.junit.MockitoJUnitRunner;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.*;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.core.type.TypeReference;
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-public class OutboundRequestHandlerServiceImplTest {
+class OutboundRequestHandlerServiceImplTest {
 
     @InjectMocks
     private OutboundRequestHandlerServiceImpl service;
@@ -62,7 +55,7 @@ public class OutboundRequestHandlerServiceImplTest {
     }
 
     @Test
-    void testFetchUsingGetWithHeadersProfile_HttpClientErrorException() throws JsonProcessingException {
+    void testFetchUsingGetWithHeadersProfile_HttpClientErrorException() {
         String uri = "http://example.com";
         String errorJson = "{\"error\": \"Unauthorized\"}";
         HttpClientErrorException exception = HttpClientErrorException.create(

@@ -1,11 +1,15 @@
 package com.igot.cb.authentication.util;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.jupiter.api.Assertions.fail;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.when;
+import com.igot.cb.authentication.model.KeyData;
+import com.igot.cb.util.Constants;
+import com.igot.cb.util.PropertiesCache;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.MockitoJUnitRunner;
 
 import java.io.File;
 import java.io.IOException;
@@ -17,17 +21,9 @@ import java.security.PublicKey;
 import java.util.Base64;
 import java.util.Comparator;
 
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnitRunner;
-
-import com.igot.cb.authentication.model.KeyData;
-import com.igot.cb.util.Constants;
-import com.igot.cb.util.PropertiesCache;
+import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.fail;
+import static org.mockito.Mockito.when;
 
 @RunWith(MockitoJUnitRunner.class)
 public class KeyManagerTest {
@@ -64,7 +60,7 @@ public class KeyManagerTest {
         Files.write(pubKeyFile, publicKeyContent.getBytes(StandardCharsets.UTF_8));
 
         // Mock base path
-        when(propertiesCache.getProperty(eq(Constants.ACCESS_TOKEN_PUBLICKEY_BASEPATH)))
+        when(propertiesCache.getProperty(Constants.ACCESS_TOKEN_PUBLICKEY_BASEPATH))
                 .thenReturn(tempDir.toString());
 
         // Call init

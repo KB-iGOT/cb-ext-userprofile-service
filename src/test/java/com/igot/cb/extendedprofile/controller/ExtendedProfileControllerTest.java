@@ -1,17 +1,10 @@
 package com.igot.cb.extendedprofile.controller;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
-import java.util.HashMap;
-import java.util.Map;
-
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.igot.cb.extendedprofile.service.ExtendedProfileService;
+import com.igot.cb.util.ApiResponse;
+import com.igot.cb.util.Constants;
+import com.igot.cb.util.ProjectUtil;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -22,11 +15,17 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.igot.cb.extendedprofile.service.ExtendedProfileService;
-import com.igot.cb.util.ApiResponse;
-import com.igot.cb.util.Constants;
-import com.igot.cb.util.ProjectUtil;
+import java.util.HashMap;
+import java.util.Map;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @RunWith(MockitoJUnitRunner.class)
 @SuppressWarnings("unchecked")
@@ -54,7 +53,7 @@ public class ExtendedProfileControllerTest {
         ApiResponse expectedResponse = ProjectUtil.createDefaultResponse("GET_STATES_LIST");
         expectedResponse.put("states", Map.of("Maharashtra", "MH", "Karnataka", "KA"));
 
-        when(extendedProfileService.getStatesList(eq(authToken))).thenReturn(expectedResponse);
+        when(extendedProfileService.getStatesList(authToken)).thenReturn(expectedResponse);
 
         // Act & Assert
         mockMvc.perform(get("/v1/extendedprofile/list/states")
@@ -65,7 +64,7 @@ public class ExtendedProfileControllerTest {
                 .andExpect(jsonPath("$.result.states").exists());
 
         // Verify service method was called
-        verify(extendedProfileService).getStatesList(eq(authToken));
+        verify(extendedProfileService).getStatesList(authToken);
     }
 
     @Test
@@ -89,6 +88,6 @@ public class ExtendedProfileControllerTest {
                 .andExpect(jsonPath("$.result.districts").exists());
 
         // Verify service method was called
-        verify(extendedProfileService).getDistrictsList(eq(authToken), eq(requestBody));
+        verify(extendedProfileService).getDistrictsList((authToken), (requestBody));
     }
 }
