@@ -2,11 +2,14 @@ package com.igot.cb.exceptions;
 
 import com.igot.cb.util.Constants;
 import org.junit.Test;
-import org.mockito.MockedStatic;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.junit.Assert.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+@ExtendWith(MockitoExtension.class)
 public class ProjectCommonExceptionTest {
 
     @Test
@@ -79,59 +82,64 @@ public class ProjectCommonExceptionTest {
         assertEquals("ERR_004: Test message", exception.toString());
     }
 
+
     @Test
     public void testThrowServerErrorException() {
-        try {
-            ResponseCode mockResponseCode = mock(ResponseCode.class);
-            when(mockResponseCode.getErrorCode()).thenReturn("SERVER_ERR_001");
-            when(mockResponseCode.getErrorMessage()).thenReturn("Default error message");
-            ProjectCommonException.throwServerErrorException(mockResponseCode, "Custom error message");
-            fail("Expected ProjectCommonException to be thrown");
-        } catch (ProjectCommonException e) {
-            assertNotNull(e.getErrorCode());
-            assertEquals("Custom error message", e.getErrorMessage());
-            assertNotEquals(0, e.getErrorResponseCode());
-        }
-        try {
-            ResponseCode mockResponseCode = mock(ResponseCode.class);
-            when(mockResponseCode.getErrorCode()).thenReturn("SERVER_ERR_001");
-            when(mockResponseCode.getErrorMessage()).thenReturn("Default error message");
+        // Case 1: Custom error message provided
+        ResponseCode mockResponseCode1 = mock(ResponseCode.class);
+        when(mockResponseCode1.getErrorCode()).thenReturn("SERVER_ERR_001");
+        when(mockResponseCode1.getErrorMessage()).thenReturn("Default error message");
 
-            ProjectCommonException.throwServerErrorException(mockResponseCode, "");
-            fail("Expected ProjectCommonException to be thrown");
-        } catch (ProjectCommonException e) {
-            assertNotNull(e.getErrorCode());
-            assertEquals("Default error message", e.getErrorMessage());
-            assertNotEquals(0, e.getErrorResponseCode());
-        }
-        try {
-            ResponseCode mockResponseCode = mock(ResponseCode.class);
-            when(mockResponseCode.getErrorCode()).thenReturn("SERVER_ERR_001");
-            when(mockResponseCode.getErrorMessage()).thenReturn("Default error message");
+        ProjectCommonException exception1 = assertThrows(
+                ProjectCommonException.class,
+                () -> ProjectCommonException.throwServerErrorException(mockResponseCode1, "Custom error message")
+        );
+        assertNotNull(exception1.getErrorCode());
+        assertEquals("Custom error message", exception1.getErrorMessage());
+        assertNotEquals(0, exception1.getErrorResponseCode());
 
-            ProjectCommonException.throwServerErrorException(mockResponseCode, null);
-            fail("Expected ProjectCommonException to be thrown");
-        } catch (ProjectCommonException e) {
-            assertNotNull(e.getErrorCode());
-            assertEquals("Default error message", e.getErrorMessage());
-            assertNotEquals(0, e.getErrorResponseCode());
-        }
+        // Case 2: Empty custom message, should use default message
+        ResponseCode mockResponseCode2 = mock(ResponseCode.class);
+        when(mockResponseCode2.getErrorCode()).thenReturn("SERVER_ERR_001");
+        when(mockResponseCode2.getErrorMessage()).thenReturn("Default error message");
+
+        ProjectCommonException exception2 = assertThrows(
+                ProjectCommonException.class,
+                () -> ProjectCommonException.throwServerErrorException(mockResponseCode2, "")
+        );
+        assertNotNull(exception2.getErrorCode());
+        assertEquals("Default error message", exception2.getErrorMessage());
+        assertNotEquals(0, exception2.getErrorResponseCode());
+
+        // Case 3: Null custom message, should use default message
+        ResponseCode mockResponseCode3 = mock(ResponseCode.class);
+        when(mockResponseCode3.getErrorCode()).thenReturn("SERVER_ERR_001");
+        when(mockResponseCode3.getErrorMessage()).thenReturn("Default error message");
+
+        ProjectCommonException exception3 = assertThrows(
+                ProjectCommonException.class,
+                () -> ProjectCommonException.throwServerErrorException(mockResponseCode3, null)
+        );
+        assertNotNull(exception3.getErrorCode());
+        assertEquals("Default error message", exception3.getErrorMessage());
+        assertNotEquals(0, exception3.getErrorResponseCode());
     }
+
 
     @Test
     public void testThrowServerErrorExceptionWithSingleParameter() {
-        try {
-            ResponseCode mockResponseCode = mock(ResponseCode.class);
-            when(mockResponseCode.getErrorCode()).thenReturn("SERVER_ERR_001");
-            when(mockResponseCode.getErrorMessage()).thenReturn("Default error message");
+        ResponseCode mockResponseCode = mock(ResponseCode.class);
+        when(mockResponseCode.getErrorCode()).thenReturn("SERVER_ERR_001");
+        when(mockResponseCode.getErrorMessage()).thenReturn("Default error message");
 
-            ProjectCommonException.throwServerErrorException(mockResponseCode);
-            fail("Expected ProjectCommonException to be thrown");
-        } catch (ProjectCommonException e) {
-            assertNotNull(e.getErrorCode());
-            assertEquals("Default error message", e.getErrorMessage());
-            assertNotEquals(0, e.getErrorResponseCode());
-        }
+        ProjectCommonException exception = assertThrows(
+                ProjectCommonException.class,
+                () -> ProjectCommonException.throwServerErrorException(mockResponseCode)
+        );
+
+        assertNotNull(exception.getErrorCode());
+        assertEquals("Default error message", exception.getErrorMessage());
+        assertNotEquals(0, exception.getErrorResponseCode());
     }
 
     @Test

@@ -58,11 +58,11 @@ public class ExtendedServiceImplTest {
         Map<String, Object> expectedPropertiesMap = new HashMap<>();
         expectedPropertiesMap.put(Constants.CONTEXT_TYPE, Constants.STATE);
         when(cassandraOperation.getRecordsByPropertiesByKey(
-                eq(Constants.KEYSPACE_SUNBIRD),
-                eq(Constants.MASTER_DATA),
-                eq(expectedPropertiesMap),
-                eq(List.of(Constants.CONTEXT_NAME, Constants.ID)),
-                eq(Constants.CONTEXT_TYPE)))
+                (Constants.KEYSPACE_SUNBIRD),
+                (Constants.MASTER_DATA),
+                (expectedPropertiesMap),
+                (List.of(Constants.CONTEXT_NAME, Constants.ID)),
+                (Constants.CONTEXT_TYPE)))
                 .thenReturn(cassandraResponse);
         ApiResponse response = extendedService.getStatesList(authToken);
         assertNotNull(response);
@@ -161,11 +161,11 @@ public class ExtendedServiceImplTest {
         expectedPropertiesMap.put(Constants.CONTEXT_TYPE, Constants.DISTRICT);
         expectedPropertiesMap.put(Constants.CONTEXT_NAME, "Maharashtra");
         when(cassandraOperation.getRecordsByPropertiesByKey(
-                eq(Constants.KEYSPACE_SUNBIRD),
-                eq(Constants.MASTER_DATA),
-                eq(expectedPropertiesMap),
-                eq(List.of(Constants.CONTEXT_NAME, Constants.CONTEXT_DATA)),
-                eq(Constants.CONTEXT_TYPE)))
+                (Constants.KEYSPACE_SUNBIRD),
+                (Constants.MASTER_DATA),
+                (expectedPropertiesMap),
+                (List.of(Constants.CONTEXT_NAME, Constants.CONTEXT_DATA)),
+                (Constants.CONTEXT_TYPE)))
                 .thenReturn(cassandraResponse);
 
       ApiResponse response = extendedService.getDistrictsList(authToken, requestBody);
@@ -248,11 +248,11 @@ public class ExtendedServiceImplTest {
         expectedPropertiesMap.put(Constants.CONTEXT_TYPE, Constants.DISTRICT);
         expectedPropertiesMap.put(Constants.CONTEXT_NAME, "Maharashtra");
         when(cassandraOperation.getRecordsByPropertiesByKey(
-                eq(Constants.KEYSPACE_SUNBIRD),
-                eq(Constants.MASTER_DATA),
-                eq(expectedPropertiesMap),
-                eq(List.of(Constants.CONTEXT_NAME, Constants.CONTEXT_DATA)),
-                eq(Constants.CONTEXT_TYPE)))
+                (Constants.KEYSPACE_SUNBIRD),
+                (Constants.MASTER_DATA),
+                (expectedPropertiesMap),
+                (List.of(Constants.CONTEXT_NAME, Constants.CONTEXT_DATA)),
+                (Constants.CONTEXT_TYPE)))
                 .thenReturn(cassandraResponse);
         ApiResponse response = extendedService.getDistrictsList(authToken, requestBody);
         assertNotNull(response);
@@ -279,11 +279,11 @@ public class ExtendedServiceImplTest {
         expectedPropertiesMap.put(Constants.CONTEXT_TYPE, Constants.DISTRICT);
         expectedPropertiesMap.put(Constants.CONTEXT_NAME, "Maharashtra");
         when(cassandraOperation.getRecordsByPropertiesByKey(
-                eq(Constants.KEYSPACE_SUNBIRD),
-                eq(Constants.MASTER_DATA),
-                eq(expectedPropertiesMap),
-                eq(List.of(Constants.CONTEXT_NAME, Constants.CONTEXT_DATA)),
-                eq(Constants.CONTEXT_TYPE)))
+                (Constants.KEYSPACE_SUNBIRD),
+                (Constants.MASTER_DATA),
+                (expectedPropertiesMap),
+                (List.of(Constants.CONTEXT_NAME, Constants.CONTEXT_DATA)),
+                (Constants.CONTEXT_TYPE)))
                 .thenReturn(emptyResponse);
         ApiResponse response = extendedService.getDistrictsList(authToken, requestBody);
         assertNotNull(response);
@@ -376,11 +376,11 @@ public class ExtendedServiceImplTest {
         expectedPropertiesMap.put(Constants.CONTEXT_TYPE, Constants.DISTRICT);
         expectedPropertiesMap.put(Constants.CONTEXT_NAME, "Maharashtra");
         when(cassandraOperation.getRecordsByPropertiesByKey(
-                eq(Constants.KEYSPACE_SUNBIRD),
-                eq(Constants.MASTER_DATA),
-                eq(expectedPropertiesMap),
-                eq(List.of(Constants.CONTEXT_NAME, Constants.CONTEXT_DATA)),
-                eq(Constants.CONTEXT_TYPE)))
+                (Constants.KEYSPACE_SUNBIRD),
+                (Constants.MASTER_DATA),
+                (expectedPropertiesMap),
+                (List.of(Constants.CONTEXT_NAME, Constants.CONTEXT_DATA)),
+                (Constants.CONTEXT_TYPE)))
                 .thenReturn(cassandraResponse);
         ApiResponse response = extendedService.getDistrictsList(authToken, requestBody);
         assertNotNull(response);

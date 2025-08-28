@@ -45,6 +45,7 @@ public class CassandraConnectionManagerImplTest {
 
             @Override
             public void createCassandraConnection() {
+                //
             }
 
             @Override
@@ -159,6 +160,7 @@ public class CassandraConnectionManagerImplTest {
         CassandraConnectionManagerImpl spyManager = spy(new CassandraConnectionManagerImpl() {
             @Override
             public void createCassandraConnection() {
+                //
             }
             @Override
             public CqlSession createCassandraConnectionWithKeySpaces(String keyspace) {
@@ -184,6 +186,7 @@ public class CassandraConnectionManagerImplTest {
         CassandraConnectionManagerImpl spyManager = spy(new CassandraConnectionManagerImpl() {
             @Override
             public void createCassandraConnection() {
+                //
             }
             @Override
             public CqlSession createCassandraConnectionWithKeySpaces(String keyspace) {
@@ -208,6 +211,7 @@ public class CassandraConnectionManagerImplTest {
         CassandraConnectionManagerImpl spyManager = spy(new CassandraConnectionManagerImpl() {
             @Override
             public void createCassandraConnection() {
+                //
             }
             @Override
             public CqlSession createCassandraConnectionWithKeySpaces(String keyspace) {
@@ -249,6 +253,8 @@ public class CassandraConnectionManagerImplTest {
             propertiesCacheMock.when(PropertiesCache::getInstance).thenReturn(propertiesCache);
             when(propertiesCache.getProperty(Constants.CASSANDRA_CONFIG_HOST)).thenReturn("host1,host2,host3");
             CqlSession result = spyManager.createCassandraConnectionWithKeySpaces("testKeyspace");
+
+            assertNotNull(result);
         }
     }
 
@@ -272,6 +278,7 @@ public class CassandraConnectionManagerImplTest {
         CassandraConnectionManagerImpl testManager = new CassandraConnectionManagerImpl() {
             @Override
             public void createCassandraConnection() {
+                //
             }
         };
 

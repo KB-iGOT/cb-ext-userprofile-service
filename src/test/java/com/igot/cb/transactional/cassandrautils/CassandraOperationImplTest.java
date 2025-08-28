@@ -107,17 +107,17 @@ public class CassandraOperationImplTest {
 
         CassandraOperationImpl spyCassandraOperation = spy(cassandraOperation);
 
-        Map<String, Object> record = new HashMap<>();
-        record.put("name", "Test User");
-        record.put("email", "test@example.com");
-        List<Map<String, Object>> expectedResponse = Collections.singletonList(record);
+        Map<String, Object> localRecord = new HashMap<>();
+        localRecord.put("name", "Test User");
+        localRecord.put("email", "test@example.com");
+        List<Map<String, Object>> expectedResponse = Collections.singletonList(localRecord);
 
         Select mockSelect = mock(Select.class);
         SimpleStatement mockStatement = mock(SimpleStatement.class);
         when(mockSelect.build()).thenReturn(mockStatement);
 
         doReturn(mockSelect).when(spyCassandraOperation).processQuery(
-                eq(keyspaceName), eq(tableName), eq(propertyMap), eq(fields));
+                (keyspaceName), (tableName), (propertyMap), (fields));
 
         when(connectionManager.getSession(keyspaceName)).thenReturn(session);
         when(session.execute(mockStatement)).thenReturn(resultSet);
@@ -255,12 +255,12 @@ public class CassandraOperationImplTest {
         Map<String, Object> propertyMap = new HashMap<>();
         propertyMap.put("id", "123");
         List<String> fields = Arrays.asList("name", "email");
-        Integer limit = 10;
+        int limit = 10;
 
-        Map<String, Object> record = new HashMap<>();
-        record.put("name", "Test User");
-        record.put("email", "test@example.com");
-        List<Map<String, Object>> expectedResponse = Collections.singletonList(record);
+        Map<String, Object> localRecord = new HashMap<>();
+        localRecord.put("name", "Test User");
+        localRecord.put("email", "test@example.com");
+        List<Map<String, Object>> expectedResponse = Collections.singletonList(localRecord);
 
         Select mockSelect = mock(Select.class);
         when(mockSelect.limit(limit)).thenReturn(mockSelect);
@@ -268,7 +268,7 @@ public class CassandraOperationImplTest {
 
         CassandraOperationImpl spyCassandraOperation = spy(cassandraOperation);
         doReturn(mockSelect).when(spyCassandraOperation).processQuery(
-                eq(keyspaceName), eq(tableName), eq(propertyMap), eq(fields));
+                (keyspaceName), (tableName), (propertyMap), (fields));
 
         when(connectionManager.getSession(keyspaceName)).thenReturn(session);
         when(session.execute(any(SimpleStatement.class))).thenReturn(resultSet);
@@ -303,19 +303,18 @@ public class CassandraOperationImplTest {
         Map<String, Object> propertyMap = new HashMap<>();
         propertyMap.put("id", "123");
         List<String> fields = Arrays.asList("name", "email");
-        Integer limit = null;
 
-        Map<String, Object> record = new HashMap<>();
-        record.put("name", "Test User");
-        record.put("email", "test@example.com");
-        List<Map<String, Object>> expectedResponse = Collections.singletonList(record);
+        Map<String, Object> localRecord = new HashMap<>();
+        localRecord.put("name", "Test User");
+        localRecord.put("email", "test@example.com");
+        List<Map<String, Object>> expectedResponse = Collections.singletonList(localRecord);
 
         Select mockSelect = mock(Select.class);
         when(mockSelect.toString()).thenReturn("SELECT name,email FROM test_keyspace.test_table WHERE id = '123'");
 
         CassandraOperationImpl spyCassandraOperation = spy(cassandraOperation);
         doReturn(mockSelect).when(spyCassandraOperation).processQuery(
-                eq(keyspaceName), eq(tableName), eq(propertyMap), eq(fields));
+                (keyspaceName), (tableName), (propertyMap), (fields));
 
         when(connectionManager.getSession(keyspaceName)).thenReturn(session);
         when(session.execute(any(SimpleStatement.class))).thenReturn(resultSet);
@@ -331,7 +330,7 @@ public class CassandraOperationImplTest {
                     .thenReturn(expectedResponse);
 
             List<Map<String, Object>> result = spyCassandraOperation.getRecordsByPropertiesWithoutFiltering(
-                    keyspaceName, tableName, propertyMap, fields, limit);
+                    keyspaceName, tableName, propertyMap, fields, null);
 
             verify(connectionManager).getSession(keyspaceName);
             verify(session).execute(any(SimpleStatement.class));
@@ -346,7 +345,7 @@ public class CassandraOperationImplTest {
         String tableName = "test_table";
         Map<String, Object> propertyMap = new HashMap<>();
         List<String> fields = Arrays.asList("name", "email");
-        Integer limit = 10;
+        int limit = 10;
 
         Select mockSelect = mock(Select.class);
         when(mockSelect.limit(limit)).thenReturn(mockSelect);
@@ -354,7 +353,7 @@ public class CassandraOperationImplTest {
 
         CassandraOperationImpl spyCassandraOperation = spy(cassandraOperation);
         doReturn(mockSelect).when(spyCassandraOperation).processQuery(
-                eq(keyspaceName), eq(tableName), eq(propertyMap), eq(fields));
+                (keyspaceName), (tableName), (propertyMap), (fields));
 
         RuntimeException testException = new RuntimeException("Connection error");
         when(connectionManager.getSession(keyspaceName)).thenThrow(testException);
@@ -414,7 +413,6 @@ public class CassandraOperationImplTest {
         request.put("id", "123");
         request.put("name", "Updated Name");
         String query = "UPDATE test_keyspace.test_table SET name = ? WHERE id = ?";
-        RuntimeException testException = new RuntimeException("General error");
         try (MockedStatic<CassandraOperationImpl> cassandraOperationMock = mockStatic(CassandraOperationImpl.class)) {
             cassandraOperationMock.when(() -> CassandraOperationImpl.getUpdateQueryStatement(keyspaceName, tableName, request))
                     .thenReturn(query);

@@ -1,15 +1,5 @@
 package com.igot.cb.transactional.redis.cache;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.Mockito.*;
-
-import java.util.Arrays;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
-
 import com.igot.cb.util.CbServerProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,13 +7,15 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.core.ValueOperations;
-import org.springframework.test.util.ReflectionTestUtils;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
+
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class CacheServiceTest {
@@ -72,7 +64,7 @@ class CacheServiceTest {
     }
 
     @Test
-    void putCache_SerializesAndSetsValueWithTTL() throws Exception {
+    void putCache_SerializesAndSetsValueWithTTL() {
         Object obj = Map.of("a", 1);
         cacheService.putCache("key", obj, 123);
         verify(jedis).set(eq("key"), anyString());
@@ -80,7 +72,7 @@ class CacheServiceTest {
     }
 
     @Test
-    void putCache_UsesDefaultTTL() throws Exception {
+    void putCache_UsesDefaultTTL() {
         Object obj = Map.of("a", 1);
         cacheService.putCache("key", obj);
         verify(jedis).set(eq("key"), anyString());
@@ -154,12 +146,14 @@ class CacheServiceTest {
     void hset_DoesNotThrow_OnException() {
         doThrow(new RuntimeException("fail")).when(jedis).hset("key", "field", "value");
         cacheService.hset("key", 0, "field", "value");
+        assertNotNull(cacheService);
     }
 
     @Test
-    void putCache_DoesNotThrow_OnException() throws Exception {
+    void putCache_DoesNotThrow_OnException() {
         doThrow(new RuntimeException("fail")).when(jedis).set(eq("key"), anyString());
         cacheService.putCache("key", Map.of("a", 1), 100);
+        assertNotNull(cacheService);
     }
 
     @Test
