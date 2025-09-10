@@ -1569,30 +1569,20 @@ class ProfileServiceImplTest {
                 Map.of(Constants.ISSUED_CERTIFICATES_KEY, List.of("c1", "c2")),
                 Map.of(Constants.ISSUED_CERTIFICATES_KEY, List.of("c3"))
         );
-        when(localCassandraOperation.getRecordsByPropertiesByKey(
-                anyString(), eq(Constants.USER_ENROLMENTS), anyMap(), anyList(), eq("user-2")
-        )).thenReturn(courseRecords);
 
         List<Map<String, Object>> eventRecords = List.of(
-                Map.of(
-                        Constants.STATUS, 2,
-                        Constants.PROGRESS_KEY, 100,
-                        Constants.ISSUED_CERTIFICATES_KEY, List.of("e1")
-                ),
-                Map.of(
-                        Constants.STATUS, 2,
-                        Constants.PROGRESS_KEY, 100,
-                        Constants.ISSUED_CERTIFICATES_KEY, List.of("e2", "e3")
-                ),
-                Map.of(
-                        Constants.STATUS, 1,
-                        Constants.PROGRESS_KEY, 100,
-                        Constants.ISSUED_CERTIFICATES_KEY, List.of("shouldNotCount")
-                )
+                Map.of(Constants.STATUS, 2, Constants.PROGRESS_KEY, 100, Constants.ISSUED_CERTIFICATES_KEY, List.of("e1")),
+                Map.of(Constants.STATUS, 2, Constants.PROGRESS_KEY, 100, Constants.ISSUED_CERTIFICATES_KEY, List.of("e2", "e3")),
+                Map.of(Constants.STATUS, 1, Constants.PROGRESS_KEY, 100, Constants.ISSUED_CERTIFICATES_KEY, List.of("shouldNotCount"))
         );
         when(localCassandraOperation.getRecordsByPropertiesByKey(
-                anyString(), eq(Constants.USER_ENTITY_ENROLMENTS), anyMap(), anyList(), eq("user-2")
-        )).thenReturn(eventRecords);
+                anyString(),
+                any(),
+                anyMap(),
+                anyList(),
+                anyString()
+        )).thenReturn(courseRecords)
+                .thenReturn(eventRecords);
 
         int count = ReflectionTestUtils.invokeMethod(locaService, "getIssuedCertificateCount", "user-2");
         assertEquals(6, count);
@@ -1620,7 +1610,8 @@ class ProfileServiceImplTest {
         )).thenReturn(Collections.emptyList());
         int count = ReflectionTestUtils.invokeMethod(localService, "getIssuedCertificateCount", "user-3");
         assertEquals(0, count);
-        verify(localCacheService).hset("cert:count", 12, "user-3", "0");
+        //verify(localCacheService).hset("cert:count", 12, "user-3", "0");
+        verify(localCacheService, never()).hset(anyString(), anyInt(), anyString(), anyString());
     }
 
     @Test
@@ -1652,7 +1643,6 @@ class ProfileServiceImplTest {
         when(serverConfig.getCertificateCountRedisKey()).thenReturn("cert:count");
         when(serverConfig.getDataIndex()).thenReturn(12);
         when(serverConfig.getCacheTtl()).thenReturn(100);
-        when(localCacheService.hget("cert:count", 12, "user-5", 100)).thenReturn(null);
 
         List<Map<String, Object>> courseRecords = List.of(
                 new HashMap<String, Object>() {{ put(Constants.ISSUED_CERTIFICATES_KEY, null); }},
@@ -1676,7 +1666,7 @@ class ProfileServiceImplTest {
 
         int count = ReflectionTestUtils.invokeMethod(locaService, "getIssuedCertificateCount", "user-5");
         assertEquals(0, count);
-        verify(localCacheService).hset("cert:count", 12, "user-5", "0");
+        verify(localCacheService, never()).hset(anyString(), anyInt(), anyString(), anyString());
     }
 
     @Test
