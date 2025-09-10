@@ -146,4 +146,7 @@ public class CbServerProperties {
 
     @Value("${connection.api}")
     public String connectionApi;
+
+    @Value("${db.table.user-enrolments}")
+    private String userEnrolmentsTable;
 }
