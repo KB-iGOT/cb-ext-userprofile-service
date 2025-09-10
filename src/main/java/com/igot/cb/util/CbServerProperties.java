@@ -140,4 +140,13 @@ public class CbServerProperties {
 
     @Value("${user.profile.index}")
     public String userProfileIndex;
+
+    @Value("${hub.graph.service}")
+    public String hubGraphService;
+
+    @Value("${connection.api}")
+    public String connectionApi;
+
+    @Value("${db.table.user-enrolments}")
+    private String userEnrolmentsTable;
 }
