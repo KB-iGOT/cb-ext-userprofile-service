@@ -831,7 +831,7 @@ public class ProfileServiceImpl implements ProfileService {
             }
             List<Map<String, Object>> courseRecords = cassandraOperation.getRecordsByPropertiesByKey(
                     Constants.KEYSPACE_SUNBIRD_COURSES,
-                    Constants.USER_ENROLMENTS,
+                    serverConfig.getUserEnrolmentsTable(),
                     Map.of(Constants.USERID_KEY, userId),
                     List.of(Constants.ISSUED_CERTIFICATES),
                     userId
