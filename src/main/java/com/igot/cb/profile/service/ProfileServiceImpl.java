@@ -854,7 +854,7 @@ public class ProfileServiceImpl implements ProfileService {
                     userId
             );
 
-            int certificatesFromEvents = eventRecords.stream()
+            int certificatesFromEvents = (int) eventRecords.stream()
                     .filter(MapUtils::isNotEmpty)
                     .filter(r -> r.get(Constants.STATUS) instanceof Number && ((Number)r.get(Constants.STATUS)).intValue() == 2)
                     .filter(r -> r.get(Constants.PROGRESS_KEY) instanceof Number && ((Number)r.get(Constants.PROGRESS_KEY)).intValue() == 100)
@@ -862,8 +862,7 @@ public class ProfileServiceImpl implements ProfileService {
                     .filter(obj -> obj instanceof List<?>)
                     .map(obj -> (List<?>) obj)
                     .filter(CollectionUtils::isNotEmpty)
-                    .mapToInt(List::size)
-                    .sum();
+                    .count();
             totalIssuedCertificates += certificatesFromEvents;
             cacheService.hset(redisKey,serverConfig.getDataIndex(),userId, String.valueOf(totalIssuedCertificates));
             return totalIssuedCertificates;

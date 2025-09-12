@@ -1584,8 +1584,8 @@ public class ProfileServiceImplTest {
                 .thenReturn(eventRecords);
 
         int count = ReflectionTestUtils.invokeMethod(service, "getIssuedCertificateCount", "user-2");
-        assertEquals(6, count);
-        verify(cacheService).hset("cert:count", 12, "user-2", "6");
+        assertEquals(4, count);
+        verify(cacheService).hset("cert:count", 12, "user-2", "4");
     }
 
     @Test
