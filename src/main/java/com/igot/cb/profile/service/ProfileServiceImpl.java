@@ -838,14 +838,13 @@ public class ProfileServiceImpl implements ProfileService {
             );
 
             int totalIssuedCertificates = 0;
-            totalIssuedCertificates += courseRecords.stream()
+            totalIssuedCertificates += (int) courseRecords.stream()
                     .filter(MapUtils::isNotEmpty)
                     .map(record -> record.get(Constants.ISSUED_CERTIFICATES_KEY))
                     .filter(certObj -> certObj instanceof List<?>)
                     .map(certObj -> (List<?>) certObj)
                     .filter(CollectionUtils::isNotEmpty)
-                    .mapToInt(List::size)
-                    .sum();
+                    .count();
 
             List<Map<String, Object>> eventRecords = cassandraOperation.getRecordsByPropertiesByKey(
                     Constants.KEYSPACE_SUNBIRD_COURSES,
