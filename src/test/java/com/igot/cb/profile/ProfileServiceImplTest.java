@@ -9,6 +9,7 @@ import com.igot.cb.profile.entity.CustomFieldEntity;
 import com.igot.cb.profile.repository.CustomFieldRepository;
 import com.igot.cb.profile.service.ProfileServiceImpl;
 import com.igot.cb.transactional.cassandrautils.CassandraOperation;
+import com.igot.cb.transactional.elasticsearch.service.EsUtilServiceImpl;
 import com.igot.cb.transactional.redis.cache.CacheService;
 import com.igot.cb.transactional.service.RequestHandlerServiceImpl;
 import com.igot.cb.util.*;
@@ -55,6 +56,9 @@ class ProfileServiceImplTest {
     @Spy
     @InjectMocks
     private ProfileServiceImpl profileService;
+
+    @Mock
+    private EsUtilServiceImpl esUtilService;
 
     private final String userID = "user-123";
     private final String token = "dummy-token";
@@ -2413,6 +2417,533 @@ class ProfileServiceImplTest {
         assertTrue(result instanceof Map);
 
         // Just verify the method executed successfully
+    }
+
+    @Test
+    void testCustomFieldNotFound() {
+        Map<String, Object> field = new HashMap<>();
+        field.put(Constants.CUSTOM_FIELD_ID, "cf1");
+        field.put(Constants.FIELD_TYPE, Constants.TEXT);
+        Map<String, Object> request = Map.of(
+                Constants.USER_ID_RQST, "u1",
+                Constants.ORGANISATION_ID, "org1",
+                Constants.CUSTOM_FIELD_VALUES, List.of(field)
+        );
+        when(customFieldRepository.findByCustomFiledIdAndIsActiveTrue("cf1")).thenReturn(null);
+        String result = ReflectionTestUtils.invokeMethod(profileService, "validateAdditionalFieldsRequest", request);
+        assertTrue(result.contains("does not exist"));
+    }
+
+    @Test
+    void testCustomFieldInactive() {
+        CustomFieldEntity entity = mock(CustomFieldEntity.class);
+        when(entity.getIsActive()).thenReturn(false);
+        when(customFieldRepository.findByCustomFiledIdAndIsActiveTrue("cf1")).thenReturn(Optional.of(entity));
+        Map<String, Object> field = new HashMap<>();
+        field.put(Constants.CUSTOM_FIELD_ID, "cf1");
+        field.put(Constants.FIELD_TYPE, Constants.TEXT);
+        Map<String, Object> request = Map.of(
+                Constants.USER_ID_RQST, "u1",
+                Constants.ORGANISATION_ID, "org1",
+                Constants.CUSTOM_FIELD_VALUES, List.of(field)
+        );
+        String result = ReflectionTestUtils.invokeMethod(profileService, "validateAdditionalFieldsRequest", request);
+        assertTrue(result.contains("is not active"));
+    }
+
+
+    @Test
+    void testOrgIdMismatch() {
+        CustomFieldEntity entity = mock(CustomFieldEntity.class);
+        ObjectNode data = new ObjectMapper().createObjectNode();
+        data.put(Constants.ORGANISATION_ID, "otherOrg");
+        data.put(Constants.ATTRIBUTE_NAME, "attr");
+        data.put(Constants.TYPE, Constants.TEXT);
+        when(entity.getIsActive()).thenReturn(true);
+        when(entity.getCustomFieldData()).thenReturn(data);
+        when(customFieldRepository.findByCustomFiledIdAndIsActiveTrue("cf1")).thenReturn(Optional.of(entity));
+
+        Map<String, Object> field = new HashMap<>();
+        field.put(Constants.CUSTOM_FIELD_ID, "cf1");
+        field.put(Constants.FIELD_TYPE, Constants.TEXT);
+        field.put(Constants.ATTRIBUTE_NAME, "attr");
+        field.put(Constants.VALUE, "val");
+        Map<String, Object> request = Map.of(
+                Constants.USER_ID_RQST, "u1",
+                Constants.ORGANISATION_ID, "org1",
+                Constants.CUSTOM_FIELD_VALUES, List.of(field)
+        );
+        String result = ReflectionTestUtils.invokeMethod(profileService, "validateAdditionalFieldsRequest", request);
+        assertTrue(result.contains("is not configured for organization"));
+    }
+
+    @Test
+    void testAttributeNameMismatch() {
+        CustomFieldEntity entity = mock(CustomFieldEntity.class);
+        ObjectNode data = new ObjectMapper().createObjectNode();
+        data.put(Constants.ORGANISATION_ID, "org1");
+        data.put(Constants.ATTRIBUTE_NAME, "attr2");
+        data.put(Constants.TYPE, Constants.TEXT);
+        when(entity.getIsActive()).thenReturn(true);
+        when(entity.getCustomFieldData()).thenReturn(data);
+        when(customFieldRepository.findByCustomFiledIdAndIsActiveTrue("cf1")).thenReturn(Optional.of(entity));
+
+        Map<String, Object> field = new HashMap<>();
+        field.put(Constants.CUSTOM_FIELD_ID, "cf1");
+        field.put(Constants.FIELD_TYPE, Constants.TEXT);
+        field.put(Constants.ATTRIBUTE_NAME, "attr1");
+        field.put(Constants.VALUE, "val");
+        Map<String, Object> request = Map.of(
+                Constants.USER_ID_RQST, "u1",
+                Constants.ORGANISATION_ID, "org1",
+                Constants.CUSTOM_FIELD_VALUES, List.of(field)
+        );
+        String result = ReflectionTestUtils.invokeMethod(profileService, "validateAdditionalFieldsRequest", request);
+        assertTrue(result.contains("Invalid attribute name"));
+    }
+
+    @Test
+    void testTextFieldMissingValue() {
+        CustomFieldEntity entity = mock(CustomFieldEntity.class);
+        ObjectNode data = new ObjectMapper().createObjectNode();
+        data.put(Constants.ORGANISATION_ID, "org1");
+        data.put(Constants.ATTRIBUTE_NAME, "attr");
+        data.put(Constants.TYPE, Constants.TEXT);
+        when(entity.getIsActive()).thenReturn(true);
+        when(entity.getCustomFieldData()).thenReturn(data);
+        when(customFieldRepository.findByCustomFiledIdAndIsActiveTrue("cf1")).thenReturn(Optional.of(entity));
+
+        Map<String, Object> field = new HashMap<>();
+        field.put(Constants.CUSTOM_FIELD_ID, "cf1");
+        field.put(Constants.FIELD_TYPE, Constants.TEXT);
+        field.put(Constants.ATTRIBUTE_NAME, "attr");
+        // no value
+        Map<String, Object> request = Map.of(
+                Constants.USER_ID_RQST, "u1",
+                Constants.ORGANISATION_ID, "org1",
+                Constants.CUSTOM_FIELD_VALUES, List.of(field)
+        );
+        String result = ReflectionTestUtils.invokeMethod(profileService, "validateAdditionalFieldsRequest", request);
+        assertTrue(result.contains("must have a value"));
+    }
+
+    @Test
+    void testTextFieldTypeMismatch() {
+        CustomFieldEntity entity = mock(CustomFieldEntity.class);
+        ObjectNode data = new ObjectMapper().createObjectNode();
+        data.put(Constants.ORGANISATION_ID, "org1");
+        data.put(Constants.ATTRIBUTE_NAME, "attr");
+        data.put(Constants.TYPE, Constants.MASTER_LIST);
+        when(entity.getIsActive()).thenReturn(true);
+        when(entity.getCustomFieldData()).thenReturn(data);
+        when(customFieldRepository.findByCustomFiledIdAndIsActiveTrue("cf1")).thenReturn(Optional.of(entity));
+        Map<String, Object> field = new HashMap<>();
+        field.put(Constants.CUSTOM_FIELD_ID, "cf1");
+        field.put(Constants.FIELD_TYPE, Constants.TEXT);
+        field.put(Constants.ATTRIBUTE_NAME, "attr");
+        field.put(Constants.VALUE, "val");
+        Map<String, Object> request = Map.of(
+                Constants.USER_ID_RQST, "u1",
+                Constants.ORGANISATION_ID, "org1",
+                Constants.CUSTOM_FIELD_VALUES, List.of(field)
+        );
+        String result = ReflectionTestUtils.invokeMethod(profileService, "validateAdditionalFieldsRequest", request);
+        assertTrue(result.contains("is not of type text"));
+    }
+
+    @Test
+    void testMasterListFieldMissingValues() {
+        CustomFieldEntity entity = mock(CustomFieldEntity.class);
+        ObjectNode data = new ObjectMapper().createObjectNode();
+        data.put(Constants.ORGANISATION_ID, "org1");
+        data.put(Constants.ATTRIBUTE_NAME, "attr");
+        data.put(Constants.TYPE, Constants.MASTER_LIST);
+        when(entity.getIsActive()).thenReturn(true);
+        when(entity.getCustomFieldData()).thenReturn(data);
+        when(customFieldRepository.findByCustomFiledIdAndIsActiveTrue("cf1")).thenReturn(Optional.of(entity));
+
+        Map<String, Object> field = new HashMap<>();
+        field.put(Constants.CUSTOM_FIELD_ID, "cf1");
+        field.put(Constants.FIELD_TYPE, Constants.MASTER_LIST);
+        field.put(Constants.ATTRIBUTE_NAME, "attr");
+        // no values
+        Map<String, Object> request = Map.of(
+                Constants.USER_ID_RQST, "u1",
+                Constants.ORGANISATION_ID, "org1",
+                Constants.CUSTOM_FIELD_VALUES, List.of(field)
+        );
+        String result = ReflectionTestUtils.invokeMethod(profileService, "validateAdditionalFieldsRequest", request);
+        assertTrue(result.contains("must have values"));
+    }
+    @Test
+    void testMasterListFieldTypeMismatch() {
+        CustomFieldEntity entity = mock(CustomFieldEntity.class);
+        ObjectNode data = new ObjectMapper().createObjectNode();
+        data.put(Constants.ORGANISATION_ID, "org1");
+        data.put(Constants.ATTRIBUTE_NAME, "attr");
+        data.put(Constants.TYPE, Constants.TEXT); // The field is TEXT, but request is MASTER_LIST
+        when(entity.getIsActive()).thenReturn(true);
+        when(entity.getCustomFieldData()).thenReturn(data);
+        when(customFieldRepository.findByCustomFiledIdAndIsActiveTrue("cf1")).thenReturn(Optional.of(entity));
+
+        Map<String, Object> field = new HashMap<>();
+        field.put(Constants.CUSTOM_FIELD_ID, "cf1");
+        field.put(Constants.FIELD_TYPE, Constants.MASTER_LIST);
+        field.put(Constants.ATTRIBUTE_NAME, "attr");
+        field.put(Constants.VALUES, List.of(Map.of("level", 1, "attributeName", "attr", "value", "val")));
+        Map<String, Object> request = Map.of(
+                Constants.USER_ID_RQST, "u1",
+                Constants.ORGANISATION_ID, "org1",
+                Constants.CUSTOM_FIELD_VALUES, List.of(field)
+        );
+        String result = ReflectionTestUtils.invokeMethod(profileService, "validateAdditionalFieldsRequest", request);
+        assertTrue(result.contains("is not of type masterList"));
+    }
+
+    @Test
+    void testMasterListFieldValueValidationError() {
+        CustomFieldEntity entity = mock(CustomFieldEntity.class);
+        ObjectMapper realMapper = new ObjectMapper();
+        // Set up master list definition with allowed value "allowedVal"
+        ArrayNode customFieldData = realMapper.createArrayNode();
+        ObjectNode level1 = realMapper.createObjectNode();
+        level1.put("fieldValue", "allowedVal");
+        customFieldData.add(level1);
+        ObjectNode data = realMapper.createObjectNode();
+        data.put(Constants.ORGANISATION_ID, "org1");
+        data.put(Constants.ATTRIBUTE_NAME, "attr");
+        data.put(Constants.TYPE, Constants.MASTER_LIST);
+        data.set("customFieldData", customFieldData);
+        when(entity.getIsActive()).thenReturn(true);
+        when(entity.getCustomFieldData()).thenReturn(data);
+        when(customFieldRepository.findByCustomFiledIdAndIsActiveTrue("cf1")).thenReturn(Optional.of(entity));
+
+        Map<String, Object> field = new HashMap<>();
+        field.put(Constants.CUSTOM_FIELD_ID, "cf1");
+        field.put(Constants.FIELD_TYPE, Constants.MASTER_LIST);
+        field.put(Constants.ATTRIBUTE_NAME, "attr");
+        // Use an invalid value "val" (not "allowedVal")
+        field.put(Constants.VALUES, List.of(Map.of("level", 1, "attributeName", "attr", "value", "val")));
+        Map<String, Object> request = Map.of(
+                Constants.USER_ID_RQST, "u1",
+                Constants.ORGANISATION_ID, "org1",
+                Constants.CUSTOM_FIELD_VALUES, List.of(field)
+        );
+        String result = ReflectionTestUtils.invokeMethod(profileService, "validateAdditionalFieldsRequest", request);
+        assertTrue(result.contains("Invalid value") || result.contains("Invalid master list value"));
+    }
+
+    @Test
+    void testUnsupportedFieldType() {
+        CustomFieldEntity entity = mock(CustomFieldEntity.class);
+        ObjectNode data = new ObjectMapper().createObjectNode();
+        data.put(Constants.ORGANISATION_ID, "org1");
+        data.put(Constants.ATTRIBUTE_NAME, "attr");
+        data.put(Constants.TYPE, "UNSUPPORTED");
+        when(entity.getIsActive()).thenReturn(true);
+        when(entity.getCustomFieldData()).thenReturn(data);
+        when(customFieldRepository.findByCustomFiledIdAndIsActiveTrue("cf1")).thenReturn(Optional.of(entity));
+        Map<String, Object> field = new HashMap<>();
+        field.put(Constants.CUSTOM_FIELD_ID, "cf1");
+        field.put(Constants.FIELD_TYPE, "UNSUPPORTED");
+        field.put(Constants.ATTRIBUTE_NAME, "attr");
+        Map<String, Object> request = Map.of(
+                Constants.USER_ID_RQST, "u1",
+                Constants.ORGANISATION_ID, "org1",
+                Constants.CUSTOM_FIELD_VALUES, List.of(field)
+        );
+        String result = ReflectionTestUtils.invokeMethod(profileService, "validateAdditionalFieldsRequest", request);
+        assertTrue(result.contains("Unsupported field type"));
+    }
+
+    @Test
+    void testValidTextField() {
+        CustomFieldEntity entity = mock(CustomFieldEntity.class);
+        ObjectNode data = new ObjectMapper().createObjectNode();
+        data.put(Constants.ORGANISATION_ID, "org1");
+        data.put(Constants.ATTRIBUTE_NAME, "attr");
+        data.put(Constants.TYPE, Constants.TEXT);
+        when(entity.getIsActive()).thenReturn(true);
+        when(entity.getCustomFieldData()).thenReturn(data);
+        // Mock the repository, not the private method
+        when(customFieldRepository.findByCustomFiledIdAndIsActiveTrue("cf1")).thenReturn(Optional.of(entity));
+
+        Map<String, Object> field = new HashMap<>();
+        field.put(Constants.CUSTOM_FIELD_ID, "cf1");
+        field.put(Constants.FIELD_TYPE, Constants.TEXT);
+        field.put(Constants.ATTRIBUTE_NAME, "attr");
+        field.put(Constants.VALUE, "val");
+        Map<String, Object> request = Map.of(
+                Constants.USER_ID_RQST, "u1",
+                Constants.ORGANISATION_ID, "org1",
+                Constants.CUSTOM_FIELD_VALUES, List.of(field)
+        );
+
+        String result = ReflectionTestUtils.invokeMethod(profileService, "validateAdditionalFieldsRequest", request);
+        assertNull(result);
+    }
+
+    @Test
+    void hasExtendedProfileData_returnsTrue_whenLocationDetailsPresent() throws Exception {
+        ProfileServiceImpl service = spy(new ProfileServiceImpl());
+        ApiResponse response = mock(ApiResponse.class);
+        Map<String, Object> result = Map.of(Constants.STATE, "state1", Constants.DISTRICT, "district1");
+        when(response.getResponseCode()).thenReturn(HttpStatus.OK);
+        when(response.get(Constants.RESPONSE)).thenReturn(result);
+        doReturn(response).when(service).readFullExtendedProfile("user1", Constants.LOCATION_DETAILS, "token");
+        Method method = ProfileServiceImpl.class.getDeclaredMethod("hasExtendedProfileData", String.class, String.class, String.class);
+        method.setAccessible(true);
+        boolean actual = (boolean) method.invoke(service, "user1", Constants.LOCATION_DETAILS, "token");
+        assertTrue(actual);
+    }
+
+    @Test
+    void hasExtendedProfileData_returnsFalse_whenLocationDetailsMissingFields() throws Exception {
+        ProfileServiceImpl service = spy(new ProfileServiceImpl());
+        ApiResponse response = mock(ApiResponse.class);
+        Map<String, Object> result = Map.of(Constants.STATE, "state1");
+        when(response.getResponseCode()).thenReturn(HttpStatus.OK);
+        when(response.get(Constants.RESPONSE)).thenReturn(result);
+        doReturn(response).when(service).readFullExtendedProfile("user1", Constants.LOCATION_DETAILS, "token");
+        Method method = ProfileServiceImpl.class.getDeclaredMethod("hasExtendedProfileData", String.class, String.class, String.class);
+        method.setAccessible(true);
+        boolean actual = (boolean) method.invoke(service, "user1", Constants.LOCATION_DETAILS, "token");
+        assertFalse(actual);
+    }
+
+    @Test
+    void hasExtendedProfileData_returnsTrue_whenContextDataIsNonEmptyCollection() throws Exception {
+        ProfileServiceImpl service = spy(new ProfileServiceImpl());
+        ApiResponse response = mock(ApiResponse.class);
+        Map<String, Object> result = Map.of("customType", List.of("item1"));
+        when(response.getResponseCode()).thenReturn(HttpStatus.OK);
+        when(response.get(Constants.RESPONSE)).thenReturn(result);
+        doReturn(response).when(service).readFullExtendedProfile("user1", "customType", "token");
+        Method method = ProfileServiceImpl.class.getDeclaredMethod("hasExtendedProfileData", String.class, String.class, String.class);
+        method.setAccessible(true);
+        boolean actual = (boolean) method.invoke(service, "user1", "customType", "token");
+        assertTrue(actual);
+    }
+
+    @Test
+    void hasExtendedProfileData_returnsFalse_whenContextDataIsEmptyCollection() throws Exception {
+        ProfileServiceImpl service = spy(new ProfileServiceImpl());
+        ApiResponse response = mock(ApiResponse.class);
+        Map<String, Object> result = Map.of("customType", List.of());
+        when(response.getResponseCode()).thenReturn(HttpStatus.OK);
+        when(response.get(Constants.RESPONSE)).thenReturn(result);
+        doReturn(response).when(service).readFullExtendedProfile("user1", "customType", "token");
+        Method method = ProfileServiceImpl.class.getDeclaredMethod("hasExtendedProfileData", String.class, String.class, String.class);
+        method.setAccessible(true);
+        boolean actual = (boolean) method.invoke(service, "user1", "customType", "token");
+        assertFalse(actual);
+    }
+
+    @Test
+    void hasExtendedProfileData_returnsFalse_whenResponseIsNull() throws Exception {
+        ProfileServiceImpl service = spy(new ProfileServiceImpl());
+        doReturn(null).when(service).readFullExtendedProfile("user1", "type", "token");
+        Method method = ProfileServiceImpl.class.getDeclaredMethod("hasExtendedProfileData", String.class, String.class, String.class);
+        method.setAccessible(true);
+        boolean actual = (boolean) method.invoke(service, "user1", "type", "token");
+        assertFalse(actual);
+    }
+
+    @Test
+    void hasExtendedProfileData_returnsFalse_whenResponseCodeNotOk() throws Exception {
+        ProfileServiceImpl service = spy(new ProfileServiceImpl());
+        ApiResponse response = mock(ApiResponse.class);
+        when(response.getResponseCode()).thenReturn(HttpStatus.BAD_REQUEST);
+        doReturn(response).when(service).readFullExtendedProfile("user1", "type", "token");
+        Method method = ProfileServiceImpl.class.getDeclaredMethod("hasExtendedProfileData", String.class, String.class, String.class);
+        method.setAccessible(true);
+        boolean actual = (boolean) method.invoke(service, "user1", "type", "token");
+        assertFalse(actual);
+    }
+
+    @Test
+    void hasExtendedProfileData_returnsFalse_whenExceptionThrown() throws Exception {
+        ProfileServiceImpl service = spy(new ProfileServiceImpl());
+        doThrow(new RuntimeException("fail")).when(service).readFullExtendedProfile(any(), any(), any());
+        Method method = ProfileServiceImpl.class.getDeclaredMethod("hasExtendedProfileData", String.class, String.class, String.class);
+        method.setAccessible(true);
+        boolean actual = (boolean) method.invoke(service, "user1", "type", "token");
+        assertFalse(actual);
+    }
+
+    @Test
+    void getUserRoles_returnsRoles_whenScopesMatchRootOrgId() {
+        ProfileServiceImpl service = spy(new ProfileServiceImpl());
+        CassandraOperation cassandraOperation = mock(CassandraOperation.class);
+        ReflectionTestUtils.setField(service, "cassandraOperation", cassandraOperation);
+        ObjectMapper mapper = new ObjectMapper();
+        ReflectionTestUtils.setField(service, "mapper", mapper);
+
+        String userId = "user1";
+        String rootOrgId = "org1";
+        Map<String, Object> userRoleObj = new HashMap<>();
+        userRoleObj.put(Constants.ROLE, "admin");
+        userRoleObj.put(Constants.SCOPE, List.of(Map.of(Constants.ORGANISATION_ID, rootOrgId)));
+        when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), anyList(), anyString()))
+                .thenReturn(List.of(userRoleObj));
+
+        List<String> roles = service.getUserRoles(userId, rootOrgId);
+        assertEquals(List.of("admin"), roles);
+    }
+
+    @Test
+    void getUserRoles_returnsEmpty_whenScopesDoNotMatchRootOrgId() {
+        ProfileServiceImpl service = spy(new ProfileServiceImpl());
+        CassandraOperation cassandraOperation = mock(CassandraOperation.class);
+        ReflectionTestUtils.setField(service, "cassandraOperation", cassandraOperation);
+        ObjectMapper mapper = new ObjectMapper();
+        ReflectionTestUtils.setField(service, "mapper", mapper);
+
+        String userId = "user1";
+        String rootOrgId = "org1";
+        Map<String, Object> userRoleObj = new HashMap<>();
+        userRoleObj.put(Constants.ROLE, "admin");
+        userRoleObj.put(Constants.SCOPE, List.of(Map.of(Constants.ORGANISATION_ID, "otherOrg")));
+        when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), anyList(), anyString()))
+                .thenReturn(List.of(userRoleObj));
+
+        List<String> roles = service.getUserRoles(userId, rootOrgId);
+        assertTrue(roles.isEmpty());
+    }
+
+    @Test
+    void getUserRoles_parsesScopeString_whenScopeIsString() throws Exception {
+        ProfileServiceImpl service = spy(new ProfileServiceImpl());
+        CassandraOperation cassandraOperation = mock(CassandraOperation.class);
+        ReflectionTestUtils.setField(service, "cassandraOperation", cassandraOperation);
+        ObjectMapper mapper = new ObjectMapper();
+        ReflectionTestUtils.setField(service, "mapper", mapper);
+
+        String userId = "user1";
+        String rootOrgId = "org1";
+        String scopeJson = "[{\"organisationId\":\"org1\"}]";
+        Map<String, Object> userRoleObj = new HashMap<>();
+        userRoleObj.put(Constants.ROLE, "admin");
+        userRoleObj.put(Constants.SCOPE, scopeJson);
+        when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), anyList(), anyString()))
+                .thenReturn(List.of(userRoleObj));
+
+        List<String> roles = service.getUserRoles(userId, rootOrgId);
+        assertEquals(List.of("admin"), roles);
+    }
+
+    @Test
+    void getUserRoles_returnsEmpty_whenScopeStringIsInvalidJson() {
+        ProfileServiceImpl service = spy(new ProfileServiceImpl());
+        CassandraOperation cassandraOperation = mock(CassandraOperation.class);
+        ReflectionTestUtils.setField(service, "cassandraOperation", cassandraOperation);
+        ObjectMapper mapper = new ObjectMapper();
+        ReflectionTestUtils.setField(service, "mapper", mapper);
+
+        String userId = "user1";
+        String rootOrgId = "org1";
+        String invalidScopeJson = "not-a-json";
+        Map<String, Object> userRoleObj = new HashMap<>();
+        userRoleObj.put(Constants.ROLE, "admin");
+        userRoleObj.put(Constants.SCOPE, invalidScopeJson);
+        when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), anyList(), anyString()))
+                .thenReturn(List.of(userRoleObj));
+
+        List<String> roles = service.getUserRoles(userId, rootOrgId);
+        assertTrue(roles.isEmpty());
+    }
+
+    @Test
+    void getUserRoles_returnsDistinctRoles() {
+        ProfileServiceImpl service = spy(new ProfileServiceImpl());
+        CassandraOperation cassandraOperation = mock(CassandraOperation.class);
+        ReflectionTestUtils.setField(service, "cassandraOperation", cassandraOperation);
+        ObjectMapper mapper = new ObjectMapper();
+        ReflectionTestUtils.setField(service, "mapper", mapper);
+
+        String userId = "user1";
+        String rootOrgId = "org1";
+        Map<String, Object> userRoleObj1 = new HashMap<>();
+        userRoleObj1.put(Constants.ROLE, "admin");
+        userRoleObj1.put(Constants.SCOPE, List.of(Map.of(Constants.ORGANISATION_ID, rootOrgId)));
+        Map<String, Object> userRoleObj2 = new HashMap<>();
+        userRoleObj2.put(Constants.ROLE, "admin");
+        userRoleObj2.put(Constants.SCOPE, List.of(Map.of(Constants.ORGANISATION_ID, rootOrgId)));
+        when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), anyList(), anyString()))
+                .thenReturn(List.of(userRoleObj1, userRoleObj2));
+
+        List<String> roles = service.getUserRoles(userId, rootOrgId);
+        assertEquals(List.of("admin"), roles);
+    }
+    @Test
+    void updateAdditionalFields_returnsUnauthorized_whenAuthTokenBlank() {
+        ApiResponse response = profileService.updateAdditionalFields(Map.of(), "");
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getResponseCode());
+    }
+
+
+    @Test
+    void updateAdditionalFields_returnsBadRequest_whenValidationFails() {
+        Map<String, Object> req = Map.of(); // missing required params
+        when(accessTokenValidator.fetchUserIdFromAccessToken("token")).thenReturn("user1");
+        String result = ReflectionTestUtils.invokeMethod(profileService, "validateAdditionalFieldsRequest", req);
+        assertEquals("Failed Due To Missing Params - [userId, organisationId, customFieldValues].", result);
+        ApiResponse response = profileService.updateAdditionalFields(req, "token");
+        assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
+    }
+
+    @Test
+    void updateAdditionalFields_returnsInternalServerError_whenSaveFails() {
+        when(accessTokenValidator.fetchUserIdFromAccessToken("token")).thenReturn("user1");
+        Map<String, Object> req = Map.of(
+                Constants.USER_ID, "user1",
+                Constants.ORGANISATION_ID, "org1",
+                Constants.CUSTOM_FIELD_VALUES, List.of(Map.of())
+        );
+        ApiResponse response = profileService.updateAdditionalFields(req, "token");
+        assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
+    }
+
+
+    @Test
+    void updateAdditionalFields_returnsUnauthorized_whenUserIdMismatch() {
+        Map<String, Object> req = Map.of(
+                Constants.USER_ID, "userY",
+                Constants.ORGANISATION_ID, "org1",
+                Constants.CUSTOM_FIELD_VALUES, List.of()
+        );
+        when(accessTokenValidator.fetchUserIdFromAccessToken("token")).thenReturn("userX");
+        ReflectionTestUtils.setField(profileService, "accessTokenValidator", accessTokenValidator);
+        ApiResponse response = profileService.updateAdditionalFields(req, "token");
+        assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
+    }
+
+    @Test
+    void updateAdditionalFields_returnsInternalServerError_whenESUpdateFails() {
+        when(accessTokenValidator.fetchUserIdFromAccessToken("token")).thenReturn("user1");
+        Map<String, Object> req = Map.of(
+                Constants.USER_ID, "user1",
+                Constants.ORGANISATION_ID, "org1",
+                Constants.CUSTOM_FIELD_VALUES, List.of(Map.of(
+                        Constants.CUSTOM_FIELD_ID, "cf1",
+                        Constants.FIELD_TYPE, Constants.TEXT,
+                        Constants.ATTRIBUTE_NAME, "attr",
+                        Constants.VALUE, "val"
+                ))
+        );
+        CustomFieldEntity entity = mock(CustomFieldEntity.class);
+        lenient().when(entity.getIsActive()).thenReturn(true);
+        ObjectNode data = new ObjectMapper().createObjectNode();
+        data.put(Constants.ORGANISATION_ID, "org1");
+        data.put(Constants.ATTRIBUTE_NAME, "attr");
+        data.put(Constants.TYPE, Constants.TEXT);
+        lenient().when(entity.getCustomFieldData()).thenReturn(data);
+        lenient().when(customFieldRepository.findByCustomFiledIdAndIsActiveTrue("cf1")).thenReturn(Optional.of(entity));
+        EsUtilServiceImpl esUtilService = mock(EsUtilServiceImpl.class);
+        ReflectionTestUtils.setField(profileService, "esUtilService", esUtilService);
+        lenient().when(esUtilService.updateUserOrgCustomFields(any(), any(), any())).thenReturn(false);
+        ApiResponse response = profileService.updateAdditionalFields(req, "token");
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
     }
 
 }
