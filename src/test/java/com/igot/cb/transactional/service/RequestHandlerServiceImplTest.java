@@ -7,8 +7,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -18,6 +17,7 @@ import org.junit.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.slf4j.Logger;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -39,11 +39,21 @@ public class RequestHandlerServiceImplTest {
     private ObjectMapper objectMapper;
 
     @InjectMocks
-    private RequestHandlerServiceImpl requestHandlerServiceImpl;  // Class to be tested
+    private RequestHandlerServiceImpl requestHandlerServiceImpl;
+
+    @Mock
+    private Logger mockLogger;
 
     @Before
     public void setUp() {
-        MockitoAnnotations.openMocks(this); // Initialize mocks
+        MockitoAnnotations.openMocks(this);
+        try {
+            java.lang.reflect.Field logField = RequestHandlerServiceImpl.class.getDeclaredField("log");
+            logField.setAccessible(true);
+            logField.set(requestHandlerServiceImpl, mockLogger);
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            throw new RuntimeException("Failed to inject mock logger", e);
+        }
     }
 
     @Test
@@ -171,4 +181,54 @@ public class RequestHandlerServiceImplTest {
                 entity.getHeaders() != null && entity.getBody() == null
         ), eq(Map.class));
     }
+
+    @Test
+    public void testFetchResultUsingPost_debugLogging() throws Exception {
+        String uri = "http://example.com/api";
+        Object request = new Object();
+        Map<String, String> headersValues = new HashMap<>();
+        headersValues.put("Authorization", "Bearer token");
+
+        // Enable debug logging
+        when(mockLogger.isDebugEnabled()).thenReturn(true);
+
+        // Mock RestTemplate
+        when(restTemplate.postForObject(anyString(), any(HttpEntity.class), eq(Map.class)))
+                .thenReturn(new HashMap<>()); // normal response
+
+        Map<String, Object> response = requestHandlerServiceImpl.fetchResultUsingPost(uri, request, headersValues);
+
+        assertNotNull(response);
+        verify(mockLogger, atLeastOnce()).debug(anyString());
+    }
+
+    @Test
+    public void testFetchUsingGetWithHeadersProfile_successfulResponse_debugLogging() {
+        String uri = "http://example.com/api";
+        Map<String, String> headersValues = new HashMap<>();
+        headersValues.put("Authorization", "Bearer token");
+
+        Map<String, Object> expectedResponse = new HashMap<>();
+        expectedResponse.put("key", "value");
+
+        ResponseEntity<Map> responseEntity = new ResponseEntity<>(expectedResponse, HttpStatus.OK);
+
+        when(mockLogger.isDebugEnabled()).thenReturn(true);
+
+        when(restTemplate.exchange(eq(uri), eq(HttpMethod.GET), any(HttpEntity.class), eq(Map.class)))
+                .thenReturn(responseEntity);
+
+        Object response = requestHandlerServiceImpl.fetchUsingGetWithHeadersProfile(uri, headersValues);
+
+        assertNotNull(response);
+        assertEquals(expectedResponse, response);
+
+        verify(restTemplate).exchange(eq(uri), eq(HttpMethod.GET), argThat(entity -> {
+            HttpHeaders headers = entity.getHeaders();
+            return headers.get("Authorization").contains("Bearer token");
+        }), eq(Map.class));
+
+        verify(mockLogger, atLeastOnce()).debug(anyString());
+    }
+
 }
