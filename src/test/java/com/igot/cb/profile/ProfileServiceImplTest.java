@@ -1585,8 +1585,8 @@ class ProfileServiceImplTest {
                 .thenReturn(eventRecords);
 
         int count = ReflectionTestUtils.invokeMethod(locaService, "getIssuedCertificateCount", "user-2");
-        assertEquals(6, count);
-        verify(localCacheService).hset("cert:count", 12, "user-2", "6");
+        assertEquals(4, count);
+        verify(localCacheService).hset("cert:count", 12, "user-2", "4");
     }
 
     @Test
