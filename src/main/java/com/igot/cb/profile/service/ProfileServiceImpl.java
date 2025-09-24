@@ -278,7 +278,7 @@ public class ProfileServiceImpl implements ProfileService {
 
         result.put(Constants.USERID_KEY, userId);
         try {
-            cacheService.putCache(redisKey, mapper.writeValueAsString(result));
+            cacheService.putCache(redisKey, result);
         } catch (Exception e) {
             log.warn("Failed to cache extended profile summary for userId {}: {}", userId, e.getMessage());
         }
