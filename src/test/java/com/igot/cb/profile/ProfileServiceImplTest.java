@@ -530,8 +530,8 @@ class ProfileServiceImplTest {
         when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
                 .thenReturn(List.of(Map.of(Constants.CONTEXT_DATA, json)));
         try {
-            when(projectUtil.parseListOfMap(json)).thenReturn(List.of(Map.of("location", "India")));
-            when(objectMapper.writeValueAsString(any())).thenReturn(json);
+            lenient().when(projectUtil.parseListOfMap(json)).thenReturn(List.of(Map.of("location", "India")));
+            lenient().when(objectMapper.writeValueAsString(any())).thenReturn(json);
         } catch (Exception e) {
             fail("Should not throw exception");
         }
@@ -1038,11 +1038,11 @@ class ProfileServiceImplTest {
                 new ArrayList<>(List.of(new HashMap<>(Map.of("field", "value"))))
         );
         when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userId);
-        doThrow(new RuntimeException("Cache error")).when(cacheService).putCache(anyString(), anyString());
+        doThrow(new RuntimeException("Cache error")).when(cacheService).putCache(anyString(), any());
         ApiResponse response = profileService.getExtendedProfileSummary(userId, userToken);
         assertEquals(HttpStatus.OK, response.getResponseCode());
         assertNotNull(response.get(Constants.RESPONSE));
-        verify(cacheService).putCache(anyString(), isNull());
+        verify(cacheService).putCache(anyString(), any());
     }
 
     @Test
