@@ -317,7 +317,7 @@ public class ProfileServiceImpl implements ProfileService {
                 return response;
             }
             try {
-                cacheService.putCache(redisKey, mapper.writeValueAsString(contextData));
+                cacheService.putCache(redisKey, contextData);
             } catch (Exception e) {
                 log.warn("Failed to cache data for key {}: {}", redisKey, e.getMessage());
             }
@@ -435,7 +435,7 @@ public class ProfileServiceImpl implements ProfileService {
                     ProjectUtil.errorResponse(response, "No competencies found for user.", HttpStatus.NO_CONTENT);
                     return response;
                 }
-                cacheService.putCache(cacheKey, mapper.writeValueAsString(competencies));
+                cacheService.putCache(cacheKey, competencies);
             }
 
             response.setResponseCode(HttpStatus.OK);
@@ -523,7 +523,7 @@ public class ProfileServiceImpl implements ProfileService {
             updatedContext.put(Constants.DATA, updatedContextData);
             updatedContext.put(Constants.COUNT, updatedContextData != null ? updatedContextData.size() : 0);
             allProfileData.put(contextType, updatedContext);
-            cacheService.putCache(allKey, mapper.writeValueAsString(allProfileData));
+            cacheService.putCache(allKey, allProfileData);
         } catch (Exception e) {
             log.error("Error updating extendedProfile all cache for userId {}: {}", userId, e.getMessage());
         }
