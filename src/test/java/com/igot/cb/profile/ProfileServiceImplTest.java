@@ -1579,6 +1579,10 @@ class ProfileServiceImplTest {
                 Map.of(Constants.STATUS, 2, Constants.PROGRESS_KEY, 100, Constants.ISSUED_CERTIFICATES_KEY, List.of("e2", "e3")),
                 Map.of(Constants.STATUS, 1, Constants.PROGRESS_KEY, 100, Constants.ISSUED_CERTIFICATES_KEY, List.of("shouldNotCount"))
         );
+        List<Map<String, Object>> externalCoursesRecords = List.of(
+                Map.of(Constants.STATUS, 2, Constants.PROGRESS_KEY, 100, Constants.ISSUED_CERTIFICATES_KEY, List.of("ex1")),
+                Map.of(Constants.STATUS, 1, Constants.PROGRESS_KEY, 100, Constants.ISSUED_CERTIFICATES_KEY, List.of("certificateShouldNotCount"))
+        );
         when(localCassandraOperation.getRecordsByPropertiesByKey(
                 anyString(),
                 any(),
@@ -1586,11 +1590,11 @@ class ProfileServiceImplTest {
                 anyList(),
                 anyString()
         )).thenReturn(courseRecords)
-                .thenReturn(eventRecords);
+                .thenReturn(eventRecords).thenReturn(externalCoursesRecords);
 
         int count = ReflectionTestUtils.invokeMethod(locaService, "getIssuedCertificateCount", "user-2");
-        assertEquals(4, count);
-        verify(localCacheService).hset("cert:count", 12, "user-2", "4");
+        assertEquals(5, count);
+        verify(localCacheService).hset("cert:count", 12, "user-2", "5");
     }
 
     @Test
