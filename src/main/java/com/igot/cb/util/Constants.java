@@ -455,7 +455,7 @@ public class Constants {
     public static final String PROFILE_PREFERENCE = "profilePreference";
     public static final String AUTH_TOKEN = "Authorization";
     public static final String APPROVED = "Approved";
-
+    public static final String USER_EXTERNAL_COURSE_ENROLMENTS = "user_external_enrolments";
     private Constants() {
     }
 }
