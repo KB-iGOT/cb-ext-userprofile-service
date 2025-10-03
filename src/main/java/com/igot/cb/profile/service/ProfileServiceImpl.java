@@ -989,7 +989,25 @@ public class ProfileServiceImpl implements ProfileService {
                     .map(obj -> (List<?>) obj)
                     .filter(CollectionUtils::isNotEmpty)
                     .count();
-            totalIssuedCertificates += certificatesFromEvents;
+
+            List<Map<String, Object>> externalCourseRecords = cassandraOperation.getRecordsByPropertiesByKey(
+                    Constants.KEYSPACE_SUNBIRD_COURSES,
+                    Constants.USER_EXTERNAL_COURSE_ENROLMENTS,
+                    Map.of(Constants.USERID_KEY, userId),
+                    List.of(Constants.ISSUED_CERTIFICATES,Constants.PROGRESS_KEY,Constants.STATUS),
+                    userId
+            );
+
+            int certificatesFromExternalCourses = (int) externalCourseRecords.stream()
+                    .filter(MapUtils::isNotEmpty)
+                    .filter(r -> r.get(Constants.STATUS) instanceof Number && ((Number)r.get(Constants.STATUS)).intValue() == 2)
+                    .filter(r -> r.get(Constants.PROGRESS_KEY) instanceof Number && ((Number)r.get(Constants.PROGRESS_KEY)).intValue() == 100)
+                    .map(r -> r.get(Constants.ISSUED_CERTIFICATES_KEY))
+                    .filter(obj -> obj instanceof List<?>)
+                    .map(obj -> (List<?>) obj)
+                    .filter(CollectionUtils::isNotEmpty)
+                    .count();
+            totalIssuedCertificates += certificatesFromEvents + certificatesFromExternalCourses;
             cacheService.hset(redisKey,serverConfig.getDataIndex(),userId, String.valueOf(totalIssuedCertificates));
             return totalIssuedCertificates;
 
