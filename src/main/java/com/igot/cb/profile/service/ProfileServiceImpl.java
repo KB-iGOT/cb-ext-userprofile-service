@@ -94,7 +94,7 @@ public class ProfileServiceImpl implements ProfileService {
         String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
 
         if (!StringUtils.equalsIgnoreCase(userIdFromToken, userId)) {
-            ProjectUtil.errorResponse(response, "Invalid UserId in the request", HttpStatus.BAD_REQUEST);
+            ProjectUtil.errorResponse(response, Constants.INVALID_USERID, HttpStatus.BAD_REQUEST);
             return response;
         }
 
@@ -125,14 +125,14 @@ public class ProfileServiceImpl implements ProfileService {
                 existingList.addAll(dataWithUUIDs);
             }
 
-            //sortContextData(existingList, contextType);
+
             if (!saveContextData(userId, contextType, existingList)) {
                 ProjectUtil.errorResponse(response, "Failed to save data for contextType: " + contextType,
                         HttpStatus.INTERNAL_SERVER_ERROR);
                 return response;
             }
 
-            cacheService.putCache(buildCacheKey("user:extendedProfile", contextType, userId), existingList);
+            cacheService.putCache(buildCacheKey(Constants.USER_EXTENDED_PROFILE, contextType, userId), existingList);
             updateExtendedProfileAllCache(userId, contextType, existingList);
             savedDataWithUUIDs.addAll(dataWithUUIDs);
         }
@@ -150,7 +150,7 @@ public class ProfileServiceImpl implements ProfileService {
         String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
 
         if (!StringUtils.equalsIgnoreCase(userIdFromToken, userId)) {
-            ProjectUtil.errorResponse(response, "Invalid UserId in the request", HttpStatus.BAD_REQUEST);
+            ProjectUtil.errorResponse(response, Constants.INVALID_USERID, HttpStatus.BAD_REQUEST);
             return response;
         }
 
@@ -176,7 +176,7 @@ public class ProfileServiceImpl implements ProfileService {
             }
 
             List<Map<String, Object>> mergedList = new ArrayList<>(dataMap.values());
-            //sortContextData(mergedList, contextType);
+
 
             if (Constants.ACHIEVEMENTS.equalsIgnoreCase(contextType)) {
                 mergeAndSortByIssuedDateOrTitle(mergedList, new ArrayList<>());
@@ -187,7 +187,7 @@ public class ProfileServiceImpl implements ProfileService {
                 return response;
             }
 
-            cacheService.putCache(buildCacheKey("user:extendedProfile", contextType, userId), mergedList);
+            cacheService.putCache(buildCacheKey(Constants.USER_EXTENDED_PROFILE, contextType, userId), mergedList);
             updateExtendedProfileAllCache(userId, contextType, mergedList);
         }
 
@@ -204,7 +204,7 @@ public class ProfileServiceImpl implements ProfileService {
         String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
 
         if (!StringUtils.equalsIgnoreCase(userIdFromToken, userId)) {
-            ProjectUtil.errorResponse(response, "Invalid UserId in the request", HttpStatus.BAD_REQUEST);
+            ProjectUtil.errorResponse(response, Constants.INVALID_USERID, HttpStatus.BAD_REQUEST);
             return response;
         }
 
@@ -220,7 +220,7 @@ public class ProfileServiceImpl implements ProfileService {
 
             List<Map<String, Object>> existingData = getExistingContextData(userId, contextType);
             existingData.removeIf(e -> uuids.contains(e.get(Constants.UUID)));
-            //sortContextData(existingData, contextType);
+
 
             if (!saveContextData(userId, contextType, existingData)) {
                 ProjectUtil.errorResponse(response, "Failed to delete data for contextType: " + contextType,
@@ -228,7 +228,7 @@ public class ProfileServiceImpl implements ProfileService {
                 return response;
             }
 
-            cacheService.putCache(buildCacheKey("user:extendedProfile", contextType, userId), existingData);
+            cacheService.putCache(buildCacheKey(Constants.USER_EXTENDED_PROFILE, contextType, userId), existingData);
             updateExtendedProfileAllCache(userId, contextType, existingData);
         }
 
@@ -242,11 +242,11 @@ public class ProfileServiceImpl implements ProfileService {
         ApiResponse response = ProjectUtil.createDefaultResponse("api.extendedProfile.read");
 
         if (accessTokenValidator.fetchUserIdFromAccessToken(userToken) == null) {
-            ProjectUtil.errorResponse(response, "Invalid UserId in the request", HttpStatus.BAD_REQUEST);
+            ProjectUtil.errorResponse(response, Constants.INVALID_USERID, HttpStatus.BAD_REQUEST);
             return response;
         }
 
-        String redisKey = buildCacheKey("user:extendedProfile", "all", userId);
+        String redisKey = buildCacheKey(Constants.USER_EXTENDED_PROFILE, "all", userId);
         try {
             String cachedJson = cacheService.getCache(redisKey);
             if (cachedJson != null) {
@@ -266,7 +266,7 @@ public class ProfileServiceImpl implements ProfileService {
             if (!data.isEmpty()) {
                 Map<String, Object> contextSummary = new HashMap<>();
                 contextSummary.put(Constants.COUNT, data.size());
-                contextSummary.put(Constants.DATA, data.stream().limit(2).collect(Collectors.toList()));
+                contextSummary.put(Constants.DATA, data.stream().limit(2).toList());
                 result.put(contextType, contextSummary);
             }
         }
@@ -294,11 +294,11 @@ public class ProfileServiceImpl implements ProfileService {
         String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
 
         if (userIdFromToken == null) {
-            ProjectUtil.errorResponse(response, "Invalid UserId in the request", HttpStatus.BAD_REQUEST);
+            ProjectUtil.errorResponse(response, Constants.INVALID_USERID, HttpStatus.BAD_REQUEST);
             return response;
         }
 
-        String redisKey = buildCacheKey("user:extendedProfile", contextType, userId);
+        String redisKey = buildCacheKey(Constants.USER_EXTENDED_PROFILE, contextType, userId);
         List<Map<String, Object>> contextData = null;
 
         try {
@@ -340,7 +340,7 @@ public class ProfileServiceImpl implements ProfileService {
         String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
 
         if (userIdFromToken == null) {
-            ProjectUtil.errorResponse(response, "Invalid or missing access token", HttpStatus.UNAUTHORIZED);
+            ProjectUtil.errorResponse(response, Constants.INVALID_OR_MISSING_ACCESS_TOKEN, HttpStatus.UNAUTHORIZED);
             return response;
         }
 
@@ -400,7 +400,7 @@ public class ProfileServiceImpl implements ProfileService {
         String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
 
         if (userIdFromToken == null) {
-            ProjectUtil.errorResponse(response, "Invalid or missing access token", HttpStatus.UNAUTHORIZED);
+            ProjectUtil.errorResponse(response, Constants.INVALID_OR_MISSING_ACCESS_TOKEN, HttpStatus.UNAUTHORIZED);
             return response;
         }
 
@@ -421,7 +421,7 @@ public class ProfileServiceImpl implements ProfileService {
                         .map(map -> map.get(Constants.COURSE_ID))
                         .filter(Objects::nonNull)
                         .map(Object::toString)
-                        .collect(Collectors.toList());
+                        .toList();
                 if (completedCourseIdList.isEmpty()) {
                     ProjectUtil.errorResponse(response, "No competencies found for user.", HttpStatus.NO_CONTENT);
                     return response;
@@ -452,8 +452,10 @@ public class ProfileServiceImpl implements ProfileService {
     // -------------------- HELPER METHODS --------------------
 
     private List<Map<String, Object>> addUUIDs(List<Map<String, Object>> list) {
-        return list.stream().peek(item -> item.put(Constants.UUID, UUID.randomUUID().toString()))
-                .collect(Collectors.toList());
+        for (Map<String, Object> item : list) {
+            item.put(Constants.UUID, UUID.randomUUID().toString());
+        }
+        return list;
     }
 
     private List<Map<String, Object>> getExistingContextData(String userId, String contextType) {
@@ -1132,7 +1134,7 @@ public class ProfileServiceImpl implements ProfileService {
         String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(authToken);
 
         if (StringUtils.isBlank(authToken)) {
-            ProjectUtil.errorResponse(response, "Invalid or missing access token", HttpStatus.UNAUTHORIZED);
+            ProjectUtil.errorResponse(response, Constants.INVALID_OR_MISSING_ACCESS_TOKEN, HttpStatus.UNAUTHORIZED);
             return response;
         }
 
@@ -1238,7 +1240,7 @@ public class ProfileServiceImpl implements ProfileService {
 
             String orgId = customFieldEntity.getCustomFieldData().get(Constants.ORGANISATION_ID).asText();
             if (!StringUtils.equals(orgId, organisationId)) {
-                str.append("Custom field ").append(customFieldId)
+                str.append(Constants.CUSTOM_FIELD_PREFIX).append(customFieldId)
                         .append(" is not configured for organization ").append(organisationId).append(". ");
                 return str.toString();
             }
@@ -1258,7 +1260,7 @@ public class ProfileServiceImpl implements ProfileService {
                 }
 
                 if (!Constants.TEXT.equals(storedType)) {
-                    str.append("Custom field ").append(customFieldId).append(" is not of type text. ");
+                    str.append(Constants.CUSTOM_FIELD_PREFIX).append(customFieldId).append(" is not of type text. ");
                     return str.toString();
                 }
             } else if (Constants.MASTER_LIST.equals(fieldType)) {
@@ -1269,7 +1271,7 @@ public class ProfileServiceImpl implements ProfileService {
                 }
 
                 if (!Constants.MASTER_LIST.equals(storedType)) {
-                    str.append("Custom field ").append(customFieldId).append(" is not of type masterList. ");
+                    str.append(Constants.CUSTOM_FIELD_PREFIX).append(customFieldId).append(" is not of type masterList. ");
                     return str.toString();
                 }
 
@@ -1429,7 +1431,7 @@ public class ProfileServiceImpl implements ProfileService {
         String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(authToken);
 
         if (StringUtils.isBlank(authToken)) {
-            ProjectUtil.errorResponse(response, "Invalid or missing access token", HttpStatus.UNAUTHORIZED);
+            ProjectUtil.errorResponse(response, Constants.INVALID_OR_MISSING_ACCESS_TOKEN, HttpStatus.UNAUTHORIZED);
             return response;
         }
 

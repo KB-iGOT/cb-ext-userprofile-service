@@ -133,7 +133,7 @@ public class ProjectCommonException extends RuntimeException {
         throw new ProjectCommonException(
                 responseCode,
                 StringUtils.isBlank(exceptionMessage) ? responseCode.getErrorMessage() : exceptionMessage,
-                ResponseCode.SERVER_ERROR.getResponseCode());
+                ResponseCode.SERVER_ERROR.getHttpStatusCode());
     }
 
     public static void throwServerErrorException(ResponseCode responseCode) {
