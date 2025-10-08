@@ -50,12 +50,12 @@ public class ProjectUtil {
      */
     public static CustomException createServerError(ResponseCode responseCode) {
         return new CustomException(responseCode.getErrorCode(), responseCode.getErrorMessage(),
-                ResponseCode.SERVER_ERROR.getResponseCode());
+                ResponseCode.SERVER_ERROR.getHttpStatusCode());
     }
 
     public static CustomException createClientException(ResponseCode responseCode) {
         return new CustomException(responseCode.getErrorCode(), responseCode.getErrorMessage(),
-                ResponseCode.CLIENT_ERROR.getResponseCode());
+                ResponseCode.CLIENT_ERROR.getHttpStatusCode());
     }
 
     public static ApiResponse createDefaultResponse(String api) {

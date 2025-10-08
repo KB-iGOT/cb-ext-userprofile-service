@@ -15,8 +15,8 @@ public class ResponseCodeTest {
     @Test
     public void testEnumValues() {
         assertEquals(7, ResponseCode.values().length);
-        assertNotNull(ResponseCode.unAuthorized);
-        assertNotNull(ResponseCode.internalError);
+        assertNotNull(ResponseCode.UNAUTHORIZED);
+        assertNotNull(ResponseCode.INTERNAL_SERVER_ERROR);
         assertNotNull(ResponseCode.OK);
         assertNotNull(ResponseCode.CLIENT_ERROR);
         assertNotNull(ResponseCode.SERVER_ERROR);
@@ -24,33 +24,33 @@ public class ResponseCodeTest {
     
     @Test
     public void testStringConstructor() {
-        assertEquals(ResponseMessage.Key.UNAUTHORIZED_USER, ResponseCode.unAuthorized.getErrorCode());
-        assertEquals(ResponseMessage.Message.UNAUTHORIZED_USER, ResponseCode.unAuthorized.getErrorMessage());
-        assertEquals(ResponseMessage.Key.INTERNAL_ERROR, ResponseCode.internalError.getErrorCode());
-        assertEquals(ResponseMessage.Message.INTERNAL_ERROR, ResponseCode.internalError.getErrorMessage());
+        assertEquals(ResponseMessage.Key.UNAUTHORIZED_USER, ResponseCode.UNAUTHORIZED.getErrorCode());
+        assertEquals(ResponseMessage.Message.UNAUTHORIZED_USER, ResponseCode.UNAUTHORIZED.getErrorMessage());
+        assertEquals(ResponseMessage.Key.INTERNAL_ERROR, ResponseCode.INTERNAL_SERVER_ERROR.getErrorCode());
+        assertEquals(ResponseMessage.Message.INTERNAL_ERROR, ResponseCode.INTERNAL_SERVER_ERROR.getErrorMessage());
     }
     
     @Test
     public void testIntConstructor() {
-        assertEquals(200, ResponseCode.OK.getResponseCode());
-        assertEquals(400, ResponseCode.CLIENT_ERROR.getResponseCode());
-        assertEquals(500, ResponseCode.SERVER_ERROR.getResponseCode());
+        assertEquals(200, ResponseCode.OK.getHttpStatusCode());
+        assertEquals(400, ResponseCode.CLIENT_ERROR.getHttpStatusCode());
+        assertEquals(500, ResponseCode.SERVER_ERROR.getHttpStatusCode());
         assertNull(ResponseCode.OK.getErrorCode());
         assertNull(ResponseCode.OK.getErrorMessage());
     }
     
     @Test
     public void testResponseCodeSetter() {
-        ResponseCode testCode = ResponseCode.unAuthorized;
-        int originalCode = testCode.getResponseCode();
+        ResponseCode testCode = ResponseCode.UNAUTHORIZED;
+        int originalCode = testCode.getHttpStatusCode();
         int newResponseCode = 403;
         
         try {
-            testCode.setResponseCode(newResponseCode);
-            assertEquals(newResponseCode, testCode.getResponseCode());
+            testCode.setHttpStatusCode(newResponseCode);
+            assertEquals(newResponseCode, testCode.getHttpStatusCode());
         } finally {
             // Restore the original value to avoid affecting other tests
-            testCode.setResponseCode(originalCode);
+            testCode.setHttpStatusCode(originalCode);
         }
     }
     
@@ -63,14 +63,14 @@ public class ResponseCodeTest {
     
     @Test
     public void testGetResponseWithUnauthorized() {
-        assertEquals(ResponseCode.unAuthorized, ResponseCode.getResponse(Constants.UNAUTHORIZED));
+        assertEquals(ResponseCode.UNAUTHORIZED, ResponseCode.getResponse(Constants.UNAUTHORIZED));
     }
     
     @Test
     public void testGetResponseWithValidErrorCode() {
-        assertEquals(ResponseCode.unAuthorized,
+        assertEquals(ResponseCode.UNAUTHORIZED,
                     ResponseCode.getResponse(ResponseMessage.Key.UNAUTHORIZED_USER));
-        assertEquals(ResponseCode.internalError, 
+        assertEquals(ResponseCode.INTERNAL_SERVER_ERROR,
                     ResponseCode.getResponse(ResponseMessage.Key.INTERNAL_ERROR));
     }
 
@@ -82,11 +82,6 @@ public class ResponseCodeTest {
         } catch (NullPointerException e) {
             assertTrue(e.getMessage().contains("Cannot invoke \"String.equals(Object)\""));
         }
-    }
-    
-    @Test
-    public void testGetMessage() {
-        assertEquals("", ResponseCode.OK.getMessage(200));
     }
 
     @Test
@@ -106,12 +101,12 @@ public class ResponseCodeTest {
         assertNull(ResponseCode.getResponse(null));
         assertNull(ResponseCode.getResponse(""));
         assertNull(ResponseCode.getResponse("   "));
-        assertEquals(ResponseCode.unAuthorized, ResponseCode.getResponse(Constants.UNAUTHORIZED));
-        assertEquals(ResponseCode.internalError,
+        assertEquals(ResponseCode.UNAUTHORIZED, ResponseCode.getResponse(Constants.UNAUTHORIZED));
+        assertEquals(ResponseCode.INTERNAL_SERVER_ERROR,
                 ResponseCode.getResponse(ResponseMessage.Key.INTERNAL_ERROR));
-        assertEquals(ResponseCode.unAuthorized,
+        assertEquals(ResponseCode.UNAUTHORIZED,
                 ResponseCode.getResponse(ResponseMessage.Key.UNAUTHORIZED_USER));
-        assertEquals(ResponseCode.resourceNotFound,
+        assertEquals(ResponseCode.RESOURCE_NOT_FOUND,
                 ResponseCode.getResponse(ResponseMessage.Key.RESOURCE_NOT_FOUND));
         assertNull(ResponseCode.getResponse("INVALID_CODE"));
         assertNull(ResponseCode.getResponse(ResponseCode.OK.getErrorCode()));

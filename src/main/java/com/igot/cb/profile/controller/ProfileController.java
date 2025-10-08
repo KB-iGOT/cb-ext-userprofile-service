@@ -18,7 +18,7 @@ public class ProfileController {
     private ProfileService profileService;
 
     @PostMapping("/extended")
-    public ResponseEntity<?> saveExtendedProfile(
+    public ResponseEntity<Object> saveExtendedProfile(
             @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken,
             @RequestBody Map<String, Object> request) throws Exception {
         ApiResponse response = profileService.saveExtendedProfile(request, authToken);
@@ -62,7 +62,7 @@ public class ProfileController {
     }
 
     @PutMapping("/extended")
-    public ResponseEntity<?> updateExtendedProfile(
+    public ResponseEntity<Object> updateExtendedProfile(
             @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken,
             @RequestBody Map<String, Object> request) throws Exception {
         ApiResponse response = profileService.updateExtendedProfile(request, authToken);
@@ -70,7 +70,7 @@ public class ProfileController {
     }
 
     @DeleteMapping("/extended")
-    public ResponseEntity<?> deleteExtendedProfile(
+    public ResponseEntity<Object> deleteExtendedProfile(
             @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken,
             @RequestBody Map<String, Object> request) {
 
