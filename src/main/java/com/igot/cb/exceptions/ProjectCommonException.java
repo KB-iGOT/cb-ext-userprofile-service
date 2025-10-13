@@ -73,10 +73,6 @@ public class ProjectCommonException extends RuntimeException {
         this.responseCode = responseCode;
     }
 
-    public String getErrorMessage() {
-        return errorMessage;
-    }
-
     public void setErrorMessage(String errorMessage) {
         this.errorMessage = errorMessage;
     }

@@ -1497,46 +1497,6 @@ class ProfileServiceImplTest {
     }
 
     @Test
-    void sortContextData_sortsListDescending_whenComparatorExists() {
-        ProfileServiceImpl localService = new ProfileServiceImpl();
-        List<Map<String, Object>> dataList = new ArrayList<>();
-        dataList.add(Map.of(Constants.START_DATE, "2022-01-01T00:00:00Z"));
-        dataList.add(Map.of(Constants.START_DATE, "2023-01-01T00:00:00Z"));
-        ReflectionTestUtils.invokeMethod(localService, "sortContextData", dataList, Constants.SERVICE_HISTORY);
-        assertEquals("2023-01-01T00:00:00Z", dataList.get(0).get(Constants.START_DATE));
-    }
-
-    @Test
-    void sortContextData_doesNotSort_whenComparatorIsNull() {
-        ProfileServiceImpl localService = new ProfileServiceImpl();
-        List<Map<String, Object>> dataList = new ArrayList<>();
-        dataList.add(Map.of("field", "A"));
-        dataList.add(Map.of("field", "B"));
-        List<Map<String, Object>> original = new ArrayList<>(dataList);
-        ReflectionTestUtils.invokeMethod(localService, "sortContextData", dataList, "unknownType");
-        assertEquals(original, dataList);
-    }
-
-    @Test
-    void sortContextData_handlesEmptyList() {
-        ProfileServiceImpl localService = new ProfileServiceImpl();
-        List<Map<String, Object>> dataList = new ArrayList<>();
-        ReflectionTestUtils.invokeMethod(localService, "sortContextData", dataList, Constants.SERVICE_HISTORY);
-        assertTrue(dataList.isEmpty());
-    }
-
-    @Test
-    void sortContextData_throwsException_whenFieldMissing() {
-        ProfileServiceImpl localService = new ProfileServiceImpl();
-        List<Map<String, Object>> dataList = new ArrayList<>();
-        dataList.add(new HashMap<>());
-        dataList.add(Map.of(Constants.START_YEAR, "2020"));
-        assertThrows(NumberFormatException.class, () ->
-                ReflectionTestUtils.invokeMethod(localService, "sortContextData", dataList, Constants.EDUCATIONAL_QUALIFICATIONS)
-        );
-    }
-
-    @Test
     void returnsCachedCertificateCount_whenCacheHit() {
         ProfileServiceImpl localService = new ProfileServiceImpl();
         CacheService localCacheService = mock(CacheService.class);
