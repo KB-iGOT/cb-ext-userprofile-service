@@ -489,13 +489,6 @@ public class ProfileServiceImpl implements ProfileService {
         return false;
     }
 
-    private void sortContextData(List<Map<String, Object>> dataList, String contextType) {
-        Comparator<Map<String, Object>> comparator = getSortingComparator(contextType);
-        if (comparator != null) {
-            dataList.sort(comparator.reversed());
-        }
-    }
-
     private Comparator<Map<String, Object>> getSortingComparator(String contextType) {
         return switch (contextType) {
             case Constants.SERVICE_HISTORY ->
@@ -968,7 +961,7 @@ public class ProfileServiceImpl implements ProfileService {
             int totalIssuedCertificates = 0;
             totalIssuedCertificates += (int) courseRecords.stream()
                     .filter(MapUtils::isNotEmpty)
-                    .map(record -> record.get(Constants.ISSUED_CERTIFICATES_KEY))
+                    .map(courseRecord -> courseRecord.get(Constants.ISSUED_CERTIFICATES_KEY))
                     .filter(certObj -> certObj instanceof List<?>)
                     .map(certObj -> (List<?>) certObj)
                     .filter(CollectionUtils::isNotEmpty)
@@ -1120,7 +1113,9 @@ public class ProfileServiceImpl implements ProfileService {
         if (dateObj instanceof String str && !str.isBlank()) {
             try {
                 return OffsetDateTime.parse(str);
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+                log.error("Failed to parse date: {}", str);
+            }
         }
         return null;
     }
@@ -1190,7 +1185,7 @@ public class ProfileServiceImpl implements ProfileService {
      * @return Error message if validation fails, null if validation passes
      */
     private String validateAdditionalFieldsRequest(Map<String, Object> request) {
-        StringBuffer str = new StringBuffer();
+        StringBuilder str = new StringBuilder();
         List<String> errList = new ArrayList<>();
 
         String userId = (String) request.get(Constants.USER_ID_RQST);
@@ -1319,7 +1314,7 @@ public class ProfileServiceImpl implements ProfileService {
             // Sort values by level to validate parent-child relationships
             List<Map<String, Object>> sortedValues = requestedValues.stream()
                     .sorted(Comparator.comparing(map -> (Integer) map.get(Constants.LEVEL)))
-                    .collect(Collectors.toList());
+                    .toList();
 
             // Track parent node for hierarchical validation
             JsonNode currentParentNode = null;

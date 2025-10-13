@@ -460,6 +460,7 @@ public class Constants {
     public static final String USER_EXTENDED_PROFILE = "user:extendedProfile";
     public static final String INVALID_OR_MISSING_ACCESS_TOKEN = "Invalid or missing access token";
     public static final String CUSTOM_FIELD_PREFIX = "Custom field ";
+    public static final String DATA_CENTER = "datacenter1";
     private Constants() {
     }
 }
