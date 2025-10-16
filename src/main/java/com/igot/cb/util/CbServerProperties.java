@@ -149,4 +149,32 @@ public class CbServerProperties {
 
     @Value("${db.table.user-enrolments}")
     private String userEnrolmentsTable;
+
+    @Value("${user.profile.keys.ttl}")
+    private int userProfileKeysTtl;
+
+    @Value("${redisson.idleConnectionTimeout}")
+    private int idleConnectionTimeout;
+
+    @Value("${redisson.connectTimeout}")
+    private int connectTimeout;
+
+    @Value("${redisson.timeout}")
+    private int timeout;
+
+    @Value("${redisson.retryAttempts}")
+    private int retryAttempts;
+
+    @Value("${redisson.retryInterval}")
+    private int retryInterval;
+
+    @Value("${redisson.pingConnectionInterval}")
+    private int pingConnectionInterval;
+
+    @Value("${redisson.keepAlive}")
+    private boolean keepAlive;
+
+    @Value("${redisson.tcpNoDelay}")
+    private boolean tcpNoDelay;
+
 }

@@ -21,6 +21,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import com.igot.cb.common.OutboundRequestHandlerServiceImpl;
+import com.igot.cb.transactional.redis.cache.RedissonRedisDataService;
 import com.igot.cb.util.*;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
@@ -83,6 +84,9 @@ public class ProfileServiceImpl implements ProfileService {
 
     @Autowired
     OutboundRequestHandlerServiceImpl outboundRequestHandlerService;
+
+    @Autowired
+    private RedissonRedisDataService redisDataService;
 
     // -------------------- Service METHODS --------------------
 
@@ -293,7 +297,7 @@ public class ProfileServiceImpl implements ProfileService {
         ApiResponse response = ProjectUtil.createDefaultResponse("api.extendedProfile.read");
         String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
 
-        if (userIdFromToken == null) {
+        if (StringUtils.isEmpty(userIdFromToken)) {
             ProjectUtil.errorResponse(response, "Invalid UserId in the request", HttpStatus.BAD_REQUEST);
             return response;
         }
@@ -339,20 +343,16 @@ public class ProfileServiceImpl implements ProfileService {
         ApiResponse response = ProjectUtil.createDefaultResponse("api.getBasicProfile.read");
         String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
 
-        if (userIdFromToken == null) {
+        if (StringUtils.isEmpty(userIdFromToken)) {
             ProjectUtil.errorResponse(response, "Invalid or missing access token", HttpStatus.UNAUTHORIZED);
             return response;
         }
 
         boolean isSelfUser = userIdFromToken.equalsIgnoreCase(userId);
-        String cacheKey = Constants.USER + ":basicProfile:" + userId;
-
+        String cacheKey = Constants.USER + ":basicProfileV2:" + userId;
         try {
-            String cachedJson = cacheService.getCache(cacheKey);
-            Map<String, Object> userProfile;
-            if (StringUtils.isNotEmpty(cachedJson)) {
-                userProfile = mapper.readValue(cachedJson, new TypeReference<Map<String, Object>>() {
-                });
+            Map<String, Object> userProfile = redisDataService.getMap(cacheKey);
+            if (MapUtils.isNotEmpty(userProfile)) {
                 List<String> cachedKeyList = new ArrayList<>(userProfile.keySet());
                 List<String> differenceList = serverConfig.getBasicProfileFields().stream()
                         .filter(key -> !cachedKeyList.contains(key)).toList();
@@ -365,7 +365,7 @@ public class ProfileServiceImpl implements ProfileService {
             } else {
                 userProfile = readUserDataFromDB(userId, null);
             }
-            UserUtility.decryptSpecificUserData(userProfile, Arrays.asList(Constants.USERNAME_LOWERCASE));
+            UserUtility.decryptSpecificUserData(userProfile, List.of(Constants.USERNAME_LOWERCASE));
             if (MapUtils.isEmpty(userProfile)) {
                 response.setResponseCode(HttpStatus.NOT_FOUND);
                 response.put(Constants.RESPONSE, Collections.emptyMap());
@@ -585,7 +585,7 @@ public class ProfileServiceImpl implements ProfileService {
         if (CollectionUtils.isEmpty(keyList)) {
             keyList = serverConfig.getBasicProfileFields();
         }
-        String cacheKey = Constants.USER + ":basicProfile:" + userId;
+        String cacheKey = Constants.USER + ":basicProfileV2:" + userId;
         Map<String, Object> queryParams = Map.of(Constants.ID, userId);
         List<Map<String, Object>> userList = cassandraOperation.getRecordsByPropertiesByKey(
                 Constants.KEYSPACE_SUNBIRD, Constants.USER, queryParams, keyList, null);
@@ -604,7 +604,7 @@ public class ProfileServiceImpl implements ProfileService {
             } else {
                 userObj.put(Constants.PROFILE_DETAILS, Map.of());
             }
-            cacheService.putCache(cacheKey, userObj);
+            redisDataService.putMap(cacheKey, userObj);
         } catch (IOException e) {
             log.error("Invalid profileDetails JSON for userId: {}", userId, e);
             userObj.put(Constants.PROFILE_DETAILS, Map.of());
@@ -615,72 +615,17 @@ public class ProfileServiceImpl implements ProfileService {
 
     private void sanitizeProfile(Map<String, Object> profile, String userToken) {
         Object detailsObj = profile.get(Constants.PROFILE_DETAILS);
-
-        if (detailsObj instanceof Map<?, ?> detailsMap) {
-            if (detailsMap.containsKey(Constants.PERSONAL_DETAILS)) {
-                detailsMap.remove(Constants.PERSONAL_DETAILS);
-                log.info("Removed personalDetails due to unrecognized profilePreference.");
-            }
-            ProfilePreference profilePref = ProfilePreference.PUBLIC; // default to PUBLIC
-
-            Object preferenceObj = detailsMap.get(Constants.PROFILE_PREFERENCE);
-            if (preferenceObj instanceof Integer) {
-                ProfilePreference resolvedPref = ProfilePreference.fromValue((Integer) preferenceObj);
-                if (resolvedPref != null) {
-                    profilePref = resolvedPref;
-                }
-            }
-
-            // If PUBLIC, return everything
-            if (ProfilePreference.PUBLIC.equals(profilePref)) {
-                return;
-            }
-
-            // Load keys from property
-            List<String> filteredKeys = Arrays.asList(basicDetailsFilteredKeys.split(","));
-            // Shared allowed keys from config
-            List<String> allowedKeys = Arrays.asList(profileVisibleAllowedFields.split(","));
-            Map<String, Object> filteredDetails = new HashMap<>();
-
-            // If PRIVATE_NO_ONE
-            if (ProfilePreference.PRIVATE_NO_ONE.equals(profilePref)) {
-                for (String key : allowedKeys) {
-                    if (detailsMap.containsKey(key)) {
-                        filteredDetails.put(key, detailsMap.get(key));
-                    }
-                }
-                filteredKeys.forEach(profile::remove);
-                profile.put(Constants.PROFILE_DETAILS, filteredDetails);
-                log.info("Sanitized profileDetails for PRIVATE_NO_ONE ({}). Allowed fields: {}", profilePref.getValue(), allowedKeys);
-
-            } else if (ProfilePreference.PRIVATE_CONNECTIONS.equals(profilePref)) {
-                Map<String, Object> connectionResponse = checkConnected(
-                        (String) profile.get(Constants.ID),
-                        (String) profile.get(Constants.AUTH_TOKEN),
-                        userToken);
-
-                if (connectionResponse != null) {
-                    Object statusObj = connectionResponse.get(Constants.STATUS);
-                    if (statusObj != null && Constants.APPROVED.equalsIgnoreCase(statusObj.toString())) {
-                        return; // If connection approved, allow full profile
-                    }
-                }
-                filteredKeys.forEach(profile::remove);
-                for (String key : allowedKeys) {
-                    if (detailsMap.containsKey(key)) {
-                        filteredDetails.put(key, detailsMap.get(key));
-                    }
-                }
-                profile.put(Constants.PROFILE_DETAILS, filteredDetails);
-                log.info("Sanitized profileDetails for PRIVATE_CONNECTIONS ({}). Allowed fields: {}", profilePref.getValue(), allowedKeys);
-
-            } else {
-                // Fallback case – remove personalDetails
-                if (detailsMap.containsKey(Constants.PERSONAL_DETAILS)) {
-                    detailsMap.remove(Constants.PERSONAL_DETAILS);
-                    log.info("Removed personalDetails due to unrecognized profilePreference.");
-                }
-            }
+        if (!(detailsObj instanceof Map<?, ?> detailsMap)) return;
+        removePersonalDetailsIfPresent(detailsMap);
+        ProfilePreference profilePref = resolveProfilePreference(detailsMap);
+        if (ProfilePreference.PUBLIC.equals(profilePref)) return;
+        List<String> filteredKeys = Arrays.asList(basicDetailsFilteredKeys.split(","));
+        List<String> allowedKeys = Arrays.asList(profileVisibleAllowedFields.split(","));
+        switch (profilePref) {
+            case PRIVATE_NO_ONE -> sanitizePrivateNoOne(profile, detailsMap, filteredKeys, allowedKeys, profilePref);
+            case PRIVATE_CONNECTIONS ->
+                    sanitizePrivateConnections(profile, detailsMap, filteredKeys, allowedKeys, userToken, profilePref);
+            default -> removePersonalDetailsIfPresent(detailsMap);
         }
     }
 
@@ -715,56 +660,25 @@ public class ProfileServiceImpl implements ProfileService {
 
     protected double calculateProfileCompletionPercentage(Map<String, Object> profileData,
                                                           String userId, String userToken) {
+        String completionPercentageRedisKey = "user:profileCompletionPercentage:" + userId;
+        String completionPercentage = cacheService.getCache(completionPercentageRedisKey);
+        if (StringUtils.isNotEmpty(completionPercentage)) return Double.parseDouble(completionPercentage);
         List<String> requiredFields = serverConfig.getProfileCompletionRequiredFields();
-        if (profileData == null || requiredFields == null || requiredFields.isEmpty())
-            return 0.0;
-
+        if (MapUtils.isEmpty(profileData) || CollectionUtils.isEmpty(requiredFields)) return 0.0;
         double totalCompletion = 0.0;
-        Map<String, Object> nestedData = Optional.ofNullable(profileData.get(Constants.PROFILE_DETAILS))
-                .filter(Map.class::isInstance)
-                .map(Map.class::cast)
-                .orElse(Collections.emptyMap());
-
+        Map<String, Object> nestedData = getNestedProfileDetails(profileData);
         for (String field : requiredFields) {
-            boolean isFilled;
             try {
-                if (isExtendedProfileField(field)) {
-                    isFilled = hasExtendedProfileData(userId, field, userToken)
-                            || (Constants.SERVICE_HISTORY.equalsIgnoreCase(field) &&
-                            Optional.ofNullable(profileData.get(Constants.PROFILE_DETAILS))
-                                    .filter(Map.class::isInstance)
-                                    .map(Map.class::cast)
-                                    .map(details -> details.get(Constants.PROFESSIONAL_DETAILS))
-                                    .filter(List.class::isInstance)
-                                    .map(List.class::cast)
-                                    .map(CollectionUtils::isNotEmpty)
-                                    .orElse(false));
-                } else {
-                    if (Constants.EMPLOYMENT_DETAILS.equalsIgnoreCase(field)) {
-                        isFilled = Optional.ofNullable(profileData.get(Constants.PROFILE_DETAILS))
-                                .filter(Map.class::isInstance)
-                                .map(Map.class::cast)
-                                .map(details -> details.get(Constants.EMPLOYMENT_DETAILS))
-                                .filter(Map.class::isInstance)
-                                .map(Map.class::cast)
-                                .map(empDetails -> empDetails.get(Constants.ABOUT_ME))
-                                .map(Object::toString)
-                                .filter(aboutMe -> !aboutMe.trim().isEmpty())
-                                .isPresent();
-                    }else {
-                        Object value = profileData.getOrDefault(field, nestedData.get(field));
-                        isFilled = value != null && !value.toString().trim().isEmpty();
-                    }
+                if (isFieldsCompleted(field, profileData, nestedData, userId, userToken)) {
+                    totalCompletion += serverConfig.getFieldWeight();
                 }
             } catch (Exception e) {
                 log.warn("Exception checking field '{}' for user '{}': {}", field, userId, e.getMessage());
-                isFilled = false;
             }
-            if (isFilled)
-                totalCompletion += serverConfig.getFieldWeight();
         }
-
-        return Math.min(100.0, Math.round(totalCompletion * 10.0) / 10.0);
+        double calculatedCompletionPercentage = Math.min(100.0, Math.round(totalCompletion * 10.0) / 10.0);
+        cacheService.putCache(completionPercentageRedisKey, calculatedCompletionPercentage);
+        return calculatedCompletionPercentage;
     }
 
     private boolean isExtendedProfileField(String field) {
@@ -1059,11 +973,14 @@ public class ProfileServiceImpl implements ProfileService {
     }
 
     public List<String> getUserRoles(String userId, String rootOrgId) {
+        String userRolesRedisKey = "user:profileRoles:" + userId;
+        List<String> cachedRoles = redisDataService.getStringList(userRolesRedisKey);
+        if (CollectionUtils.isNotEmpty(cachedRoles)) return cachedRoles;
         List<Map<String, Object>> userRoleList = cassandraOperation.getRecordsByPropertiesByKey(
                 Constants.KEYSPACE_SUNBIRD, Constants.USER_ROLES,
                 Map.of(Constants.USERID_KEY, userId), List.of(Constants.ROLE, Constants.SCOPE), userId
         );
-        return userRoleList.stream()
+        List<String> roles = userRoleList.stream()
                 .map(userRoleObj -> {
                     Object userRoleScope = userRoleObj.get(Constants.SCOPE);
                     List<Map<String, Object>> scopes = new ArrayList<>();
@@ -1086,6 +1003,8 @@ public class ProfileServiceImpl implements ProfileService {
                 .filter(Objects::nonNull)
                 .distinct()
                 .toList();
+        if (CollectionUtils.isNotEmpty(roles)) redisDataService.putStringList(userRolesRedisKey, roles);
+        return roles;
     }
 
     private void mergeAndSortByIssuedDateOrTitle(List<Map<String, Object>> existingList, List<Map<String, Object>> newList) {
@@ -1496,5 +1415,117 @@ public class ProfileServiceImpl implements ProfileService {
             result.add(orgFields);
         }
         return result;
+    }
+
+
+    private Map<String, Object> getNestedProfileDetails(Map<String, Object> profileData) {
+        Object details = profileData.get(Constants.PROFILE_DETAILS);
+        if (details instanceof Map<?, ?> detailsMap) {
+            try {
+                return (Map<String, Object>) detailsMap;
+            } catch (ClassCastException e) {
+                log.error("Failed to cast PROFILE_DETAILS to Map<String, Object>: {}", e.getMessage());
+            }
+        }
+        return Collections.emptyMap();
+    }
+
+    private boolean isFieldsCompleted(String field, Map<String, Object> profileData, Map<String, Object> nestedData, String userId, String userToken) {
+        if (isExtendedProfileField(field)) {
+            return isExtendedFieldFilled(field, profileData, userId, userToken);
+        }
+        if (Constants.EMPLOYMENT_DETAILS.equalsIgnoreCase(field)) return isEmploymentFieldFilled(profileData);
+        Object value = profileData.getOrDefault(field, nestedData.get(field));
+        return value != null && !value.toString().trim().isEmpty();
+    }
+
+    private boolean isExtendedFieldFilled(String field, Map<String, Object> profileData, String userId, String userToken) {
+        if (hasExtendedProfileData(userId, field, userToken)) return true;
+        if (Constants.SERVICE_HISTORY.equalsIgnoreCase(field)) {
+            Object details = profileData.get(Constants.PROFILE_DETAILS);
+            if (details instanceof Map<?, ?> profileDetails) {
+                Object professionalDetails = profileDetails.get(Constants.PROFESSIONAL_DETAILS);
+                if (professionalDetails instanceof List<?> profList) {
+                    return CollectionUtils.isNotEmpty(profList);
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean isEmploymentFieldFilled(Map<String, Object> profileData) {
+        Object details = profileData.get(Constants.PROFILE_DETAILS);
+        if (details instanceof Map<?, ?> profileDetails) {
+            Object employment = profileDetails.get(Constants.EMPLOYMENT_DETAILS);
+            if (employment instanceof Map<?, ?> employmentDetails) {
+                Object aboutMe = employmentDetails.get(Constants.ABOUT_ME);
+                return aboutMe != null && !aboutMe.toString().trim().isEmpty();
+
+            }
+        }
+        return false;
+    }
+
+    private void removePersonalDetailsIfPresent(Map<?, ?> detailsMap) {
+        if (detailsMap.containsKey(Constants.PERSONAL_DETAILS)) {
+            detailsMap.remove(Constants.PERSONAL_DETAILS);
+            log.info("Removed personalDetails due to unrecognized profilePreference.");
+        }
+    }
+
+    private ProfilePreference resolveProfilePreference(Map<?, ?> detailsMap) {
+        Object preferenceObj = detailsMap.get(Constants.PROFILE_PREFERENCE);
+        if (preferenceObj instanceof Integer prefValue) {
+            ProfilePreference resolved = ProfilePreference.fromValue(prefValue);
+            return resolved != null ? resolved : ProfilePreference.PUBLIC;
+        }
+        return ProfilePreference.PUBLIC;
+    }
+
+    private void sanitizePrivateNoOne(Map<String, Object> profile,
+                                      Map<?, ?> detailsMap,
+                                      List<String> filteredKeys,
+                                      List<String> allowedKeys,
+                                      ProfilePreference profilePref) {
+        Map<String, Object> filteredDetails = extractAllowedDetails(detailsMap, allowedKeys);
+        filteredKeys.forEach(profile::remove);
+        profile.put(Constants.PROFILE_DETAILS, filteredDetails);
+        log.info("Sanitized profileDetails for PRIVATE_NO_ONE ({}). Allowed fields: {}", profilePref.getValue(), allowedKeys);
+    }
+
+    private Map<String, Object> extractAllowedDetails(Map<?, ?> detailsMap, List<String> allowedKeys) {
+        Map<String, Object> filtered = new HashMap<>();
+        for (String key : allowedKeys) {
+            if (detailsMap.containsKey(key)) {
+                filtered.put(key, detailsMap.get(key));
+            }
+        }
+        return filtered;
+    }
+
+    private void sanitizePrivateConnections(Map<String, Object> profile,
+                                            Map<?, ?> detailsMap,
+                                            List<String> filteredKeys,
+                                            List<String> allowedKeys,
+                                            String userToken,
+                                            ProfilePreference profilePref) {
+        if (isConnectionApproved(profile, userToken)) return;
+        filteredKeys.forEach(profile::remove);
+        Map<String, Object> filteredDetails = extractAllowedDetails(detailsMap, allowedKeys);
+        profile.put(Constants.PROFILE_DETAILS, filteredDetails);
+        log.info("Sanitized profileDetails for PRIVATE_CONNECTIONS ({}). Allowed fields: {}",
+                profilePref.getValue(), allowedKeys);
+
+    }
+
+    private boolean isConnectionApproved(Map<String, Object> profile, String userToken) {
+        Map<String, Object> connectionResponse = checkConnected(
+                (String) profile.get(Constants.ID),
+                (String) profile.get(Constants.AUTH_TOKEN),
+                userToken);
+
+        if (connectionResponse == null) return false;
+        Object statusObj = connectionResponse.get(Constants.STATUS);
+        return statusObj != null && Constants.APPROVED.equalsIgnoreCase(statusObj.toString());
     }
 }

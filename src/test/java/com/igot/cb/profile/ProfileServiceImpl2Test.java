@@ -3,6 +3,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.profile.service.ProfileServiceImpl;
 import com.igot.cb.transactional.cassandrautils.CassandraOperation;
+import com.igot.cb.transactional.redis.cache.RedissonRedisDataService;
 import com.igot.cb.util.Constants;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,9 +38,12 @@ class ProfileServiceImpl2Test {
     private final String userId = "user123";
     private final String rootOrgId = "org001";
 
+    @Mock
+    private RedissonRedisDataService redisDataService;
+
     @BeforeEach
     void setUp() {
-        // Setup done by MockitoExtension
+        redisDataService = mock(RedissonRedisDataService.class);
     }
 
     @Test

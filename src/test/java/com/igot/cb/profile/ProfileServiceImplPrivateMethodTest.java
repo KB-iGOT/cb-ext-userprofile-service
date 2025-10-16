@@ -5,9 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.authentication.util.AccessTokenValidator;
 import com.igot.cb.profile.service.ProfileServiceImpl;
 import com.igot.cb.transactional.redis.cache.CacheService;
-import com.igot.cb.util.ApiResponse;
-import com.igot.cb.util.CbServerProperties;
-import com.igot.cb.util.UserUtility;
+import com.igot.cb.transactional.redis.cache.RedissonRedisDataService;
+import com.igot.cb.util.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,8 +22,7 @@ import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class ProfileServiceImplPrivateMethodTest {
@@ -40,6 +38,9 @@ class ProfileServiceImplPrivateMethodTest {
     private ObjectMapper mapper;
     @Mock
     private CbServerProperties serverConfig;
+
+    @Mock
+    private RedissonRedisDataService redisDataService;
 
     @BeforeEach
     void setup() {
@@ -61,29 +62,20 @@ class ProfileServiceImplPrivateMethodTest {
     void testGetBasicProfile_CacheHitWithDifferenceList() throws Exception {
         String userId = "user123";
         String userToken = "token123";
-
+        RedissonRedisDataService redisDataService = mock(RedissonRedisDataService.class);
         when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userId);
-
-        // Simulate cache hit with some missing fields
         Map<String, Object> cachedMap = new HashMap<>();
         cachedMap.put("field1", "value1");
         String cachedJson = "{\"field1\":\"value1\"}";
-
         when(cacheService.getCache(anyString())).thenReturn(cachedJson);
         when(mapper.readValue(eq(cachedJson), any(TypeReference.class))).thenReturn(cachedMap);
-
-        // Server config requires more fields
         when(serverConfig.getBasicProfileFields()).thenReturn(Arrays.asList("field1", "field2"));
-
-        // Mock DB call for missing field
         Map<String, Object> dbData = Map.of("field2", "value2");
         ProfileServiceImpl spyService = Mockito.spy(profileService);
+        ReflectionTestUtils.setField(spyService, "redisDataService", redisDataService);
         doReturn(dbData).when(spyService).readUserDataFromDB(eq(userId), anyList());
-
-        // Mock static methods
         try (MockedStatic<UserUtility> mockedUtility = Mockito.mockStatic(UserUtility.class)) {
             mockedUtility.when(() -> UserUtility.decryptSpecificUserData(anyMap(), anyList())).then(inv -> null);
-
             ApiResponse response = spyService.getBasicProfile(userId, userToken);
             assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
         }
@@ -93,15 +85,13 @@ class ProfileServiceImplPrivateMethodTest {
     void testGetBasicProfile_NoCache_EmptyUserProfile() {
         String userId = "user123";
         String userToken = "token123";
-
         when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userId);
-        when(cacheService.getCache(anyString())).thenReturn(null);
-
+        lenient().when(cacheService.getCache(anyString())).thenReturn(null);
         ProfileServiceImpl spyService = Mockito.spy(profileService);
         doReturn(Collections.emptyMap()).when(spyService).readUserDataFromDB(eq(userId), isNull());
-
         try (MockedStatic<UserUtility> mockedUtility = Mockito.mockStatic(UserUtility.class)) {
-            mockedUtility.when(() -> UserUtility.decryptSpecificUserData(anyMap(), anyList())).then(inv -> null);
+            mockedUtility.when(() -> UserUtility.decryptSpecificUserData(anyMap(), anyList()))
+                    .then(inv -> null);
             ApiResponse response = spyService.getBasicProfile(userId, userToken);
             assertEquals(HttpStatus.NOT_FOUND, response.getResponseCode());
         }
@@ -111,29 +101,25 @@ class ProfileServiceImplPrivateMethodTest {
     void testGetBasicProfile_NonSelfUser_CallsSanitize() {
         String userId = "user123";
         String userToken = "token123";
-
         when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn("otherUser");
         when(cacheService.getCache(anyString())).thenReturn(null);
-
-        ProfileServiceImpl spyService = Mockito.spy(profileService);
         Map<String, Object> profileMap = new HashMap<>();
         profileMap.put("field1", "value1");
-
-        doReturn(profileMap).when(spyService).readUserDataFromDB(eq(userId), isNull());
-
+        when(redisDataService.getMap(anyString())).thenReturn(profileMap);
         try (MockedStatic<UserUtility> mockedUtility = Mockito.mockStatic(UserUtility.class)) {
-            mockedUtility.when(() -> UserUtility.decryptSpecificUserData(anyMap(), anyList())).then(inv -> null);
-
-            ApiResponse response = spyService.getBasicProfile(userId, userToken);
+            mockedUtility.when(() -> UserUtility.decryptSpecificUserData(anyMap(), anyList()))
+                    .then(inv -> null);
+            ApiResponse response = profileService.getBasicProfile(userId, userToken);
             assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
         }
     }
 
     @Test
     void testGetBasicProfile_Exception() {
-        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
-        when(cacheService.getCache(anyString())).thenThrow(new RuntimeException("Cache failure"));
-
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString()))
+                .thenReturn("user123");
+        lenient().when(cacheService.getCache(anyString()))
+                .thenThrow(new RuntimeException("Cache failure"));
         ApiResponse response = profileService.getBasicProfile("user123", "token123");
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
     }

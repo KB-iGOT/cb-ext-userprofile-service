@@ -11,6 +11,7 @@ import com.igot.cb.profile.service.ProfileServiceImpl;
 import com.igot.cb.transactional.cassandrautils.CassandraOperation;
 import com.igot.cb.transactional.elasticsearch.service.EsUtilServiceImpl;
 import com.igot.cb.transactional.redis.cache.CacheService;
+import com.igot.cb.transactional.redis.cache.RedissonRedisDataService;
 import com.igot.cb.transactional.service.RequestHandlerServiceImpl;
 import com.igot.cb.util.*;
 import org.junit.jupiter.api.BeforeEach;
@@ -1243,33 +1244,26 @@ class ProfileServiceImplTest {
     @Test
     void fetchFromDatabase_returnsRecordWithParsedProfileDetails_whenValidJson() throws Exception {
         ProfileServiceImpl locaService = new ProfileServiceImpl();
-
-        // Mock dependencies
         CassandraOperation localCassandraOperation = mock(CassandraOperation.class);
         CbServerProperties serverConfig = mock(CbServerProperties.class);
         ProjectUtil localProjectUtil = mock(ProjectUtil.class);
         CacheService localCacheService = mock(CacheService.class);
+        RedissonRedisDataService localRedisDataService = mock(RedissonRedisDataService.class);
         ObjectMapper mapper = new ObjectMapper();
-
         ReflectionTestUtils.setField(locaService, "cassandraOperation", localCassandraOperation);
         ReflectionTestUtils.setField(locaService, "serverConfig", serverConfig);
         ReflectionTestUtils.setField(locaService, "projectUtil", localProjectUtil);
         ReflectionTestUtils.setField(locaService, "cacheService", localCacheService);
-        ReflectionTestUtils.setField(locaService, "mapper", mapper);  // ✅ Fix for NPE
-
-        // DB record with JSON string
+        ReflectionTestUtils.setField(locaService, "redisDataService", localRedisDataService);
+        ReflectionTestUtils.setField(locaService, "mapper", mapper);
         Map<String, Object> localRecord = new HashMap<>();
         localRecord.put(Constants.PROFILE_DETAILS, "{\"email\":\"test@example.com\"}");
         List<Map<String, Object>> records = List.of(localRecord);
-
         when(localCassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), any(), any()))
                 .thenReturn(records);
-
-        // Invoke the method with reflection
         Method method = ProfileServiceImpl.class.getDeclaredMethod("readUserDataFromDB", String.class, List.class);
         method.setAccessible(true);
         Map<String, Object> result = (Map<String, Object>) method.invoke(locaService, "user-2", null);
-
         assertNotNull(result);
         assertEquals("test@example.com", ((Map<?, ?>) result.get(Constants.PROFILE_DETAILS)).get("email"));
     }
@@ -1307,29 +1301,23 @@ class ProfileServiceImplTest {
     @Test
     void fetchFromDatabase_leavesProfileDetailsNull_whenProfileDetailsIsNull() {
         ProfileServiceImpl locaService = new ProfileServiceImpl();
-
-        // Mock dependencies
         CassandraOperation localCassandraOperation = mock(CassandraOperation.class);
         CbServerProperties serverConfig = mock(CbServerProperties.class);
         ProjectUtil localProjectUtil = mock(ProjectUtil.class);
         CacheService localCacheService = mock(CacheService.class);
-
-        // Set fields
+        RedissonRedisDataService localRedisDataService = mock(RedissonRedisDataService.class);
         ReflectionTestUtils.setField(locaService, "cassandraOperation", localCassandraOperation);
         ReflectionTestUtils.setField(locaService, "serverConfig", serverConfig);
         ReflectionTestUtils.setField(locaService, "projectUtil", localProjectUtil);
         ReflectionTestUtils.setField(locaService, "cacheService", localCacheService);
+        ReflectionTestUtils.setField(locaService, "redisDataService", localRedisDataService);
         ReflectionTestUtils.setField(locaService, "mapper", new ObjectMapper());
-
         Map<String, Object> localRecord = new HashMap<>();
         localRecord.put(Constants.PROFILE_DETAILS, null);
         List<Map<String, Object>> records = List.of(localRecord);
-
         when(localCassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), any(), any()))
                 .thenReturn(records);
-
         Map<String, Object> result = ReflectionTestUtils.invokeMethod(locaService, "readUserDataFromDB", "user-4", null);
-
         assertNotNull(result);
         assertEquals(Map.of(), result.get(Constants.PROFILE_DETAILS));
     }
@@ -2777,94 +2765,105 @@ class ProfileServiceImplTest {
 
     @Test
     void getUserRoles_returnsRoles_whenScopesMatchRootOrgId() {
-        ProfileServiceImpl service = spy(new ProfileServiceImpl());
-        CassandraOperation cassandraOperation = mock(CassandraOperation.class);
-        ReflectionTestUtils.setField(service, "cassandraOperation", cassandraOperation);
+        ProfileServiceImpl testService = spy(new ProfileServiceImpl());
+        CassandraOperation cassandraMock = mock(CassandraOperation.class);
+        RedissonRedisDataService redisDataMock = mock(RedissonRedisDataService.class);
         ObjectMapper mapper = new ObjectMapper();
-        ReflectionTestUtils.setField(service, "mapper", mapper);
-
+        ReflectionTestUtils.setField(testService, "cassandraOperation", cassandraMock);
+        ReflectionTestUtils.setField(testService, "redisDataService", redisDataMock);
+        ReflectionTestUtils.setField(testService, "mapper", mapper);
         String userId = "user1";
         String rootOrgId = "org1";
+        when(redisDataMock.getStringList(anyString())).thenReturn(Collections.emptyList());
         Map<String, Object> userRoleObj = new HashMap<>();
         userRoleObj.put(Constants.ROLE, "admin");
         userRoleObj.put(Constants.SCOPE, List.of(Map.of(Constants.ORGANISATION_ID, rootOrgId)));
-        when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), anyList(), anyString()))
+        when(cassandraMock.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), anyList(), anyString()))
                 .thenReturn(List.of(userRoleObj));
-
-        List<String> roles = service.getUserRoles(userId, rootOrgId);
+        List<String> roles = testService.getUserRoles(userId, rootOrgId);
         assertEquals(List.of("admin"), roles);
+        verify(redisDataMock).putStringList(anyString(), eq(List.of("admin")));
     }
 
     @Test
     void getUserRoles_returnsEmpty_whenScopesDoNotMatchRootOrgId() {
-        ProfileServiceImpl service = spy(new ProfileServiceImpl());
-        CassandraOperation cassandraOperation = mock(CassandraOperation.class);
-        ReflectionTestUtils.setField(service, "cassandraOperation", cassandraOperation);
+        ProfileServiceImpl testService = spy(new ProfileServiceImpl());
+        CassandraOperation cassandraMock = mock(CassandraOperation.class);
+        RedissonRedisDataService redisDataMock = mock(RedissonRedisDataService.class);
         ObjectMapper mapper = new ObjectMapper();
-        ReflectionTestUtils.setField(service, "mapper", mapper);
-
+        ReflectionTestUtils.setField(testService, "cassandraOperation", cassandraMock);
+        ReflectionTestUtils.setField(testService, "redisDataService", redisDataMock);
+        ReflectionTestUtils.setField(testService, "mapper", mapper);
         String userId = "user1";
         String rootOrgId = "org1";
+        when(redisDataMock.getStringList(anyString())).thenReturn(Collections.emptyList());
         Map<String, Object> userRoleObj = new HashMap<>();
         userRoleObj.put(Constants.ROLE, "admin");
         userRoleObj.put(Constants.SCOPE, List.of(Map.of(Constants.ORGANISATION_ID, "otherOrg")));
-        when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), anyList(), anyString()))
+        when(cassandraMock.getRecordsByPropertiesByKey(
+                anyString(), anyString(), anyMap(), anyList(), anyString()))
                 .thenReturn(List.of(userRoleObj));
-
-        List<String> roles = service.getUserRoles(userId, rootOrgId);
+        List<String> roles = testService.getUserRoles(userId, rootOrgId);
         assertTrue(roles.isEmpty());
+        verify(redisDataMock, never()).putStringList(anyString(), anyList());
     }
 
     @Test
-    void getUserRoles_parsesScopeString_whenScopeIsString() throws Exception {
-        ProfileServiceImpl service = spy(new ProfileServiceImpl());
-        CassandraOperation cassandraOperation = mock(CassandraOperation.class);
-        ReflectionTestUtils.setField(service, "cassandraOperation", cassandraOperation);
+    void getUserRoles_parsesScopeString_whenScopeIsString() {
+        ProfileServiceImpl testService = spy(new ProfileServiceImpl());
+        CassandraOperation cassandraMock = mock(CassandraOperation.class);
+        RedissonRedisDataService redisDataService = mock(RedissonRedisDataService.class);
         ObjectMapper mapper = new ObjectMapper();
-        ReflectionTestUtils.setField(service, "mapper", mapper);
-
+        ReflectionTestUtils.setField(testService, "cassandraOperation", cassandraMock);
+        ReflectionTestUtils.setField(testService, "redisDataService", redisDataService);
+        ReflectionTestUtils.setField(testService, "mapper", mapper);
         String userId = "user1";
         String rootOrgId = "org1";
+        when(redisDataService.getStringList(anyString())).thenReturn(Collections.emptyList());
         String scopeJson = "[{\"organisationId\":\"org1\"}]";
         Map<String, Object> userRoleObj = new HashMap<>();
         userRoleObj.put(Constants.ROLE, "admin");
         userRoleObj.put(Constants.SCOPE, scopeJson);
-        when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), anyList(), anyString()))
+        when(cassandraMock.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), anyList(), anyString()))
                 .thenReturn(List.of(userRoleObj));
-
-        List<String> roles = service.getUserRoles(userId, rootOrgId);
+        List<String> roles = testService.getUserRoles(userId, rootOrgId);
         assertEquals(List.of("admin"), roles);
+        verify(redisDataService).putStringList(anyString(), eq(List.of("admin")));
     }
 
     @Test
     void getUserRoles_returnsEmpty_whenScopeStringIsInvalidJson() {
-        ProfileServiceImpl service = spy(new ProfileServiceImpl());
-        CassandraOperation cassandraOperation = mock(CassandraOperation.class);
-        ReflectionTestUtils.setField(service, "cassandraOperation", cassandraOperation);
+        ProfileServiceImpl testService = spy(new ProfileServiceImpl());
+        CassandraOperation cassandraOpMock = mock(CassandraOperation.class);
+        RedissonRedisDataService redisMock = mock(RedissonRedisDataService.class);
         ObjectMapper mapper = new ObjectMapper();
-        ReflectionTestUtils.setField(service, "mapper", mapper);
-
+        ReflectionTestUtils.setField(testService, "cassandraOperation", cassandraOpMock);
+        ReflectionTestUtils.setField(testService, "redisDataService", redisMock);
+        ReflectionTestUtils.setField(testService, "mapper", mapper);
         String userId = "user1";
         String rootOrgId = "org1";
         String invalidScopeJson = "not-a-json";
         Map<String, Object> userRoleObj = new HashMap<>();
         userRoleObj.put(Constants.ROLE, "admin");
         userRoleObj.put(Constants.SCOPE, invalidScopeJson);
-        when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), anyList(), anyString()))
+        when(redisMock.getStringList(anyString())).thenReturn(Collections.emptyList());
+        when(cassandraOpMock.getRecordsByPropertiesByKey(
+                anyString(), anyString(), anyMap(), anyList(), anyString()))
                 .thenReturn(List.of(userRoleObj));
-
-        List<String> roles = service.getUserRoles(userId, rootOrgId);
+        List<String> roles = testService.getUserRoles(userId, rootOrgId);
         assertTrue(roles.isEmpty());
+        verify(redisMock, never()).putStringList(anyString(), any());
     }
 
     @Test
     void getUserRoles_returnsDistinctRoles() {
-        ProfileServiceImpl service = spy(new ProfileServiceImpl());
-        CassandraOperation cassandraOperation = mock(CassandraOperation.class);
-        ReflectionTestUtils.setField(service, "cassandraOperation", cassandraOperation);
+        ProfileServiceImpl testService = spy(new ProfileServiceImpl());
+        CassandraOperation cassandraOpMock = mock(CassandraOperation.class);
+        RedissonRedisDataService redisDataServiceMock = mock(RedissonRedisDataService.class);
         ObjectMapper mapper = new ObjectMapper();
-        ReflectionTestUtils.setField(service, "mapper", mapper);
-
+        ReflectionTestUtils.setField(testService, "cassandraOperation", cassandraOpMock);
+        ReflectionTestUtils.setField(testService, "redisDataService", redisDataServiceMock);
+        ReflectionTestUtils.setField(testService, "mapper", mapper);
         String userId = "user1";
         String rootOrgId = "org1";
         Map<String, Object> userRoleObj1 = new HashMap<>();
@@ -2873,12 +2872,14 @@ class ProfileServiceImplTest {
         Map<String, Object> userRoleObj2 = new HashMap<>();
         userRoleObj2.put(Constants.ROLE, "admin");
         userRoleObj2.put(Constants.SCOPE, List.of(Map.of(Constants.ORGANISATION_ID, rootOrgId)));
-        when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), anyList(), anyString()))
+        when(redisDataServiceMock.getStringList(anyString())).thenReturn(Collections.emptyList());
+        when(cassandraOpMock.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), anyList(), anyString()))
                 .thenReturn(List.of(userRoleObj1, userRoleObj2));
-
-        List<String> roles = service.getUserRoles(userId, rootOrgId);
+        List<String> roles = testService.getUserRoles(userId, rootOrgId);
         assertEquals(List.of("admin"), roles);
+        verify(redisDataServiceMock).putStringList(anyString(), eq(List.of("admin")));
     }
+
     @Test
     void updateAdditionalFields_returnsUnauthorized_whenAuthTokenBlank() {
         ApiResponse response = profileService.updateAdditionalFields(Map.of(), "");
