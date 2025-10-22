@@ -23,6 +23,7 @@ import java.util.stream.Stream;
 import com.igot.cb.common.OutboundRequestHandlerServiceImpl;
 import com.igot.cb.transactional.redis.cache.RedissonRedisDataService;
 import com.igot.cb.util.*;
+import lombok.RequiredArgsConstructor;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -98,7 +99,7 @@ public class ProfileServiceImpl implements ProfileService {
         String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
 
         if (!StringUtils.equalsIgnoreCase(userIdFromToken, userId)) {
-            ProjectUtil.errorResponse(response, "Invalid UserId in the request", HttpStatus.BAD_REQUEST);
+            ProjectUtil.errorResponse(response, Constants.INVALID_USERID_IN_REQUEST, HttpStatus.BAD_REQUEST);
             return response;
         }
 
@@ -128,12 +129,12 @@ public class ProfileServiceImpl implements ProfileService {
             }else{
                 existingList.addAll(dataWithUUIDs);
             }
-            if (!saveContextData(userId, contextType, existingList)) {
+            if (saveContextData(userId, contextType, existingList)) {
                 ProjectUtil.errorResponse(response, "Failed to save data for contextType: " + contextType,
                         HttpStatus.INTERNAL_SERVER_ERROR);
                 return response;
             }
-            redisDataService.putMapList(buildCacheKey("user:extendedProfileV2", contextType, userId), existingList);
+            redisDataService.putMapList(buildCacheKey(contextType, userId), existingList);
             updateExtendedProfileAllCache(userId, contextType, existingList);
             savedDataWithUUIDs.addAll(dataWithUUIDs);
         }
@@ -151,7 +152,7 @@ public class ProfileServiceImpl implements ProfileService {
         String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
 
         if (!StringUtils.equalsIgnoreCase(userIdFromToken, userId)) {
-            ProjectUtil.errorResponse(response, "Invalid UserId in the request", HttpStatus.BAD_REQUEST);
+            ProjectUtil.errorResponse(response, Constants.INVALID_USERID_IN_REQUEST, HttpStatus.BAD_REQUEST);
             return response;
         }
 
@@ -179,12 +180,12 @@ public class ProfileServiceImpl implements ProfileService {
             if (Constants.ACHIEVEMENTS.equalsIgnoreCase(contextType)) {
                 mergeAndSortByIssuedDateOrTitle(mergedList, new ArrayList<>());
             }
-            if (!saveContextData(userId, contextType, mergedList)) {
+            if (saveContextData(userId, contextType, mergedList)) {
                 ProjectUtil.errorResponse(response, "Failed to update data for contextType: " + contextType,
                         HttpStatus.INTERNAL_SERVER_ERROR);
                 return response;
             }
-            redisDataService.putMapList(buildCacheKey("user:extendedProfileV2", contextType, userId), mergedList);
+            redisDataService.putMapList(buildCacheKey(contextType, userId), mergedList);
             updateExtendedProfileAllCache(userId, contextType, mergedList);
         }
 
@@ -201,7 +202,7 @@ public class ProfileServiceImpl implements ProfileService {
         String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
 
         if (!StringUtils.equalsIgnoreCase(userIdFromToken, userId)) {
-            ProjectUtil.errorResponse(response, "Invalid UserId in the request", HttpStatus.BAD_REQUEST);
+            ProjectUtil.errorResponse(response, Constants.INVALID_USERID_IN_REQUEST, HttpStatus.BAD_REQUEST);
             return response;
         }
 
@@ -216,13 +217,13 @@ public class ProfileServiceImpl implements ProfileService {
                     .collect(Collectors.toSet());
 
             List<Map<String, Object>> existingData = getExistingContextData(userId, contextType);
-            existingData.removeIf(e -> uuids.contains(e.get(Constants.UUID)));
-            if (!saveContextData(userId, contextType, existingData)) {
+            existingData.removeIf(e -> uuids.contains(String.valueOf(e.get(Constants.UUID))));
+            if (saveContextData(userId, contextType, existingData)) {
                 ProjectUtil.errorResponse(response, "Failed to delete data for contextType: " + contextType,
                         HttpStatus.INTERNAL_SERVER_ERROR);
                 return response;
             }
-            redisDataService.putMapList(buildCacheKey("user:extendedProfileV2", contextType, userId), existingData);
+            redisDataService.putMapList(buildCacheKey(contextType, userId), existingData);
             updateExtendedProfileAllCache(userId, contextType, existingData);
         }
 
@@ -236,11 +237,11 @@ public class ProfileServiceImpl implements ProfileService {
         ApiResponse response = ProjectUtil.createDefaultResponse("api.extendedProfile.read");
 
         if (accessTokenValidator.fetchUserIdFromAccessToken(userToken) == null) {
-            ProjectUtil.errorResponse(response, "Invalid UserId in the request", HttpStatus.BAD_REQUEST);
+            ProjectUtil.errorResponse(response, Constants.INVALID_USERID_IN_REQUEST, HttpStatus.BAD_REQUEST);
             return response;
         }
 
-        String extendedProfileSummaryKey = buildCacheKey("user:extendedProfileV2", "all", userId);
+        String extendedProfileSummaryKey = buildCacheKey("all", userId);
         try {
             Map<String, Object> cachedResult = redisDataService.getMap(extendedProfileSummaryKey);
             if (MapUtils.isNotEmpty(cachedResult)) {
@@ -259,7 +260,7 @@ public class ProfileServiceImpl implements ProfileService {
             if (!data.isEmpty()) {
                 Map<String, Object> contextSummary = new HashMap<>();
                 contextSummary.put(Constants.COUNT, data.size());
-                contextSummary.put(Constants.DATA, data.stream().limit(2).collect(Collectors.toList()));
+                contextSummary.put(Constants.DATA, data.stream().limit(2).toList());
                 result.put(contextType, contextSummary);
             }
         }
@@ -287,11 +288,11 @@ public class ProfileServiceImpl implements ProfileService {
         String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
 
         if (StringUtils.isEmpty(userIdFromToken)) {
-            ProjectUtil.errorResponse(response, "Invalid UserId in the request", HttpStatus.BAD_REQUEST);
+            ProjectUtil.errorResponse(response, Constants.INVALID_USERID_IN_REQUEST, HttpStatus.BAD_REQUEST);
             return response;
         }
 
-        String fullExtendedProfileKey = buildCacheKey("user:extendedProfileV2", contextType, userId);
+        String fullExtendedProfileKey = buildCacheKey(contextType, userId);
         List<Map<String, Object>> contextData = null;
 
         try {
@@ -330,7 +331,7 @@ public class ProfileServiceImpl implements ProfileService {
         String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
 
         if (StringUtils.isEmpty(userIdFromToken)) {
-            ProjectUtil.errorResponse(response, "Invalid or missing access token", HttpStatus.UNAUTHORIZED);
+            ProjectUtil.errorResponse(response, Constants.INVALID_OR_MISSING_ACCESS_TOKEN, HttpStatus.UNAUTHORIZED);
             return response;
         }
 
@@ -386,7 +387,7 @@ public class ProfileServiceImpl implements ProfileService {
         String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
 
         if (userIdFromToken == null) {
-            ProjectUtil.errorResponse(response, "Invalid or missing access token", HttpStatus.UNAUTHORIZED);
+            ProjectUtil.errorResponse(response, Constants.INVALID_OR_MISSING_ACCESS_TOKEN, HttpStatus.UNAUTHORIZED);
             return response;
         }
 
@@ -407,7 +408,7 @@ public class ProfileServiceImpl implements ProfileService {
                         .map(map -> map.get(Constants.COURSE_ID))
                         .filter(Objects::nonNull)
                         .map(Object::toString)
-                        .collect(Collectors.toList());
+                        .toList();
                 if (completedCourseIdList.isEmpty()) {
                     ProjectUtil.errorResponse(response, "No competencies found for user.", HttpStatus.NO_CONTENT);
                     return response;
@@ -466,34 +467,16 @@ public class ProfileServiceImpl implements ProfileService {
             query.put(Constants.CONTEXT_DATA, finalJson);
             ApiResponse insertResponse = (ApiResponse) cassandraOperation.insertRecord(Constants.KEYSPACE_SUNBIRD,
                     Constants.TABLE_USER_EXTENDED_PROFILE, query);
-            return Constants.SUCCESS.equalsIgnoreCase((String) insertResponse.get(Constants.RESPONSE));
+            return !Constants.SUCCESS.equalsIgnoreCase((String) insertResponse.get(Constants.RESPONSE));
         } catch (JsonProcessingException e) {
             log.error("Failed to serialize context data for userId: {}, contextType: {}", userId, contextType);
         }
-        return false;
+        return true;
     }
 
-    private void sortContextData(List<Map<String, Object>> dataList, String contextType) {
-        Comparator<Map<String, Object>> comparator = getSortingComparator(contextType);
-        if (comparator != null) {
-            dataList.sort(comparator.reversed());
-        }
-    }
 
-    private Comparator<Map<String, Object>> getSortingComparator(String contextType) {
-        return switch (contextType) {
-            case Constants.SERVICE_HISTORY ->
-                Comparator.comparing(map -> OffsetDateTime.parse((String) map.get(Constants.START_DATE)));
-            case Constants.EDUCATIONAL_QUALIFICATIONS ->
-                Comparator.comparing(map -> Integer.parseInt((String) map.get(Constants.START_YEAR)));
-            case Constants.ACHIVEMENTS ->
-                Comparator.comparing(map -> OffsetDateTime.parse((String) map.get(Constants.ISSUED_DATE)));
-            default -> null;
-        };
-    }
-
-    private String buildCacheKey(String prefix, String contextType, String userId) {
-        return String.join(":", prefix, contextType, userId);
+    private String buildCacheKey(String contextType, String userId) {
+        return String.join(":", Constants.USER_EXTENDED_PROFILE_V2_REDIS_KEY, contextType, userId);
     }
 
     private void updateExtendedProfileAllCache(String userId, String contextType,
@@ -615,32 +598,22 @@ public class ProfileServiceImpl implements ProfileService {
         }
     }
 
+    /**
+     * Checks the user's connection status by calling an external service and parsing the response.
+     * Builds the required headers, fetches connection data, and extracts the response into a map.
+     *
+     * @param userId        the ID of the user to check
+     * @param authToken     authentication token
+     * @param userAuthToken authentication token
+     * @return a map containing the extracted connection details; empty if no data is found
+     */
     public Map<String, Object> checkConnected(String userId, String authToken, String userAuthToken) {
-        Map<String, String> header = new HashMap<>();
-        if (StringUtils.isNotEmpty(authToken)) {
-            header.put(Constants.AUTH_TOKEN, authToken);
-        }
-        if (StringUtils.isNotEmpty(userAuthToken)) {
-            header.put(Constants.X_AUTH_TOKEN, userAuthToken);
-        }
+        Map<String, String> header = buildHeaders(authToken, userAuthToken);
         Map<String, Object> responseMap = new HashMap<>();
-        Map<String, Object> readData = (Map<String, Object>) outboundRequestHandlerService
-                .fetchUsingGetWithHeadersProfile(serverConfig.hubGraphService + serverConfig.connectionApi + userId,
-                        header);
-        if (readData != null) {
-            Object resultObj = readData.get(Constants.RESULT);
-            if (resultObj instanceof Map<?, ?> resultMap) {
-                Object responseObj = resultMap.get(Constants.RESPONSE);
-                if (responseObj instanceof Map<?, ?> responseData) {
-                    for (Map.Entry<?, ?> entry : responseData.entrySet()) {
-                        if (entry.getKey() instanceof String) {
-                            responseMap.put((String) entry.getKey(), entry.getValue());
-                        }
-                    }
-                }
-            }
+        Map<String, Object> readData = fetchConnectionData(userId, header);
+        if (MapUtils.isNotEmpty(readData)) {
+            extractResponseData(readData, responseMap);
         }
-
         return responseMap;
     }
 
@@ -1037,7 +1010,7 @@ public class ProfileServiceImpl implements ProfileService {
         String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(authToken);
 
         if (StringUtils.isBlank(authToken)) {
-            ProjectUtil.errorResponse(response, "Invalid or missing access token", HttpStatus.UNAUTHORIZED);
+            ProjectUtil.errorResponse(response, Constants.INVALID_OR_MISSING_ACCESS_TOKEN, HttpStatus.UNAUTHORIZED);
             return response;
         }
 
@@ -1063,7 +1036,7 @@ public class ProfileServiceImpl implements ProfileService {
 
             List<Map<String, Object>> restructuredData = restructureByOrgId(existingData, organisationId, customFieldValues);
 
-            if (!saveContextData(userId, contextType, restructuredData)) {
+            if (saveContextData(userId, contextType, restructuredData)) {
                 ProjectUtil.errorResponse(response, "Failed to save additional fields", HttpStatus.INTERNAL_SERVER_ERROR);
                 return response;
             }
@@ -1334,7 +1307,7 @@ public class ProfileServiceImpl implements ProfileService {
         String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(authToken);
 
         if (StringUtils.isBlank(authToken)) {
-            ProjectUtil.errorResponse(response, "Invalid or missing access token", HttpStatus.UNAUTHORIZED);
+            ProjectUtil.errorResponse(response, Constants.INVALID_OR_MISSING_ACCESS_TOKEN, HttpStatus.UNAUTHORIZED);
             return response;
         }
 
@@ -1513,5 +1486,58 @@ public class ProfileServiceImpl implements ProfileService {
         if (connectionResponse == null) return false;
         Object statusObj = connectionResponse.get(Constants.STATUS);
         return statusObj != null && Constants.APPROVED.equalsIgnoreCase(statusObj.toString());
+    }
+
+
+    /**
+     * Builds and returns a map of authorization headers using the provided tokens.
+     * Adds entries only if the tokens are not empty.
+     *
+     * @param authToken     auth token
+     * @param userAuthToken auth token
+     * @return map of HTTP headers
+     */
+    private Map<String, String> buildHeaders(String authToken, String userAuthToken) {
+        Map<String, String> headers = new HashMap<>();
+        if (StringUtils.isNotEmpty(authToken)) {
+            headers.put(Constants.AUTH_TOKEN, authToken);
+        }
+        if (StringUtils.isNotEmpty(userAuthToken)) {
+            headers.put(Constants.X_AUTH_TOKEN, userAuthToken);
+        }
+        return headers;
+    }
+
+    /**
+     * Fetches connection data for the given user from the external service using the provided headers.
+     *
+     * @param userId the ID of the user whose connection data is to be fetched
+     * @param header the HTTP headers to include in the request
+     * @return the connection data as a map, or null if no data is returned
+     */
+    private Map<String, Object> fetchConnectionData(String userId, Map<String, String> header) {
+        return (Map<String, Object>) outboundRequestHandlerService
+                .fetchUsingGetWithHeadersProfile(serverConfig.hubGraphService + serverConfig.connectionApi + userId,
+                        header);
+    }
+
+    /**
+     * Extracts response data from the given read data map and populates it into the provided response map.
+     *
+     * @param readData    the raw data map containing nested response information
+     * @param responseMap the map to populate with extracted response entries
+     */
+    private static void extractResponseData(Map<String, Object> readData, Map<String, Object> responseMap) {
+        Object resultObj = readData.get(Constants.RESULT);
+        if (resultObj instanceof Map<?, ?> resultMap) {
+            Object responseObj = resultMap.get(Constants.RESPONSE);
+            if (responseObj instanceof Map<?, ?> responseData) {
+                for (Map.Entry<?, ?> entry : responseData.entrySet()) {
+                    if (entry.getKey() instanceof String) {
+                        responseMap.put((String) entry.getKey(), entry.getValue());
+                    }
+                }
+            }
+        }
     }
 }
