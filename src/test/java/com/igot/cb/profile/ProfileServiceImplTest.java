@@ -61,6 +61,9 @@ class ProfileServiceImplTest {
     @Mock
     private EsUtilServiceImpl esUtilService;
 
+    @Mock
+    private RedissonRedisDataService redisDataService;
+
     private final String userID = "user-123";
     private final String token = "dummy-token";
     private static final String CACHE_KEY = "user:competencies:user123";
@@ -140,9 +143,7 @@ class ProfileServiceImplTest {
      void testGetExtendedProfileSummary_noCache_fallsBackToDB() throws Exception {
         String[] contextTypes = { "education" };
         List<Map<String, Object>> dataList = List.of(Map.of("field", "value"));
-
         when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
-        when(cacheService.getCache(anyString())).thenReturn(null);
         when(serverProperties.getContextType()).thenReturn(contextTypes);
         when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), isNull(), isNull()))
                 .thenReturn(List.of(Map.of(Constants.CONTEXT_DATA, "[{\"field\":\"value\"}]")));
@@ -246,16 +247,12 @@ class ProfileServiceImplTest {
     }
 
     @Test
-     void testReadFullExtendedProfile_fromCache_success() throws Exception {
+     void testReadFullExtendedProfile_fromCache_success() {
         String localContextType = "education";
         List<Map<String, Object>> data = List.of(Map.of("degree", "MSc"));
-
         when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
-        when(cacheService.getCache(anyString())).thenReturn("[{'degree':'MSc'}]");
-        when(projectUtil.parseListOfMap(anyString())).thenReturn(data);
-
+        when(redisDataService.getMapList(anyString())).thenReturn(data);
         ApiResponse response = profileService.readFullExtendedProfile(userID, localContextType, token);
-
         assertEquals(HttpStatus.OK, response.getResponseCode());
         assertNotNull(response.get(Constants.RESPONSE));
     }
@@ -365,44 +362,38 @@ class ProfileServiceImplTest {
     }
 
     @Test
-    void testExtendedProfile_cacheHit() throws Exception {
-        when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
-        String cachedJson = "{\"contextA\":{\"count\":3,\"data\":[{\"a\":1},{\"b\":2},{\"c\":3}]}}";
-
-        String redisKey = "user:extendedProfile:all:user-123"; // Correct key
-        when(cacheService.getCache(redisKey)).thenReturn(cachedJson);
-
-        Map<String, Object> fullMap = Map.of("contextA", Map.of(
-                "count", 3,
-                "data", List.of(
-                        Map.of("a", 1),
-                        Map.of("b", 2),
-                        Map.of("c", 3)
+    void testExtendedProfile_cacheHit() {
+        String userId = "user-123";
+        String userToken = "valid-token";
+        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userId);
+        String redisKey = "user:extendedProfileV2:all:" + userId;
+        Map<String, Object> cachedMap = Map.of(
+                "contextA", Map.of(
+                        "count", 3,
+                        "data", List.of(
+                                Map.of("a", 1),
+                                Map.of("b", 2),
+                                Map.of("c", 3)
+                        )
                 )
-        ));
-        when(objectMapper.readValue(cachedJson, Map.class)).thenReturn(fullMap);
-
-        ApiResponse response = profileService.getExtendedProfileSummary(userID, token);
-
+        );
+        when(redisDataService.getMap(redisKey)).thenReturn(cachedMap);
+        ApiResponse response = profileService.getExtendedProfileSummary(userId, userToken);
         assertEquals(HttpStatus.OK, response.getResponseCode());
         assertNotNull(response.get(Constants.RESPONSE));
+        verify(redisDataService, times(1)).getMap(redisKey);
     }
 
     @Test
     void testExtendedProfile_cacheWriteFails() throws Exception {
         when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
-        when(cacheService.getCache(CACHE_KEY)).thenReturn(null);
         when(serverProperties.getContextType()).thenReturn(contextType);
-
         String contextJson = "[{\"a\":1}]";
         List<Map<String, Object>> records = List.of(Map.of(Constants.CONTEXT_DATA, contextJson));
         when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
                 .thenReturn(records);
-
         when(projectUtil.parseListOfMap(contextJson)).thenReturn(List.of(Map.of("a", 1)));
-
         ApiResponse response = profileService.getExtendedProfileSummary(userID, token);
-
         assertEquals(HttpStatus.OK, response.getResponseCode());
         assertNotNull(response.get(Constants.RESPONSE));
     }
@@ -410,7 +401,6 @@ class ProfileServiceImplTest {
     @Test
     void testExtendedProfile_emptyData() {
         when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
-        when(cacheService.getCache(CACHE_KEY)).thenReturn(null);
         when(serverProperties.getContextType()).thenReturn(contextType);
         when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
                 .thenReturn(Collections.emptyList());
@@ -424,24 +414,25 @@ class ProfileServiceImplTest {
     @Test
     void testExtendedProfile_cacheError_thenCassandraData() throws Exception {
         when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
-        when(cacheService.getCache(CACHE_KEY)).thenThrow(new RuntimeException("Simulated"));
-
+        String extendedProfileSummaryKey = "user:extendedProfileV2:all:" + userID;
+        when(redisDataService.getMap(extendedProfileSummaryKey)).thenThrow(new RuntimeException("Simulated"));
         when(serverProperties.getContextType()).thenReturn(contextType);
-
         String contextJson = "[{\"x\":\"1\"},{\"y\":\"2\"}]";
         List<Map<String, Object>> dbRecords = List.of(Map.of(Constants.CONTEXT_DATA, contextJson));
         when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
                 .thenReturn(dbRecords);
-
         List<Map<String, Object>> parsed = List.of(Map.of("x", "1"), Map.of("y", "2"));
         when(projectUtil.parseListOfMap(contextJson)).thenReturn(parsed);
-
-        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
-
         ApiResponse response = profileService.getExtendedProfileSummary(userID, token);
-
         assertEquals(HttpStatus.OK, response.getResponseCode());
-        assertNotNull(response.get(Constants.RESPONSE));
+        Map<String, Object> result = (Map<String, Object>) response.get(Constants.RESPONSE);
+        assertNotNull(result);
+        assertEquals(userID, result.get(Constants.USERID_KEY));
+        assertTrue(result.containsKey(contextType[0]));
+        Map<String, Object> ctx = (Map<String, Object>) result.get(contextType[0]);
+        assertEquals(2, ctx.get(Constants.COUNT));
+        List<?> dataList = (List<?>) ctx.get(Constants.DATA);
+        assertEquals(2, dataList.size());
     }
 
     @Test
@@ -455,49 +446,13 @@ class ProfileServiceImplTest {
     }
 
     @Test
-    void testCacheHit() throws Exception {
-        String cachedJson = "[{\"data\": \"test\"}]";
-        when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
-        when(cacheService.getCache(REDIS_KEY)).thenReturn(cachedJson);
-
-        List<Map<String, Object>> contextList = List.of(Map.of("data", "test"));
-        when(projectUtil.parseListOfMap(cachedJson)).thenReturn(contextList);
-
-        ApiResponse response = profileService.readFullExtendedProfile(userID, Arrays.toString(contextType), token);
-
-        assertEquals(HttpStatus.NO_CONTENT, response.getResponseCode());
-        assertEquals("No data found for user.", response.getParams().getErrMsg());
-    }
-
-    @Test
-    void testCacheMiss_thenFetchFromCassandra_success() throws Exception {
-        when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
-        when(cacheService.getCache(REDIS_KEY)).thenReturn(null);
-
-        String json = "[{\"data\": \"test\"}]";
-        Map<String, Object> cassandraRow = Map.of(Constants.CONTEXT_DATA, json);
-        when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
-                .thenReturn(List.of(cassandraRow));
-
-        List<Map<String, Object>> parsedList = List.of(Map.of("data", "test"));
-        when(projectUtil.parseListOfMap(json)).thenReturn(parsedList);
-        when(objectMapper.writeValueAsString(parsedList)).thenReturn(json);
-
-        ApiResponse response = profileService.readFullExtendedProfile(userID, Arrays.toString(contextType), token);
-
-        assertEquals(HttpStatus.OK, response.getResponseCode());
-        assertEquals(parsedList.size(), ((Map<?, ?>) response.getResult().get(Constants.RESPONSE)).get(Constants.COUNT));
-    }
-
-    @Test
     void testCacheMiss_thenFetchFromCassandra_emptyResult() {
         when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
-        when(cacheService.getCache(REDIS_KEY)).thenReturn(null);
+        when(redisDataService.getMapList(REDIS_KEY)).thenReturn(null);
         when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
                 .thenReturn(Collections.emptyList());
-
-        ApiResponse response = profileService.readFullExtendedProfile(userID, Arrays.toString(contextType), token);
-
+        String ctx = contextType[0];
+        ApiResponse response = profileService.readFullExtendedProfile(userID, ctx, token);
         assertEquals(HttpStatus.NO_CONTENT, response.getResponseCode());
         assertEquals(Constants.FAILED, response.getParams().getStatus());
     }
@@ -505,41 +460,35 @@ class ProfileServiceImplTest {
     @Test
     void testParseListOfMapException() throws Exception {
         when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
-        when(cacheService.getCache(REDIS_KEY)).thenReturn("[invalid_json]");
-        when(projectUtil.parseListOfMap("[invalid_json]")).thenThrow(new IOException("fail"));
-
-        // fallback to Cassandra
+        lenient().when(cacheService.getCache(REDIS_KEY)).thenReturn("[invalid_json]");
+        lenient().when(projectUtil.parseListOfMap("[invalid_json]")).thenThrow(new IOException("fail"));
         String json = "[{\"data\": \"test\"}]";
         Map<String, Object> cassandraRow = Map.of(Constants.CONTEXT_DATA, json);
-        when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
+        lenient().when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
                 .thenReturn(List.of(cassandraRow));
-        when(projectUtil.parseListOfMap(json)).thenReturn(List.of(Map.of("data", "test")));
-        when(objectMapper.writeValueAsString(any())).thenThrow(new RuntimeException("fail"));
-
+        lenient().when(projectUtil.parseListOfMap(json)).thenReturn(List.of(Map.of("data", "test")));
+        lenient().when(objectMapper.writeValueAsString(any())).thenThrow(new RuntimeException("fail"));
         ApiResponse response = profileService.readFullExtendedProfile(userID, Arrays.toString(contextType), token);
-
         assertEquals(HttpStatus.OK, response.getResponseCode());
     }
 
     @Test
-    void testLocationDetailsBranch() {
+    void testLocationDetailsBranch() throws Exception {
         String localContextType = Constants.LOCATION_DETAILS;
         String json = "[{\"location\": \"India\"}]";
-
+        List<Map<String, Object>> parsedList = List.of(Map.of("location", "India"));
         when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
-        when(cacheService.getCache(any())).thenReturn(null);
+        when(redisDataService.getMapList(any())).thenReturn(null);
         when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
                 .thenReturn(List.of(Map.of(Constants.CONTEXT_DATA, json)));
-        try {
-            lenient().when(projectUtil.parseListOfMap(json)).thenReturn(List.of(Map.of("location", "India")));
-            lenient().when(objectMapper.writeValueAsString(any())).thenReturn(json);
-        } catch (Exception e) {
-            fail("Should not throw exception");
-        }
-
+        when(projectUtil.parseListOfMap(json)).thenReturn(parsedList);
         ApiResponse response = profileService.readFullExtendedProfile(userID, localContextType, token);
         assertEquals(HttpStatus.OK, response.getResponseCode());
-        assertTrue(response.getResult().get(Constants.RESPONSE) instanceof Map);
+        assertInstanceOf(Map.class, response.getResult().get(Constants.RESPONSE));
+        Map<?, ?> responseMap = (Map<?, ?>) response.getResult().get(Constants.RESPONSE);
+        assertEquals("India", responseMap.get("location"));
+        verify(cassandraOperation, times(1)).getRecordsByPropertiesByKey(any(), any(), any(), any(), any());
+        verify(redisDataService, times(1)).getMapList(any());
     }
 
     @Test
@@ -1039,11 +988,12 @@ class ProfileServiceImplTest {
                 new ArrayList<>(List.of(new HashMap<>(Map.of("field", "value"))))
         );
         when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userId);
-        doThrow(new RuntimeException("Cache error")).when(cacheService).putCache(anyString(), any());
+        when(redisDataService.getMap(anyString())).thenReturn(Collections.emptyMap());
+        doThrow(new RuntimeException("Cache error")).when(redisDataService).putMap(anyString(), any());
         ApiResponse response = profileService.getExtendedProfileSummary(userId, userToken);
         assertEquals(HttpStatus.OK, response.getResponseCode());
         assertNotNull(response.get(Constants.RESPONSE));
-        verify(cacheService).putCache(anyString(), any());
+        verify(redisDataService).putMap(anyString(), any());
     }
 
     @Test
@@ -1084,19 +1034,19 @@ class ProfileServiceImplTest {
     }
 
     @Test
-    void testReadFullExtendedProfile_NoContextData_ReturnsNoContent() throws Exception {
+    void testReadFullExtendedProfile_NoContextData_ReturnsNoContent() {
         String userId = "user-123";
         String userToken = "valid-token";
         String localContextType = "education";
-        String redisKey = "user:extendedProfile:" + localContextType + ":" + userId;
         when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userId);
-        when(cacheService.getCache(redisKey)).thenReturn(null);
-        when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), any(), any()))
-                .thenReturn(null); // or Collections.emptyList()
-        lenient().when(projectUtil.parseListOfMap(anyString())).thenReturn(Collections.emptyList());
+        when(redisDataService.getMapList(anyString())).thenReturn(null);
+        when(cassandraOperation.getRecordsByPropertiesByKey(
+                anyString(), anyString(), anyMap(), any(), any())
+        ).thenReturn(null);
         ApiResponse response = profileService.readFullExtendedProfile(userId, localContextType, userToken);
         assertEquals(HttpStatus.NO_CONTENT, response.getResponseCode());
         assertEquals("No data found for user.", response.getParams().getErrMsg());
+        verify(redisDataService, never()).putMapList(anyString(), any());
     }
 
 

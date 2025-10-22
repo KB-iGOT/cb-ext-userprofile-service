@@ -34,6 +34,9 @@ class RedissonRedisDataServiceTest {
     @Mock
     private RList<String> rList;
 
+    @Mock
+    private RList<Map<String, Object>> rMapList;
+
     @InjectMocks
     private RedissonRedisDataService redisDataService;
 
@@ -59,7 +62,7 @@ class RedissonRedisDataServiceTest {
         when(redissonClient.<String, Object>getMap(redisKey)).thenReturn(rMap);
         redisDataService.putMap(redisKey, data);
         verify(rMap).putAll(data);
-        verify(rKeys).expire(redisKey, 5000L, TimeUnit.MILLISECONDS);
+        verify(rKeys).expire(redisKey, 5000L, TimeUnit.SECONDS);
     }
 
     @Test
@@ -77,7 +80,7 @@ class RedissonRedisDataServiceTest {
         redisDataService.putMap(redisKey, data);
         verify(rKeys).delete(redisKey);
         verify(rMap).putAll(data);
-        verify(rKeys).expire(redisKey, 5000L, TimeUnit.MILLISECONDS);
+        verify(rKeys).expire(redisKey, 5000L, TimeUnit.SECONDS);
     }
 
 
@@ -101,7 +104,7 @@ class RedissonRedisDataServiceTest {
         redisDataService.putStringList(redisKey, list);
         verify(rList).clear();
         verify(rList).addAll(list);
-        verify(rKeys).expire(redisKey, 5000L, TimeUnit.MILLISECONDS);
+        verify(rKeys).expire(redisKey, 5000L, TimeUnit.SECONDS);
     }
 
     @Test
@@ -120,7 +123,7 @@ class RedissonRedisDataServiceTest {
         verify(rKeys).delete(redisKey);
         verify(rList).clear();
         verify(rList).addAll(list);
-        verify(rKeys).expire(redisKey, 5000L, TimeUnit.MILLISECONDS);
+        verify(rKeys).expire(redisKey, 5000L, TimeUnit.SECONDS);
     }
 
     @Test
@@ -139,6 +142,76 @@ class RedissonRedisDataServiceTest {
         when(redissonClient.<String>getList("list:key")).thenReturn(rList);
         when(rList.isEmpty()).thenReturn(true);
         List<String> result = redisDataService.getStringList("list:key");
+        assertTrue(result.isEmpty());
+    }
+
+
+    @Test
+    void testPutMapList_WithValidData_ShouldStoreInRedis() {
+        String redisKey = "maplist:key";
+        List<Map<String, Object>> list = List.of(Map.of("id", 1, "name", "John"));
+
+        when(rKeys.getType(redisKey)).thenReturn(RType.LIST);
+        when(redissonClient.<Map<String, Object>>getList(redisKey)).thenReturn(rMapList);
+
+        redisDataService.putMapList(redisKey, list);
+
+        verify(rMapList).clear();
+        verify(rMapList).addAll(list);
+        verify(rKeys).expire(redisKey, 5000L, TimeUnit.SECONDS);
+    }
+
+    @Test
+    void testPutMapList_WithEmptyList_ShouldDoNothing() {
+        redisDataService.putMapList("maplist:key", Collections.emptyList());
+        verifyNoInteractions(rKeys, rMapList);
+    }
+
+    @Test
+    void testPutMapList_WithWrongType_ShouldDeleteAndRecreate() {
+        String redisKey = "maplist:key";
+        List<Map<String, Object>> list = List.of(Map.of("foo", "bar"));
+
+        when(rKeys.getType(redisKey)).thenReturn(RType.MAP);
+        when(redissonClient.<Map<String, Object>>getList(redisKey)).thenReturn(rMapList);
+
+        redisDataService.putMapList(redisKey, list);
+
+        verify(rKeys).delete(redisKey);
+        verify(rMapList).clear();
+        verify(rMapList).addAll(list);
+        verify(rKeys).expire(redisKey, 5000L, TimeUnit.SECONDS);
+    }
+
+    @Test
+    void testGetMapList_ShouldReturnListFromRedis() {
+        String redisKey = "maplist:key";
+        List<Map<String, Object>> expected = List.of(Map.of("id", 1));
+
+        when(redissonClient.<Map<String, Object>>getList(redisKey)).thenReturn(rMapList);
+        when(rMapList.isEmpty()).thenReturn(false);
+        when(rMapList.readAll()).thenReturn(expected);
+
+        List<Map<String, Object>> result = redisDataService.getMapList(redisKey);
+
+        assertEquals(expected, result);
+        verify(rMapList).readAll();
+    }
+
+    @Test
+    void testGetMapList_WhenEmpty_ShouldReturnEmptyList() {
+        when(redissonClient.<Map<String, Object>>getList("maplist:key")).thenReturn(rMapList);
+        when(rMapList.isEmpty()).thenReturn(true);
+
+        List<Map<String, Object>> result = redisDataService.getMapList("maplist:key");
+
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void testGetMapList_WhenNull_ShouldReturnEmptyList() {
+        when(redissonClient.<Map<String, Object>>getList("maplist:key")).thenReturn(null);
+        List<Map<String, Object>> result = redisDataService.getMapList("maplist:key");
         assertTrue(result.isEmpty());
     }
 }

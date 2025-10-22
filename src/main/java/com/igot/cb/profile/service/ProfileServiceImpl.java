@@ -128,15 +128,12 @@ public class ProfileServiceImpl implements ProfileService {
             }else{
                 existingList.addAll(dataWithUUIDs);
             }
-
-            //sortContextData(existingList, contextType);
             if (!saveContextData(userId, contextType, existingList)) {
                 ProjectUtil.errorResponse(response, "Failed to save data for contextType: " + contextType,
                         HttpStatus.INTERNAL_SERVER_ERROR);
                 return response;
             }
-
-            cacheService.putCache(buildCacheKey("user:extendedProfile", contextType, userId), existingList);
+            redisDataService.putMapList(buildCacheKey("user:extendedProfileV2", contextType, userId), existingList);
             updateExtendedProfileAllCache(userId, contextType, existingList);
             savedDataWithUUIDs.addAll(dataWithUUIDs);
         }
@@ -178,10 +175,7 @@ public class ProfileServiceImpl implements ProfileService {
                     return response;
                 }
             }
-
             List<Map<String, Object>> mergedList = new ArrayList<>(dataMap.values());
-            //sortContextData(mergedList, contextType);
-
             if (Constants.ACHIEVEMENTS.equalsIgnoreCase(contextType)) {
                 mergeAndSortByIssuedDateOrTitle(mergedList, new ArrayList<>());
             }
@@ -190,8 +184,7 @@ public class ProfileServiceImpl implements ProfileService {
                         HttpStatus.INTERNAL_SERVER_ERROR);
                 return response;
             }
-
-            cacheService.putCache(buildCacheKey("user:extendedProfile", contextType, userId), mergedList);
+            redisDataService.putMapList(buildCacheKey("user:extendedProfileV2", contextType, userId), mergedList);
             updateExtendedProfileAllCache(userId, contextType, mergedList);
         }
 
@@ -224,15 +217,12 @@ public class ProfileServiceImpl implements ProfileService {
 
             List<Map<String, Object>> existingData = getExistingContextData(userId, contextType);
             existingData.removeIf(e -> uuids.contains(e.get(Constants.UUID)));
-            //sortContextData(existingData, contextType);
-
             if (!saveContextData(userId, contextType, existingData)) {
                 ProjectUtil.errorResponse(response, "Failed to delete data for contextType: " + contextType,
                         HttpStatus.INTERNAL_SERVER_ERROR);
                 return response;
             }
-
-            cacheService.putCache(buildCacheKey("user:extendedProfile", contextType, userId), existingData);
+            redisDataService.putMapList(buildCacheKey("user:extendedProfileV2", contextType, userId), existingData);
             updateExtendedProfileAllCache(userId, contextType, existingData);
         }
 
@@ -250,11 +240,10 @@ public class ProfileServiceImpl implements ProfileService {
             return response;
         }
 
-        String redisKey = buildCacheKey("user:extendedProfile", "all", userId);
+        String extendedProfileSummaryKey = buildCacheKey("user:extendedProfileV2", "all", userId);
         try {
-            String cachedJson = cacheService.getCache(redisKey);
-            if (cachedJson != null) {
-                Map<String, Object> cachedResult = mapper.readValue(cachedJson, Map.class);
+            Map<String, Object> cachedResult = redisDataService.getMap(extendedProfileSummaryKey);
+            if (MapUtils.isNotEmpty(cachedResult)) {
                 Map<String, Object> limitedResult = buildLimitedSummary(cachedResult);
                 response.setResponseCode(HttpStatus.OK);
                 response.put(Constants.RESPONSE, limitedResult);
@@ -282,7 +271,7 @@ public class ProfileServiceImpl implements ProfileService {
 
         result.put(Constants.USERID_KEY, userId);
         try {
-            cacheService.putCache(redisKey, result);
+            redisDataService.putMap(extendedProfileSummaryKey, result);
         } catch (Exception e) {
             log.warn("Failed to cache extended profile summary for userId {}: {}", userId, e.getMessage());
         }
@@ -302,28 +291,25 @@ public class ProfileServiceImpl implements ProfileService {
             return response;
         }
 
-        String redisKey = buildCacheKey("user:extendedProfile", contextType, userId);
+        String fullExtendedProfileKey = buildCacheKey("user:extendedProfileV2", contextType, userId);
         List<Map<String, Object>> contextData = null;
 
         try {
-            String cachedJson = cacheService.getCache(redisKey);
-            if (cachedJson != null) {
-                contextData = projectUtil.parseListOfMap(cachedJson);
-            }
+            contextData=redisDataService.getMapList(fullExtendedProfileKey);
         } catch (Exception e) {
-            log.warn("Error reading from cache for key {}: {}", redisKey, e.getMessage());
+            log.warn("Error reading from cache for key {}: {}", fullExtendedProfileKey, e.getMessage());
         }
 
-        if (contextData == null) {
+        if (CollectionUtils.isEmpty(contextData )) {
             contextData = getExistingContextData(userId, contextType);
             if (contextData == null || contextData.isEmpty()) {
                 ProjectUtil.errorResponse(response, "No data found for user.", HttpStatus.NO_CONTENT);
                 return response;
             }
             try {
-                cacheService.putCache(redisKey, contextData);
+                redisDataService.putMapList(fullExtendedProfileKey,contextData);
             } catch (Exception e) {
-                log.warn("Failed to cache data for key {}: {}", redisKey, e.getMessage());
+                log.warn("Failed to cache data for key {}: {}", fullExtendedProfileKey, e.getMessage());
             }
         }
 
