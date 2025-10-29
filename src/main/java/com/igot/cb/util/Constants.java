@@ -456,6 +456,9 @@ public class Constants {
     public static final String AUTH_TOKEN = "Authorization";
     public static final String APPROVED = "Approved";
     public static final String USER_EXTERNAL_COURSE_ENROLMENTS = "user_external_enrolments";
+    public static final String INVALID_USERID_IN_REQUEST="Invalid UserId in the request";
+    public static final String USER_EXTENDED_PROFILE_V2_REDIS_KEY="user:extendedProfileV2";
+    public static final String INVALID_OR_MISSING_ACCESS_TOKEN="Invalid or missing access token";
     private Constants() {
     }
 }

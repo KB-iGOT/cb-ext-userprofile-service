@@ -21,7 +21,9 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import com.igot.cb.common.OutboundRequestHandlerServiceImpl;
+import com.igot.cb.transactional.redis.cache.RedissonRedisDataService;
 import com.igot.cb.util.*;
+import lombok.RequiredArgsConstructor;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -84,6 +86,9 @@ public class ProfileServiceImpl implements ProfileService {
     @Autowired
     OutboundRequestHandlerServiceImpl outboundRequestHandlerService;
 
+    @Autowired
+    private RedissonRedisDataService redisDataService;
+
     // -------------------- Service METHODS --------------------
 
     @Override
@@ -94,7 +99,7 @@ public class ProfileServiceImpl implements ProfileService {
         String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
 
         if (!StringUtils.equalsIgnoreCase(userIdFromToken, userId)) {
-            ProjectUtil.errorResponse(response, "Invalid UserId in the request", HttpStatus.BAD_REQUEST);
+            ProjectUtil.errorResponse(response, Constants.INVALID_USERID_IN_REQUEST, HttpStatus.BAD_REQUEST);
             return response;
         }
 
@@ -124,15 +129,12 @@ public class ProfileServiceImpl implements ProfileService {
             }else{
                 existingList.addAll(dataWithUUIDs);
             }
-
-            //sortContextData(existingList, contextType);
-            if (!saveContextData(userId, contextType, existingList)) {
+            if (saveContextData(userId, contextType, existingList)) {
                 ProjectUtil.errorResponse(response, "Failed to save data for contextType: " + contextType,
                         HttpStatus.INTERNAL_SERVER_ERROR);
                 return response;
             }
-
-            cacheService.putCache(buildCacheKey("user:extendedProfile", contextType, userId), existingList);
+            redisDataService.putMapList(buildCacheKey(contextType, userId), existingList);
             updateExtendedProfileAllCache(userId, contextType, existingList);
             savedDataWithUUIDs.addAll(dataWithUUIDs);
         }
@@ -150,7 +152,7 @@ public class ProfileServiceImpl implements ProfileService {
         String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
 
         if (!StringUtils.equalsIgnoreCase(userIdFromToken, userId)) {
-            ProjectUtil.errorResponse(response, "Invalid UserId in the request", HttpStatus.BAD_REQUEST);
+            ProjectUtil.errorResponse(response, Constants.INVALID_USERID_IN_REQUEST, HttpStatus.BAD_REQUEST);
             return response;
         }
 
@@ -174,20 +176,16 @@ public class ProfileServiceImpl implements ProfileService {
                     return response;
                 }
             }
-
             List<Map<String, Object>> mergedList = new ArrayList<>(dataMap.values());
-            //sortContextData(mergedList, contextType);
-
             if (Constants.ACHIEVEMENTS.equalsIgnoreCase(contextType)) {
                 mergeAndSortByIssuedDateOrTitle(mergedList, new ArrayList<>());
             }
-            if (!saveContextData(userId, contextType, mergedList)) {
+            if (saveContextData(userId, contextType, mergedList)) {
                 ProjectUtil.errorResponse(response, "Failed to update data for contextType: " + contextType,
                         HttpStatus.INTERNAL_SERVER_ERROR);
                 return response;
             }
-
-            cacheService.putCache(buildCacheKey("user:extendedProfile", contextType, userId), mergedList);
+            redisDataService.putMapList(buildCacheKey(contextType, userId), mergedList);
             updateExtendedProfileAllCache(userId, contextType, mergedList);
         }
 
@@ -204,7 +202,7 @@ public class ProfileServiceImpl implements ProfileService {
         String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
 
         if (!StringUtils.equalsIgnoreCase(userIdFromToken, userId)) {
-            ProjectUtil.errorResponse(response, "Invalid UserId in the request", HttpStatus.BAD_REQUEST);
+            ProjectUtil.errorResponse(response, Constants.INVALID_USERID_IN_REQUEST, HttpStatus.BAD_REQUEST);
             return response;
         }
 
@@ -219,16 +217,13 @@ public class ProfileServiceImpl implements ProfileService {
                     .collect(Collectors.toSet());
 
             List<Map<String, Object>> existingData = getExistingContextData(userId, contextType);
-            existingData.removeIf(e -> uuids.contains(e.get(Constants.UUID)));
-            //sortContextData(existingData, contextType);
-
-            if (!saveContextData(userId, contextType, existingData)) {
+            existingData.removeIf(e -> uuids.contains(String.valueOf(e.get(Constants.UUID))));
+            if (saveContextData(userId, contextType, existingData)) {
                 ProjectUtil.errorResponse(response, "Failed to delete data for contextType: " + contextType,
                         HttpStatus.INTERNAL_SERVER_ERROR);
                 return response;
             }
-
-            cacheService.putCache(buildCacheKey("user:extendedProfile", contextType, userId), existingData);
+            redisDataService.putMapList(buildCacheKey(contextType, userId), existingData);
             updateExtendedProfileAllCache(userId, contextType, existingData);
         }
 
@@ -242,15 +237,14 @@ public class ProfileServiceImpl implements ProfileService {
         ApiResponse response = ProjectUtil.createDefaultResponse("api.extendedProfile.read");
 
         if (accessTokenValidator.fetchUserIdFromAccessToken(userToken) == null) {
-            ProjectUtil.errorResponse(response, "Invalid UserId in the request", HttpStatus.BAD_REQUEST);
+            ProjectUtil.errorResponse(response, Constants.INVALID_USERID_IN_REQUEST, HttpStatus.BAD_REQUEST);
             return response;
         }
 
-        String redisKey = buildCacheKey("user:extendedProfile", "all", userId);
+        String extendedProfileSummaryKey = buildCacheKey("all", userId);
         try {
-            String cachedJson = cacheService.getCache(redisKey);
-            if (cachedJson != null) {
-                Map<String, Object> cachedResult = mapper.readValue(cachedJson, Map.class);
+            Map<String, Object> cachedResult = redisDataService.getMap(extendedProfileSummaryKey);
+            if (MapUtils.isNotEmpty(cachedResult)) {
                 Map<String, Object> limitedResult = buildLimitedSummary(cachedResult);
                 response.setResponseCode(HttpStatus.OK);
                 response.put(Constants.RESPONSE, limitedResult);
@@ -266,7 +260,7 @@ public class ProfileServiceImpl implements ProfileService {
             if (!data.isEmpty()) {
                 Map<String, Object> contextSummary = new HashMap<>();
                 contextSummary.put(Constants.COUNT, data.size());
-                contextSummary.put(Constants.DATA, data.stream().limit(2).collect(Collectors.toList()));
+                contextSummary.put(Constants.DATA, data.stream().limit(2).toList());
                 result.put(contextType, contextSummary);
             }
         }
@@ -278,7 +272,7 @@ public class ProfileServiceImpl implements ProfileService {
 
         result.put(Constants.USERID_KEY, userId);
         try {
-            cacheService.putCache(redisKey, result);
+            redisDataService.putMap(extendedProfileSummaryKey, result);
         } catch (Exception e) {
             log.warn("Failed to cache extended profile summary for userId {}: {}", userId, e.getMessage());
         }
@@ -293,33 +287,30 @@ public class ProfileServiceImpl implements ProfileService {
         ApiResponse response = ProjectUtil.createDefaultResponse("api.extendedProfile.read");
         String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
 
-        if (userIdFromToken == null) {
-            ProjectUtil.errorResponse(response, "Invalid UserId in the request", HttpStatus.BAD_REQUEST);
+        if (StringUtils.isEmpty(userIdFromToken)) {
+            ProjectUtil.errorResponse(response, Constants.INVALID_USERID_IN_REQUEST, HttpStatus.BAD_REQUEST);
             return response;
         }
 
-        String redisKey = buildCacheKey("user:extendedProfile", contextType, userId);
+        String fullExtendedProfileKey = buildCacheKey(contextType, userId);
         List<Map<String, Object>> contextData = null;
 
         try {
-            String cachedJson = cacheService.getCache(redisKey);
-            if (cachedJson != null) {
-                contextData = projectUtil.parseListOfMap(cachedJson);
-            }
+            contextData=redisDataService.getMapList(fullExtendedProfileKey);
         } catch (Exception e) {
-            log.warn("Error reading from cache for key {}: {}", redisKey, e.getMessage());
+            log.warn("Error reading from cache for key {}: {}", fullExtendedProfileKey, e.getMessage());
         }
 
-        if (contextData == null) {
+        if (CollectionUtils.isEmpty(contextData )) {
             contextData = getExistingContextData(userId, contextType);
             if (contextData == null || contextData.isEmpty()) {
                 ProjectUtil.errorResponse(response, "No data found for user.", HttpStatus.NO_CONTENT);
                 return response;
             }
             try {
-                cacheService.putCache(redisKey, contextData);
+                redisDataService.putMapList(fullExtendedProfileKey,contextData);
             } catch (Exception e) {
-                log.warn("Failed to cache data for key {}: {}", redisKey, e.getMessage());
+                log.warn("Failed to cache data for key {}: {}", fullExtendedProfileKey, e.getMessage());
             }
         }
 
@@ -339,20 +330,16 @@ public class ProfileServiceImpl implements ProfileService {
         ApiResponse response = ProjectUtil.createDefaultResponse("api.getBasicProfile.read");
         String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
 
-        if (userIdFromToken == null) {
-            ProjectUtil.errorResponse(response, "Invalid or missing access token", HttpStatus.UNAUTHORIZED);
+        if (StringUtils.isEmpty(userIdFromToken)) {
+            ProjectUtil.errorResponse(response, Constants.INVALID_OR_MISSING_ACCESS_TOKEN, HttpStatus.UNAUTHORIZED);
             return response;
         }
 
         boolean isSelfUser = userIdFromToken.equalsIgnoreCase(userId);
-        String cacheKey = Constants.USER + ":basicProfile:" + userId;
-
+        String cacheKey = Constants.USER + ":basicProfileV2:" + userId;
         try {
-            String cachedJson = cacheService.getCache(cacheKey);
-            Map<String, Object> userProfile;
-            if (StringUtils.isNotEmpty(cachedJson)) {
-                userProfile = mapper.readValue(cachedJson, new TypeReference<Map<String, Object>>() {
-                });
+            Map<String, Object> userProfile = redisDataService.getMap(cacheKey);
+            if (MapUtils.isNotEmpty(userProfile)) {
                 List<String> cachedKeyList = new ArrayList<>(userProfile.keySet());
                 List<String> differenceList = serverConfig.getBasicProfileFields().stream()
                         .filter(key -> !cachedKeyList.contains(key)).toList();
@@ -365,7 +352,7 @@ public class ProfileServiceImpl implements ProfileService {
             } else {
                 userProfile = readUserDataFromDB(userId, null);
             }
-            UserUtility.decryptSpecificUserData(userProfile, Arrays.asList(Constants.USERNAME_LOWERCASE));
+            UserUtility.decryptSpecificUserData(userProfile, List.of(Constants.USERNAME_LOWERCASE));
             if (MapUtils.isEmpty(userProfile)) {
                 response.setResponseCode(HttpStatus.NOT_FOUND);
                 response.put(Constants.RESPONSE, Collections.emptyMap());
@@ -400,7 +387,7 @@ public class ProfileServiceImpl implements ProfileService {
         String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
 
         if (userIdFromToken == null) {
-            ProjectUtil.errorResponse(response, "Invalid or missing access token", HttpStatus.UNAUTHORIZED);
+            ProjectUtil.errorResponse(response, Constants.INVALID_OR_MISSING_ACCESS_TOKEN, HttpStatus.UNAUTHORIZED);
             return response;
         }
 
@@ -421,7 +408,7 @@ public class ProfileServiceImpl implements ProfileService {
                         .map(map -> map.get(Constants.COURSE_ID))
                         .filter(Objects::nonNull)
                         .map(Object::toString)
-                        .collect(Collectors.toList());
+                        .toList();
                 if (completedCourseIdList.isEmpty()) {
                     ProjectUtil.errorResponse(response, "No competencies found for user.", HttpStatus.NO_CONTENT);
                     return response;
@@ -480,50 +467,28 @@ public class ProfileServiceImpl implements ProfileService {
             query.put(Constants.CONTEXT_DATA, finalJson);
             ApiResponse insertResponse = (ApiResponse) cassandraOperation.insertRecord(Constants.KEYSPACE_SUNBIRD,
                     Constants.TABLE_USER_EXTENDED_PROFILE, query);
-            return Constants.SUCCESS.equalsIgnoreCase((String) insertResponse.get(Constants.RESPONSE));
+            return !Constants.SUCCESS.equalsIgnoreCase((String) insertResponse.get(Constants.RESPONSE));
         } catch (JsonProcessingException e) {
             log.error("Failed to serialize context data for userId: {}, contextType: {}", userId, contextType);
         }
-        return false;
+        return true;
     }
 
-    private void sortContextData(List<Map<String, Object>> dataList, String contextType) {
-        Comparator<Map<String, Object>> comparator = getSortingComparator(contextType);
-        if (comparator != null) {
-            dataList.sort(comparator.reversed());
-        }
-    }
 
-    private Comparator<Map<String, Object>> getSortingComparator(String contextType) {
-        return switch (contextType) {
-            case Constants.SERVICE_HISTORY ->
-                Comparator.comparing(map -> OffsetDateTime.parse((String) map.get(Constants.START_DATE)));
-            case Constants.EDUCATIONAL_QUALIFICATIONS ->
-                Comparator.comparing(map -> Integer.parseInt((String) map.get(Constants.START_YEAR)));
-            case Constants.ACHIVEMENTS ->
-                Comparator.comparing(map -> OffsetDateTime.parse((String) map.get(Constants.ISSUED_DATE)));
-            default -> null;
-        };
-    }
-
-    private String buildCacheKey(String prefix, String contextType, String userId) {
-        return String.join(":", prefix, contextType, userId);
+    private String buildCacheKey(String contextType, String userId) {
+        return String.join(":", Constants.USER_EXTENDED_PROFILE_V2_REDIS_KEY, contextType, userId);
     }
 
     private void updateExtendedProfileAllCache(String userId, String contextType,
             List<Map<String, Object>> updatedContextData) {
-        String allKey = "user:extendedProfile:all:" + userId;
+        String allKey = "user:extendedProfileV2:all:" + userId;
         try {
-            String allJson = cacheService.getCache(allKey);
-            Map<String, Object> allProfileData = (allJson != null && !allJson.isEmpty())
-                    ? mapper.readValue(allJson, new TypeReference<>() {
-                    })
-                    : new HashMap<>();
+            Map<String, Object> allProfileData =redisDataService.getMap(allKey);
             Map<String, Object> updatedContext = new HashMap<>();
             updatedContext.put(Constants.DATA, updatedContextData);
             updatedContext.put(Constants.COUNT, updatedContextData != null ? updatedContextData.size() : 0);
             allProfileData.put(contextType, updatedContext);
-            cacheService.putCache(allKey, allProfileData);
+            redisDataService.putMap(allKey, allProfileData);
         } catch (Exception e) {
             log.error("Error updating extendedProfile all cache for userId {}: {}", userId, e.getMessage());
         }
@@ -585,7 +550,7 @@ public class ProfileServiceImpl implements ProfileService {
         if (CollectionUtils.isEmpty(keyList)) {
             keyList = serverConfig.getBasicProfileFields();
         }
-        String cacheKey = Constants.USER + ":basicProfile:" + userId;
+        String cacheKey = Constants.USER + ":basicProfileV2:" + userId;
         Map<String, Object> queryParams = Map.of(Constants.ID, userId);
         List<Map<String, Object>> userList = cassandraOperation.getRecordsByPropertiesByKey(
                 Constants.KEYSPACE_SUNBIRD, Constants.USER, queryParams, keyList, null);
@@ -604,7 +569,7 @@ public class ProfileServiceImpl implements ProfileService {
             } else {
                 userObj.put(Constants.PROFILE_DETAILS, Map.of());
             }
-            cacheService.putCache(cacheKey, userObj);
+            redisDataService.putMap(cacheKey, userObj);
         } catch (IOException e) {
             log.error("Invalid profileDetails JSON for userId: {}", userId, e);
             userObj.put(Constants.PROFILE_DETAILS, Map.of());
@@ -615,156 +580,60 @@ public class ProfileServiceImpl implements ProfileService {
 
     private void sanitizeProfile(Map<String, Object> profile, String userToken) {
         Object detailsObj = profile.get(Constants.PROFILE_DETAILS);
-
-        if (detailsObj instanceof Map<?, ?> detailsMap) {
-            if (detailsMap.containsKey(Constants.PERSONAL_DETAILS)) {
-                detailsMap.remove(Constants.PERSONAL_DETAILS);
-                log.info("Removed personalDetails due to unrecognized profilePreference.");
-            }
-            ProfilePreference profilePref = ProfilePreference.PUBLIC; // default to PUBLIC
-
-            Object preferenceObj = detailsMap.get(Constants.PROFILE_PREFERENCE);
-            if (preferenceObj instanceof Integer) {
-                ProfilePreference resolvedPref = ProfilePreference.fromValue((Integer) preferenceObj);
-                if (resolvedPref != null) {
-                    profilePref = resolvedPref;
-                }
-            }
-
-            // If PUBLIC, return everything
-            if (ProfilePreference.PUBLIC.equals(profilePref)) {
-                return;
-            }
-
-            // Load keys from property
-            List<String> filteredKeys = Arrays.asList(basicDetailsFilteredKeys.split(","));
-            // Shared allowed keys from config
-            List<String> allowedKeys = Arrays.asList(profileVisibleAllowedFields.split(","));
-            Map<String, Object> filteredDetails = new HashMap<>();
-
-            // If PRIVATE_NO_ONE
-            if (ProfilePreference.PRIVATE_NO_ONE.equals(profilePref)) {
-                for (String key : allowedKeys) {
-                    if (detailsMap.containsKey(key)) {
-                        filteredDetails.put(key, detailsMap.get(key));
-                    }
-                }
-                filteredKeys.forEach(profile::remove);
-                profile.put(Constants.PROFILE_DETAILS, filteredDetails);
-                log.info("Sanitized profileDetails for PRIVATE_NO_ONE ({}). Allowed fields: {}", profilePref.getValue(), allowedKeys);
-
-            } else if (ProfilePreference.PRIVATE_CONNECTIONS.equals(profilePref)) {
-                Map<String, Object> connectionResponse = checkConnected(
-                        (String) profile.get(Constants.ID),
-                        (String) profile.get(Constants.AUTH_TOKEN),
-                        userToken);
-
-                if (connectionResponse != null) {
-                    Object statusObj = connectionResponse.get(Constants.STATUS);
-                    if (statusObj != null && Constants.APPROVED.equalsIgnoreCase(statusObj.toString())) {
-                        return; // If connection approved, allow full profile
-                    }
-                }
-                filteredKeys.forEach(profile::remove);
-                for (String key : allowedKeys) {
-                    if (detailsMap.containsKey(key)) {
-                        filteredDetails.put(key, detailsMap.get(key));
-                    }
-                }
-                profile.put(Constants.PROFILE_DETAILS, filteredDetails);
-                log.info("Sanitized profileDetails for PRIVATE_CONNECTIONS ({}). Allowed fields: {}", profilePref.getValue(), allowedKeys);
-
-            } else {
-                // Fallback case – remove personalDetails
-                if (detailsMap.containsKey(Constants.PERSONAL_DETAILS)) {
-                    detailsMap.remove(Constants.PERSONAL_DETAILS);
-                    log.info("Removed personalDetails due to unrecognized profilePreference.");
-                }
-            }
+        if (!(detailsObj instanceof Map<?, ?> detailsMap)) return;
+        removePersonalDetailsIfPresent(detailsMap);
+        ProfilePreference profilePref = resolveProfilePreference(detailsMap);
+        if (ProfilePreference.PUBLIC.equals(profilePref)) return;
+        List<String> filteredKeys = Arrays.asList(basicDetailsFilteredKeys.split(","));
+        List<String> allowedKeys = Arrays.asList(profileVisibleAllowedFields.split(","));
+        switch (profilePref) {
+            case PRIVATE_NO_ONE -> sanitizePrivateNoOne(profile, detailsMap, filteredKeys, allowedKeys, profilePref);
+            case PRIVATE_CONNECTIONS ->
+                    sanitizePrivateConnections(profile, detailsMap, filteredKeys, allowedKeys, userToken, profilePref);
+            default -> removePersonalDetailsIfPresent(detailsMap);
         }
     }
 
+    /**
+     * Checks the user's connection status by calling an external service and parsing the response.
+     * Builds the required headers, fetches connection data, and extracts the response into a map.
+     *
+     * @param userId        the ID of the user to check
+     * @param authToken     authentication token
+     * @param userAuthToken authentication token
+     * @return a map containing the extracted connection details; empty if no data is found
+     */
     public Map<String, Object> checkConnected(String userId, String authToken, String userAuthToken) {
-        Map<String, String> header = new HashMap<>();
-        if (StringUtils.isNotEmpty(authToken)) {
-            header.put(Constants.AUTH_TOKEN, authToken);
-        }
-        if (StringUtils.isNotEmpty(userAuthToken)) {
-            header.put(Constants.X_AUTH_TOKEN, userAuthToken);
-        }
+        Map<String, String> header = buildHeaders(authToken, userAuthToken);
         Map<String, Object> responseMap = new HashMap<>();
-        Map<String, Object> readData = (Map<String, Object>) outboundRequestHandlerService
-                .fetchUsingGetWithHeadersProfile(serverConfig.hubGraphService + serverConfig.connectionApi + userId,
-                        header);
-        if (readData != null) {
-            Object resultObj = readData.get(Constants.RESULT);
-            if (resultObj instanceof Map<?, ?> resultMap) {
-                Object responseObj = resultMap.get(Constants.RESPONSE);
-                if (responseObj instanceof Map<?, ?> responseData) {
-                    for (Map.Entry<?, ?> entry : responseData.entrySet()) {
-                        if (entry.getKey() instanceof String) {
-                            responseMap.put((String) entry.getKey(), entry.getValue());
-                        }
-                    }
-                }
-            }
+        Map<String, Object> readData = fetchConnectionData(userId, header);
+        if (MapUtils.isNotEmpty(readData)) {
+            extractResponseData(readData, responseMap);
         }
-
         return responseMap;
     }
 
     protected double calculateProfileCompletionPercentage(Map<String, Object> profileData,
                                                           String userId, String userToken) {
+        String completionPercentageRedisKey = "user:profileCompletionPercentage:" + userId;
+        String completionPercentage = cacheService.getCache(completionPercentageRedisKey);
+        if (StringUtils.isNotEmpty(completionPercentage)) return Double.parseDouble(completionPercentage);
         List<String> requiredFields = serverConfig.getProfileCompletionRequiredFields();
-        if (profileData == null || requiredFields == null || requiredFields.isEmpty())
-            return 0.0;
-
+        if (MapUtils.isEmpty(profileData) || CollectionUtils.isEmpty(requiredFields)) return 0.0;
         double totalCompletion = 0.0;
-        Map<String, Object> nestedData = Optional.ofNullable(profileData.get(Constants.PROFILE_DETAILS))
-                .filter(Map.class::isInstance)
-                .map(Map.class::cast)
-                .orElse(Collections.emptyMap());
-
+        Map<String, Object> nestedData = getNestedProfileDetails(profileData);
         for (String field : requiredFields) {
-            boolean isFilled;
             try {
-                if (isExtendedProfileField(field)) {
-                    isFilled = hasExtendedProfileData(userId, field, userToken)
-                            || (Constants.SERVICE_HISTORY.equalsIgnoreCase(field) &&
-                            Optional.ofNullable(profileData.get(Constants.PROFILE_DETAILS))
-                                    .filter(Map.class::isInstance)
-                                    .map(Map.class::cast)
-                                    .map(details -> details.get(Constants.PROFESSIONAL_DETAILS))
-                                    .filter(List.class::isInstance)
-                                    .map(List.class::cast)
-                                    .map(CollectionUtils::isNotEmpty)
-                                    .orElse(false));
-                } else {
-                    if (Constants.EMPLOYMENT_DETAILS.equalsIgnoreCase(field)) {
-                        isFilled = Optional.ofNullable(profileData.get(Constants.PROFILE_DETAILS))
-                                .filter(Map.class::isInstance)
-                                .map(Map.class::cast)
-                                .map(details -> details.get(Constants.EMPLOYMENT_DETAILS))
-                                .filter(Map.class::isInstance)
-                                .map(Map.class::cast)
-                                .map(empDetails -> empDetails.get(Constants.ABOUT_ME))
-                                .map(Object::toString)
-                                .filter(aboutMe -> !aboutMe.trim().isEmpty())
-                                .isPresent();
-                    }else {
-                        Object value = profileData.getOrDefault(field, nestedData.get(field));
-                        isFilled = value != null && !value.toString().trim().isEmpty();
-                    }
+                if (isFieldsCompleted(field, profileData, nestedData, userId, userToken)) {
+                    totalCompletion += serverConfig.getFieldWeight();
                 }
             } catch (Exception e) {
                 log.warn("Exception checking field '{}' for user '{}': {}", field, userId, e.getMessage());
-                isFilled = false;
             }
-            if (isFilled)
-                totalCompletion += serverConfig.getFieldWeight();
         }
-
-        return Math.min(100.0, Math.round(totalCompletion * 10.0) / 10.0);
+        double calculatedCompletionPercentage = Math.min(100.0, Math.round(totalCompletion * 10.0) / 10.0);
+        cacheService.putCache(completionPercentageRedisKey, calculatedCompletionPercentage);
+        return calculatedCompletionPercentage;
     }
 
     private boolean isExtendedProfileField(String field) {
@@ -1059,11 +928,14 @@ public class ProfileServiceImpl implements ProfileService {
     }
 
     public List<String> getUserRoles(String userId, String rootOrgId) {
+        String userRolesRedisKey = "user:profileRoles:" + userId;
+        List<String> cachedRoles = redisDataService.getStringList(userRolesRedisKey);
+        if (CollectionUtils.isNotEmpty(cachedRoles)) return cachedRoles;
         List<Map<String, Object>> userRoleList = cassandraOperation.getRecordsByPropertiesByKey(
                 Constants.KEYSPACE_SUNBIRD, Constants.USER_ROLES,
                 Map.of(Constants.USERID_KEY, userId), List.of(Constants.ROLE, Constants.SCOPE), userId
         );
-        return userRoleList.stream()
+        List<String> roles = userRoleList.stream()
                 .map(userRoleObj -> {
                     Object userRoleScope = userRoleObj.get(Constants.SCOPE);
                     List<Map<String, Object>> scopes = new ArrayList<>();
@@ -1086,6 +958,8 @@ public class ProfileServiceImpl implements ProfileService {
                 .filter(Objects::nonNull)
                 .distinct()
                 .toList();
+        if (CollectionUtils.isNotEmpty(roles)) redisDataService.putStringList(userRolesRedisKey, roles);
+        return roles;
     }
 
     private void mergeAndSortByIssuedDateOrTitle(List<Map<String, Object>> existingList, List<Map<String, Object>> newList) {
@@ -1132,7 +1006,7 @@ public class ProfileServiceImpl implements ProfileService {
         String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(authToken);
 
         if (StringUtils.isBlank(authToken)) {
-            ProjectUtil.errorResponse(response, "Invalid or missing access token", HttpStatus.UNAUTHORIZED);
+            ProjectUtil.errorResponse(response, Constants.INVALID_OR_MISSING_ACCESS_TOKEN, HttpStatus.UNAUTHORIZED);
             return response;
         }
 
@@ -1158,7 +1032,7 @@ public class ProfileServiceImpl implements ProfileService {
 
             List<Map<String, Object>> restructuredData = restructureByOrgId(existingData, organisationId, customFieldValues);
 
-            if (!saveContextData(userId, contextType, restructuredData)) {
+            if (saveContextData(userId, contextType, restructuredData)) {
                 ProjectUtil.errorResponse(response, "Failed to save additional fields", HttpStatus.INTERNAL_SERVER_ERROR);
                 return response;
             }
@@ -1429,7 +1303,7 @@ public class ProfileServiceImpl implements ProfileService {
         String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(authToken);
 
         if (StringUtils.isBlank(authToken)) {
-            ProjectUtil.errorResponse(response, "Invalid or missing access token", HttpStatus.UNAUTHORIZED);
+            ProjectUtil.errorResponse(response, Constants.INVALID_OR_MISSING_ACCESS_TOKEN, HttpStatus.UNAUTHORIZED);
             return response;
         }
 
@@ -1496,5 +1370,170 @@ public class ProfileServiceImpl implements ProfileService {
             result.add(orgFields);
         }
         return result;
+    }
+
+
+    private Map<String, Object> getNestedProfileDetails(Map<String, Object> profileData) {
+        Object details = profileData.get(Constants.PROFILE_DETAILS);
+        if (details instanceof Map<?, ?> detailsMap) {
+            try {
+                return (Map<String, Object>) detailsMap;
+            } catch (ClassCastException e) {
+                log.error("Failed to cast PROFILE_DETAILS to Map<String, Object>: {}", e.getMessage());
+            }
+        }
+        return Collections.emptyMap();
+    }
+
+    private boolean isFieldsCompleted(String field, Map<String, Object> profileData, Map<String, Object> nestedData, String userId, String userToken) {
+        if (isExtendedProfileField(field)) {
+            return isExtendedFieldFilled(field, profileData, userId, userToken);
+        }
+        if (Constants.EMPLOYMENT_DETAILS.equalsIgnoreCase(field)) return isEmploymentFieldFilled(profileData);
+        Object value = profileData.getOrDefault(field, nestedData.get(field));
+        return value != null && !value.toString().trim().isEmpty();
+    }
+
+    private boolean isExtendedFieldFilled(String field, Map<String, Object> profileData, String userId, String userToken) {
+        if (hasExtendedProfileData(userId, field, userToken)) return true;
+        if (Constants.SERVICE_HISTORY.equalsIgnoreCase(field)) {
+            Object details = profileData.get(Constants.PROFILE_DETAILS);
+            if (details instanceof Map<?, ?> profileDetails) {
+                Object professionalDetails = profileDetails.get(Constants.PROFESSIONAL_DETAILS);
+                if (professionalDetails instanceof List<?> profList) {
+                    return CollectionUtils.isNotEmpty(profList);
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean isEmploymentFieldFilled(Map<String, Object> profileData) {
+        Object details = profileData.get(Constants.PROFILE_DETAILS);
+        if (details instanceof Map<?, ?> profileDetails) {
+            Object employment = profileDetails.get(Constants.EMPLOYMENT_DETAILS);
+            if (employment instanceof Map<?, ?> employmentDetails) {
+                Object aboutMe = employmentDetails.get(Constants.ABOUT_ME);
+                return aboutMe != null && !aboutMe.toString().trim().isEmpty();
+
+            }
+        }
+        return false;
+    }
+
+    private void removePersonalDetailsIfPresent(Map<?, ?> detailsMap) {
+        if (detailsMap.containsKey(Constants.PERSONAL_DETAILS)) {
+            detailsMap.remove(Constants.PERSONAL_DETAILS);
+            log.info("Removed personalDetails due to unrecognized profilePreference.");
+        }
+    }
+
+    private ProfilePreference resolveProfilePreference(Map<?, ?> detailsMap) {
+        Object preferenceObj = detailsMap.get(Constants.PROFILE_PREFERENCE);
+        if (preferenceObj instanceof Integer prefValue) {
+            ProfilePreference resolved = ProfilePreference.fromValue(prefValue);
+            return resolved != null ? resolved : ProfilePreference.PUBLIC;
+        }
+        return ProfilePreference.PUBLIC;
+    }
+
+    private void sanitizePrivateNoOne(Map<String, Object> profile,
+                                      Map<?, ?> detailsMap,
+                                      List<String> filteredKeys,
+                                      List<String> allowedKeys,
+                                      ProfilePreference profilePref) {
+        Map<String, Object> filteredDetails = extractAllowedDetails(detailsMap, allowedKeys);
+        filteredKeys.forEach(profile::remove);
+        profile.put(Constants.PROFILE_DETAILS, filteredDetails);
+        log.info("Sanitized profileDetails for PRIVATE_NO_ONE ({}). Allowed fields: {}", profilePref.getValue(), allowedKeys);
+    }
+
+    private Map<String, Object> extractAllowedDetails(Map<?, ?> detailsMap, List<String> allowedKeys) {
+        Map<String, Object> filtered = new HashMap<>();
+        for (String key : allowedKeys) {
+            if (detailsMap.containsKey(key)) {
+                filtered.put(key, detailsMap.get(key));
+            }
+        }
+        return filtered;
+    }
+
+    private void sanitizePrivateConnections(Map<String, Object> profile,
+                                            Map<?, ?> detailsMap,
+                                            List<String> filteredKeys,
+                                            List<String> allowedKeys,
+                                            String userToken,
+                                            ProfilePreference profilePref) {
+        if (isConnectionApproved(profile, userToken)) return;
+        filteredKeys.forEach(profile::remove);
+        Map<String, Object> filteredDetails = extractAllowedDetails(detailsMap, allowedKeys);
+        profile.put(Constants.PROFILE_DETAILS, filteredDetails);
+        log.info("Sanitized profileDetails for PRIVATE_CONNECTIONS ({}). Allowed fields: {}",
+                profilePref.getValue(), allowedKeys);
+
+    }
+
+    private boolean isConnectionApproved(Map<String, Object> profile, String userToken) {
+        Map<String, Object> connectionResponse = checkConnected(
+                (String) profile.get(Constants.ID),
+                (String) profile.get(Constants.AUTH_TOKEN),
+                userToken);
+
+        if (connectionResponse == null) return false;
+        Object statusObj = connectionResponse.get(Constants.STATUS);
+        return statusObj != null && Constants.APPROVED.equalsIgnoreCase(statusObj.toString());
+    }
+
+
+    /**
+     * Builds and returns a map of authorization headers using the provided tokens.
+     * Adds entries only if the tokens are not empty.
+     *
+     * @param authToken     auth token
+     * @param userAuthToken auth token
+     * @return map of HTTP headers
+     */
+    private Map<String, String> buildHeaders(String authToken, String userAuthToken) {
+        Map<String, String> headers = new HashMap<>();
+        if (StringUtils.isNotEmpty(authToken)) {
+            headers.put(Constants.AUTH_TOKEN, authToken);
+        }
+        if (StringUtils.isNotEmpty(userAuthToken)) {
+            headers.put(Constants.X_AUTH_TOKEN, userAuthToken);
+        }
+        return headers;
+    }
+
+    /**
+     * Fetches connection data for the given user from the external service using the provided headers.
+     *
+     * @param userId the ID of the user whose connection data is to be fetched
+     * @param header the HTTP headers to include in the request
+     * @return the connection data as a map, or null if no data is returned
+     */
+    private Map<String, Object> fetchConnectionData(String userId, Map<String, String> header) {
+        return (Map<String, Object>) outboundRequestHandlerService
+                .fetchUsingGetWithHeadersProfile(serverConfig.hubGraphService + serverConfig.connectionApi + userId,
+                        header);
+    }
+
+    /**
+     * Extracts response data from the given read data map and populates it into the provided response map.
+     *
+     * @param readData    the raw data map containing nested response information
+     * @param responseMap the map to populate with extracted response entries
+     */
+    private static void extractResponseData(Map<String, Object> readData, Map<String, Object> responseMap) {
+        Object resultObj = readData.get(Constants.RESULT);
+        if (resultObj instanceof Map<?, ?> resultMap) {
+            Object responseObj = resultMap.get(Constants.RESPONSE);
+            if (responseObj instanceof Map<?, ?> responseData) {
+                for (Map.Entry<?, ?> entry : responseData.entrySet()) {
+                    if (entry.getKey() instanceof String) {
+                        responseMap.put((String) entry.getKey(), entry.getValue());
+                    }
+                }
+            }
+        }
     }
 }
