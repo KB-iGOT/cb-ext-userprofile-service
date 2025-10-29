@@ -481,18 +481,14 @@ public class ProfileServiceImpl implements ProfileService {
 
     private void updateExtendedProfileAllCache(String userId, String contextType,
             List<Map<String, Object>> updatedContextData) {
-        String allKey = "user:extendedProfile:all:" + userId;
+        String allKey = "user:extendedProfileV2:all:" + userId;
         try {
-            String allJson = cacheService.getCache(allKey);
-            Map<String, Object> allProfileData = (allJson != null && !allJson.isEmpty())
-                    ? mapper.readValue(allJson, new TypeReference<>() {
-                    })
-                    : new HashMap<>();
+            Map<String, Object> allProfileData =redisDataService.getMap(allKey);
             Map<String, Object> updatedContext = new HashMap<>();
             updatedContext.put(Constants.DATA, updatedContextData);
             updatedContext.put(Constants.COUNT, updatedContextData != null ? updatedContextData.size() : 0);
             allProfileData.put(contextType, updatedContext);
-            cacheService.putCache(allKey, allProfileData);
+            redisDataService.putMap(allKey, allProfileData);
         } catch (Exception e) {
             log.error("Error updating extendedProfile all cache for userId {}: {}", userId, e.getMessage());
         }
