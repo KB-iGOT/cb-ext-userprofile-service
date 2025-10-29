@@ -21,10 +21,12 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import com.igot.cb.common.OutboundRequestHandlerServiceImpl;
-import com.igot.cb.util.*;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.igot.common.model.ApiResponse;
+import org.igot.common.util.AccessTokenValidator;
+import org.igot.common.util.ProjectUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -34,13 +36,16 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.igot.cb.authentication.util.AccessTokenValidator;
 import com.igot.cb.profile.entity.CustomFieldEntity;
 import com.igot.cb.profile.repository.CustomFieldRepository;
 import com.igot.cb.transactional.cassandrautils.CassandraOperation;
 import com.igot.cb.transactional.elasticsearch.service.EsUtilServiceImpl;
 import com.igot.cb.transactional.redis.cache.CacheService;
 import com.igot.cb.transactional.service.RequestHandlerServiceImpl;
+import com.igot.cb.util.CbServerProperties;
+import com.igot.cb.util.Constants;
+import com.igot.cb.util.ProfilePreference;
+import com.igot.cb.util.UserUtility;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -88,25 +93,29 @@ public class ProfileServiceImpl implements ProfileService {
 
     @Override
     public ApiResponse saveExtendedProfile(Map<String, Object> request, String userToken) {
-        ApiResponse response = ProjectUtil.createDefaultResponse("api.extendedProfile.create");
+        ApiResponse response = projectUtil.createDefaultResponse("api.extendedProfile.create");
         Map<String, Object> requestData = (Map<String, Object>) request.get(Constants.REQUEST);
         String userId = (String) requestData.get(Constants.USER_ID_RQST);
-        String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
+        String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken, response);
 
+        if (StringUtils.isBlank(userIdFromToken)) {
+            return response;
+        }
+        
         if (!StringUtils.equalsIgnoreCase(userIdFromToken, userId)) {
-            ProjectUtil.errorResponse(response, Constants.INVALID_USERID, HttpStatus.BAD_REQUEST);
+            projectUtil.errorResponse(response, Constants.INVALID_USERID, HttpStatus.BAD_REQUEST);
             return response;
         }
 
         String validationError = validateRequestContextTypes(requestData, serverConfig.getContextType());
         if (StringUtils.isNotBlank(validationError)) {
-            ProjectUtil.errorResponse(response, validationError, HttpStatus.BAD_REQUEST);
+            projectUtil.errorResponse(response, validationError, HttpStatus.BAD_REQUEST);
             return response;
         }
 
         String errMsg = validateUserExtendedProfileRequest(requestData);
         if (StringUtils.isNotBlank(errMsg)) {
-            ProjectUtil.errorResponse(response, errMsg, HttpStatus.BAD_REQUEST);
+            projectUtil.errorResponse(response, errMsg, HttpStatus.BAD_REQUEST);
             return response;
         }
 
@@ -127,7 +136,7 @@ public class ProfileServiceImpl implements ProfileService {
 
 
             if (!saveContextData(userId, contextType, existingList)) {
-                ProjectUtil.errorResponse(response, "Failed to save data for contextType: " + contextType,
+                projectUtil.errorResponse(response, "Failed to save data for contextType: " + contextType,
                         HttpStatus.INTERNAL_SERVER_ERROR);
                 return response;
             }
@@ -144,13 +153,17 @@ public class ProfileServiceImpl implements ProfileService {
 
     @Override
     public ApiResponse updateExtendedProfile(Map<String, Object> request, String userToken) {
-        ApiResponse response = ProjectUtil.createDefaultResponse("api.extendedProfile.update");
+        ApiResponse response = projectUtil.createDefaultResponse("api.extendedProfile.update");
         Map<String, Object> requestData = (Map<String, Object>) request.get(Constants.REQUEST);
         String userId = (String) requestData.get(Constants.USER_ID_RQST);
-        String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
+        String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken, response);
+
+        if (StringUtils.isBlank(userIdFromToken)) {
+            return response;
+        }
 
         if (!StringUtils.equalsIgnoreCase(userIdFromToken, userId)) {
-            ProjectUtil.errorResponse(response, Constants.INVALID_USERID, HttpStatus.BAD_REQUEST);
+            projectUtil.errorResponse(response, Constants.INVALID_USERID, HttpStatus.BAD_REQUEST);
             return response;
         }
 
@@ -169,7 +182,7 @@ public class ProfileServiceImpl implements ProfileService {
                 if (uuid != null && dataMap.containsKey(uuid)) {
                     dataMap.get(uuid).putAll(item);
                 } else {
-                    ProjectUtil.errorResponse(response, "Invalid or missing UUID in incoming data.",
+                    projectUtil.errorResponse(response, "Invalid or missing UUID in incoming data.",
                             HttpStatus.BAD_REQUEST);
                     return response;
                 }
@@ -182,7 +195,7 @@ public class ProfileServiceImpl implements ProfileService {
                 mergeAndSortByIssuedDateOrTitle(mergedList, new ArrayList<>());
             }
             if (!saveContextData(userId, contextType, mergedList)) {
-                ProjectUtil.errorResponse(response, "Failed to update data for contextType: " + contextType,
+                projectUtil.errorResponse(response, "Failed to update data for contextType: " + contextType,
                         HttpStatus.INTERNAL_SERVER_ERROR);
                 return response;
             }
@@ -198,13 +211,17 @@ public class ProfileServiceImpl implements ProfileService {
 
     @Override
     public ApiResponse deleteExtendedProfile(Map<String, Object> request, String userToken) {
-        ApiResponse response = ProjectUtil.createDefaultResponse("api.extendedProfile.delete");
+        ApiResponse response = projectUtil.createDefaultResponse("api.extendedProfile.delete");
         Map<String, Object> requestData = (Map<String, Object>) request.get(Constants.REQUEST);
         String userId = (String) requestData.get(Constants.USER_ID_RQST);
-        String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
+        String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken, response);
 
+        if (StringUtils.isBlank(userIdFromToken)) {
+            return response;
+        }
+        
         if (!StringUtils.equalsIgnoreCase(userIdFromToken, userId)) {
-            ProjectUtil.errorResponse(response, Constants.INVALID_USERID, HttpStatus.BAD_REQUEST);
+            projectUtil.errorResponse(response, Constants.INVALID_USERID, HttpStatus.BAD_REQUEST);
             return response;
         }
 
@@ -223,7 +240,7 @@ public class ProfileServiceImpl implements ProfileService {
 
 
             if (!saveContextData(userId, contextType, existingData)) {
-                ProjectUtil.errorResponse(response, "Failed to delete data for contextType: " + contextType,
+                projectUtil.errorResponse(response, "Failed to delete data for contextType: " + contextType,
                         HttpStatus.INTERNAL_SERVER_ERROR);
                 return response;
             }
@@ -239,10 +256,10 @@ public class ProfileServiceImpl implements ProfileService {
 
     @Override
     public ApiResponse getExtendedProfileSummary(String userId, String userToken) {
-        ApiResponse response = ProjectUtil.createDefaultResponse("api.extendedProfile.read");
+        ApiResponse response = projectUtil.createDefaultResponse("api.extendedProfile.read");
 
-        if (accessTokenValidator.fetchUserIdFromAccessToken(userToken) == null) {
-            ProjectUtil.errorResponse(response, Constants.INVALID_USERID, HttpStatus.BAD_REQUEST);
+        if (accessTokenValidator.fetchUserIdFromAccessToken(userToken, response) == null) {
+            projectUtil.errorResponse(response, Constants.INVALID_USERID, HttpStatus.BAD_REQUEST);
             return response;
         }
 
@@ -272,7 +289,7 @@ public class ProfileServiceImpl implements ProfileService {
         }
 
         if (result.isEmpty()) {
-            ProjectUtil.errorResponse(response, "No data found for user.", HttpStatus.NO_CONTENT);
+            projectUtil.errorResponse(response, "No data found for user.", HttpStatus.NO_CONTENT);
             return response;
         }
 
@@ -290,11 +307,10 @@ public class ProfileServiceImpl implements ProfileService {
 
     @Override
     public ApiResponse readFullExtendedProfile(String userId, String contextType, String userToken) {
-        ApiResponse response = ProjectUtil.createDefaultResponse("api.extendedProfile.read");
-        String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
+        ApiResponse response = projectUtil.createDefaultResponse("api.extendedProfile.read");
+        String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken, response);
 
         if (userIdFromToken == null) {
-            ProjectUtil.errorResponse(response, Constants.INVALID_USERID, HttpStatus.BAD_REQUEST);
             return response;
         }
 
@@ -313,7 +329,7 @@ public class ProfileServiceImpl implements ProfileService {
         if (contextData == null) {
             contextData = getExistingContextData(userId, contextType);
             if (contextData == null || contextData.isEmpty()) {
-                ProjectUtil.errorResponse(response, "No data found for user.", HttpStatus.NO_CONTENT);
+                projectUtil.errorResponse(response, "No data found for user.", HttpStatus.NO_CONTENT);
                 return response;
             }
             try {
@@ -336,11 +352,10 @@ public class ProfileServiceImpl implements ProfileService {
 
     @Override
     public ApiResponse getBasicProfile(String userId, String userToken) {
-        ApiResponse response = ProjectUtil.createDefaultResponse("api.getBasicProfile.read");
-        String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
+        ApiResponse response = projectUtil.createDefaultResponse("api.getBasicProfile.read");
+        String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken, response);
 
         if (userIdFromToken == null) {
-            ProjectUtil.errorResponse(response, Constants.INVALID_OR_MISSING_ACCESS_TOKEN, HttpStatus.UNAUTHORIZED);
             return response;
         }
 
@@ -387,7 +402,7 @@ public class ProfileServiceImpl implements ProfileService {
             response.setResponse(responseMap);
         } catch (Exception e) {
             log.error("Error fetching basic profile for userId: {}", userId, e);
-            ProjectUtil.errorResponse(response, "Internal server error while fetching profile",
+            projectUtil.errorResponse(response, "Internal server error while fetching profile",
                     HttpStatus.INTERNAL_SERVER_ERROR);
         }
 
@@ -396,11 +411,10 @@ public class ProfileServiceImpl implements ProfileService {
 
     @Override
     public ApiResponse listCompetencies(String userId, String userToken) {
-        ApiResponse response = ProjectUtil.createDefaultResponse("api.listCompetencies.read");
-        String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
+        ApiResponse response = projectUtil.createDefaultResponse("api.listCompetencies.read");
+        String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken, response);
 
         if (userIdFromToken == null) {
-            ProjectUtil.errorResponse(response, Constants.INVALID_OR_MISSING_ACCESS_TOKEN, HttpStatus.UNAUTHORIZED);
             return response;
         }
 
@@ -423,7 +437,7 @@ public class ProfileServiceImpl implements ProfileService {
                         .map(Object::toString)
                         .toList();
                 if (completedCourseIdList.isEmpty()) {
-                    ProjectUtil.errorResponse(response, "No competencies found for user.", HttpStatus.NO_CONTENT);
+                    projectUtil.errorResponse(response, "No competencies found for user.", HttpStatus.NO_CONTENT);
                     return response;
                 }
                 Map<String, Map<String, Object>> courseMetadata = getCourseMetadataBatched(completedCourseIdList, 100,
@@ -432,7 +446,7 @@ public class ProfileServiceImpl implements ProfileService {
                 competencies = analyzeCompetencies(courseMetadata);
                 
                 if (competencies.isEmpty()) {
-                    ProjectUtil.errorResponse(response, "No competencies found for user.", HttpStatus.NO_CONTENT);
+                    projectUtil.errorResponse(response, "No competencies found for user.", HttpStatus.NO_CONTENT);
                     return response;
                 }
                 cacheService.putCache(cacheKey, competencies);
@@ -442,7 +456,7 @@ public class ProfileServiceImpl implements ProfileService {
             response.put(Constants.RESPONSE, competencies);
         } catch (Exception e) {
             log.error("Error fetching competencies for userId: {}", userId, e);
-            ProjectUtil.errorResponse(response, "Internal server error while fetching competencies",
+            projectUtil.errorResponse(response, "Internal server error while fetching competencies",
                     HttpStatus.INTERNAL_SERVER_ERROR);
         }
 
@@ -1125,17 +1139,16 @@ public class ProfileServiceImpl implements ProfileService {
      */
     @Override
     public ApiResponse updateAdditionalFields(Map<String, Object> request, String authToken) {
-        ApiResponse response = ProjectUtil.createDefaultResponse("api.update.additionalFields");
-        String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(authToken);
+        ApiResponse response = projectUtil.createDefaultResponse("api.update.additionalFields");
+        String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(authToken, response);
 
         if (StringUtils.isBlank(authToken)) {
-            ProjectUtil.errorResponse(response, Constants.INVALID_OR_MISSING_ACCESS_TOKEN, HttpStatus.UNAUTHORIZED);
             return response;
         }
 
         String validationError = validateAdditionalFieldsRequest(request);
         if (validationError != null) {
-            ProjectUtil.errorResponse(response, validationError, HttpStatus.BAD_REQUEST);
+            projectUtil.errorResponse(response, validationError, HttpStatus.BAD_REQUEST);
             return response;
         }
 
@@ -1144,7 +1157,7 @@ public class ProfileServiceImpl implements ProfileService {
         List<Map<String, Object>> customFieldValues = (List<Map<String, Object>>) request.get(Constants.CUSTOM_FIELD_VALUES);
 
         if (!StringUtils.equalsIgnoreCase(userIdFromToken, userId)) {
-            ProjectUtil.errorResponse(response, "User ID in token does not match request", HttpStatus.UNAUTHORIZED);
+            projectUtil.errorResponse(response, "User ID in token does not match request", HttpStatus.UNAUTHORIZED);
             return response;
         }
 
@@ -1156,7 +1169,7 @@ public class ProfileServiceImpl implements ProfileService {
             List<Map<String, Object>> restructuredData = restructureByOrgId(existingData, organisationId, customFieldValues);
 
             if (!saveContextData(userId, contextType, restructuredData)) {
-                ProjectUtil.errorResponse(response, "Failed to save additional fields", HttpStatus.INTERNAL_SERVER_ERROR);
+                projectUtil.errorResponse(response, "Failed to save additional fields", HttpStatus.INTERNAL_SERVER_ERROR);
                 return response;
             }
 
@@ -1165,7 +1178,7 @@ public class ProfileServiceImpl implements ProfileService {
             boolean updated = esUtilService.updateUserOrgCustomFields(userId, organisationId, esOrgCustomFields);
 
             if (!updated) {
-                ProjectUtil.errorResponse(response, "Failed to update orgCustomFields in ES", HttpStatus.INTERNAL_SERVER_ERROR);
+                projectUtil.errorResponse(response, "Failed to update orgCustomFields in ES", HttpStatus.INTERNAL_SERVER_ERROR);
                 return response;
             }
 
@@ -1173,7 +1186,7 @@ public class ProfileServiceImpl implements ProfileService {
             response.put(Constants.RESPONSE, Constants.SUCCESS);
         } catch (Exception e) {
             log.error("Error updating additional fields for userId: {}, orgId: {}", userId, organisationId, e);
-            ProjectUtil.errorResponse(response, "Internal server error", HttpStatus.INTERNAL_SERVER_ERROR);
+            projectUtil.errorResponse(response, "Internal server error", HttpStatus.INTERNAL_SERVER_ERROR);
         }
         return response;
     }
@@ -1422,16 +1435,15 @@ public class ProfileServiceImpl implements ProfileService {
 
     @Override
     public ApiResponse getAdditionalFieldsByOrg(String userId, String orgId, String authToken) {
-        ApiResponse response = ProjectUtil.createDefaultResponse("api.get.additionalFieldsByOrg");
-        String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(authToken);
+        ApiResponse response = projectUtil.createDefaultResponse("api.get.additionalFieldsByOrg");
+        String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(authToken, response);
 
         if (StringUtils.isBlank(authToken)) {
-            ProjectUtil.errorResponse(response, Constants.INVALID_OR_MISSING_ACCESS_TOKEN, HttpStatus.UNAUTHORIZED);
             return response;
         }
 
         if (!StringUtils.equalsIgnoreCase(userIdFromToken, userId)) {
-            ProjectUtil.errorResponse(response, "User ID in token does not match request", HttpStatus.UNAUTHORIZED);
+            projectUtil.errorResponse(response, "User ID in token does not match request", HttpStatus.UNAUTHORIZED);
             return response;
         }
 
@@ -1459,7 +1471,7 @@ public class ProfileServiceImpl implements ProfileService {
             return response;
         } catch (Exception e) {
             log.error("Error retrieving additional fields for userId: {} and orgId: {}", userId, orgId, e);
-            ProjectUtil.errorResponse(response, "Internal server error", HttpStatus.INTERNAL_SERVER_ERROR);
+            projectUtil.errorResponse(response, "Internal server error", HttpStatus.INTERNAL_SERVER_ERROR);
             return response;
         }
     }

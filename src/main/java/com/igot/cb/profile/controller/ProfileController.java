@@ -1,8 +1,9 @@
 package com.igot.cb.profile.controller;
 
 import com.igot.cb.profile.service.ProfileService;
-import com.igot.cb.util.ApiResponse;
 import com.igot.cb.util.Constants;
+
+import org.igot.common.model.ApiResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
