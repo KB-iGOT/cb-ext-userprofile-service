@@ -1,5 +1,9 @@
 package com.igot.cb.masterdata.controller;
 
+import com.igot.cb.masterdata.model.Degree;
+import com.igot.cb.masterdata.model.Institute;
+import com.igot.cb.masterdata.model.SearchCriteria;
+import com.igot.cb.masterdata.model.StatusUpdateRequest;
 import com.igot.cb.masterdata.service.MasterDataService;
 import com.igot.cb.util.ApiResponse;
 import com.igot.cb.util.Constants;
@@ -43,5 +47,38 @@ public class MasterDataController {
             @RequestBody Map<String, Object> requestBody) {
         return new ResponseEntity<>(masterDataService.updateDegreesList(authToken, requestBody), HttpStatus.OK);
     }
+
+    @PostMapping(value = "/degree/search")
+    public ResponseEntity<ApiResponse> searchDegree(@RequestBody SearchCriteria searchCriteria) {
+        return new ResponseEntity<>(masterDataService.searchDegree(searchCriteria), HttpStatus.OK);
+    }
+
+    @PostMapping(value = "/institute/search")
+    public ResponseEntity<ApiResponse> searchInstitute(@RequestBody SearchCriteria searchCriteria) {
+        return new ResponseEntity<>(masterDataService.searchInstitute(searchCriteria), HttpStatus.OK);
+    }
+
+    @PostMapping(value = "/add/degree")
+    public ResponseEntity<ApiResponse> addDegree(@RequestBody Degree degree) {
+        return new ResponseEntity<>(masterDataService.addDegree(degree), HttpStatus.OK);
+    }
+
+    @PostMapping(value = "/add/institute")
+    public ResponseEntity<ApiResponse> addInstitute(@RequestBody Institute institute) {
+        return new ResponseEntity<>(masterDataService.addInstitute(institute), HttpStatus.OK);
+    }
+
+    @PutMapping("/degree/update/status")
+    public ResponseEntity<ApiResponse> updateDegreeStatus(StatusUpdateRequest request) {
+        ApiResponse response = masterDataService.toggleDegreeStatusByName(request.getName(), request.getStatus());
+        return ResponseEntity.status(response.getParams().getStatus().equalsIgnoreCase(Constants.SUCCESS) ? HttpStatus.OK : HttpStatus.BAD_REQUEST).body(response);
+    }
+
+    @PutMapping("/institute/update/status")
+    public ResponseEntity<ApiResponse> instituteUpdateStatus(StatusUpdateRequest request) {
+        ApiResponse response = masterDataService.toggleInstituteStatusByName(request.getName(), request.getStatus());
+        return ResponseEntity.status(response.getParams().getStatus().equalsIgnoreCase(Constants.SUCCESS) ? HttpStatus.OK : HttpStatus.BAD_REQUEST).body(response);
+    }
+
 
 }

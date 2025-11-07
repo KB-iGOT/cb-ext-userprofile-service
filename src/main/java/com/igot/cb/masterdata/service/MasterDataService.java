@@ -1,5 +1,8 @@
 package com.igot.cb.masterdata.service;
 
+import com.igot.cb.masterdata.model.Degree;
+import com.igot.cb.masterdata.model.Institute;
+import com.igot.cb.masterdata.model.SearchCriteria;
 import com.igot.cb.util.ApiResponse;
 
 import java.util.Map;
@@ -46,4 +49,11 @@ public interface MasterDataService {
      *         or an error response if the operation fails
      */
     ApiResponse updateDegreesList(String authToken, Map<String, Object> requestBody);
+
+    ApiResponse searchDegree(SearchCriteria searchCriteria);
+    ApiResponse searchInstitute(SearchCriteria searchCriteria);
+    ApiResponse addDegree(Degree degree);
+    ApiResponse addInstitute(Institute institute);
+    ApiResponse toggleDegreeStatusByName(String degreeName, int status);
+    ApiResponse toggleInstituteStatusByName(String instituteName, int status);
 }
