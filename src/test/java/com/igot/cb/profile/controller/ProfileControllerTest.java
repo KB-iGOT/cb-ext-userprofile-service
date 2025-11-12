@@ -2,15 +2,17 @@ package com.igot.cb.profile.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.profile.service.ProfileService;
-import com.igot.cb.util.ApiResponse;
 import com.igot.cb.util.Constants;
-import com.igot.cb.util.ProjectUtil;
+
+import org.igot.common.model.ApiResponse;
+import org.igot.common.util.ProjectUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -20,6 +22,7 @@ import java.util.Map;
 
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.mock;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -30,6 +33,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
     @Mock
     private ProfileService profileService;
+
+    @Mock
+    private ProjectUtil projectUtil;
 
     @InjectMocks
     private ProfileController profileController;
@@ -48,7 +54,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         Map<String, Object> request = new HashMap<>();
         request.put("field1", "value1");
 
-        ApiResponse mockResponse = ProjectUtil.createDefaultResponse("SAVE_EXTENDED_PROFILE");
+        ApiResponse mockResponse = mock(ApiResponse.class);
+        when(mockResponse.getResponseCode()).thenReturn(HttpStatus.OK);
         when(profileService.saveExtendedProfile((request), (authToken))).thenReturn(mockResponse);
 
         mockMvc.perform(post("/user/profile/extended")
@@ -64,7 +71,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
      void testGetExtendedProfileSummary() throws Exception {
         String authToken = "test-auth-token";
         String userId = "user-123";
-        ApiResponse mockResponse = ProjectUtil.createDefaultResponse("GET_EXTENDED_PROFILE");
+                ApiResponse mockResponse = mock(ApiResponse.class);
+                when(mockResponse.getResponseCode()).thenReturn(HttpStatus.OK);
 
         when(profileService.getExtendedProfileSummary((userId), (authToken))).thenReturn(mockResponse);
 
@@ -80,7 +88,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
      void testGetServiceHistory() throws Exception {
         String authToken = "test-auth-token";
         String userId = "user-123";
-        ApiResponse mockResponse = ProjectUtil.createDefaultResponse("GET_SERVICE_HISTORY");
+        ApiResponse mockResponse = mock(ApiResponse.class);
+        when(mockResponse.getResponseCode()).thenReturn(HttpStatus.OK);
 
         when(profileService.readFullExtendedProfile((userId), (Constants.SERVICE_HISTORY), (authToken)))
                 .thenReturn(mockResponse);
@@ -96,7 +105,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
      void testGetEducationalQualifications() throws Exception {
         String authToken = "test-auth-token";
         String userId = "user-123";
-        ApiResponse mockResponse = ProjectUtil.createDefaultResponse("GET_EDUCATION");
+        ApiResponse mockResponse = mock(ApiResponse.class);
+        when(mockResponse.getResponseCode()).thenReturn(HttpStatus.OK);
 
         when(profileService.readFullExtendedProfile((userId), (Constants.EDUCATION_QUALIFICATION), (authToken)))
                 .thenReturn(mockResponse);
@@ -112,7 +122,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
      void testGetLocationDetails() throws Exception {
         String authToken = "test-auth-token";
         String userId = "user-123";
-        ApiResponse mockResponse = ProjectUtil.createDefaultResponse("GET_LOCATION");
+        ApiResponse mockResponse = mock(ApiResponse.class);
+        when(mockResponse.getResponseCode()).thenReturn(HttpStatus.OK);
 
         when(profileService.readFullExtendedProfile((userId), (Constants.LOCATION_DETAILS), (authToken)))
                 .thenReturn(mockResponse);
@@ -128,7 +139,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
      void testGetAchievements() throws Exception {
         String authToken = "test-auth-token";
         String userId = "user-123";
-        ApiResponse mockResponse = ProjectUtil.createDefaultResponse("GET_ACHIEVEMENTS");
+        ApiResponse mockResponse = mock(ApiResponse.class);
+        when(mockResponse.getResponseCode()).thenReturn(HttpStatus.OK);
 
         when(profileService.readFullExtendedProfile((userId), (Constants.ACHIEVEMENTS), (authToken)))
                 .thenReturn(mockResponse);
@@ -146,7 +158,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         Map<String, Object> request = new HashMap<>();
         request.put("field1", "updatedValue");
 
-        ApiResponse mockResponse = ProjectUtil.createDefaultResponse("UPDATE_EXTENDED_PROFILE");
+                ApiResponse mockResponse = mock(ApiResponse.class);
+                when(mockResponse.getResponseCode()).thenReturn(HttpStatus.OK);
 
         when(profileService.updateExtendedProfile((request), (authToken))).thenReturn(mockResponse);
 
@@ -165,7 +178,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         Map<String, Object> request = new HashMap<>();
         request.put("profileId", "123");
 
-        ApiResponse mockResponse = ProjectUtil.createDefaultResponse("DELETE_EXTENDED_PROFILE");
+                ApiResponse mockResponse = mock(ApiResponse.class);
+                when(mockResponse.getResponseCode()).thenReturn(HttpStatus.OK);
 
         when(profileService.deleteExtendedProfile((request), (authToken))).thenReturn(mockResponse);
 
@@ -183,7 +197,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         String authToken = "test-auth-token";
         String userId = "user-123";
 
-        ApiResponse mockResponse = ProjectUtil.createDefaultResponse("GET_BASIC_PROFILE");
+                ApiResponse mockResponse = mock(ApiResponse.class);
+                when(mockResponse.getResponseCode()).thenReturn(HttpStatus.OK);
 
         when(profileService.getBasicProfile((userId), (authToken))).thenReturn(mockResponse);
 
@@ -199,7 +214,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         String authToken = "test-auth-token";
         String userId = "user-123";
 
-        ApiResponse mockResponse = ProjectUtil.createDefaultResponse("GET_COMPETENCIES");
+                ApiResponse mockResponse = mock(ApiResponse.class);
+                when(mockResponse.getResponseCode()).thenReturn(HttpStatus.OK);
 
         when(profileService.listCompetencies((userId), (authToken))).thenReturn(mockResponse);
 

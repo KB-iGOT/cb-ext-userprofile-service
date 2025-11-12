@@ -85,14 +85,14 @@ public class CassandraConnectionManagerImpl implements CassandraConnectionManage
             List<String> hosts = Arrays.asList(cassandraHost.split(","));
             List<InetSocketAddress> contactPoints = hosts.stream()
                     .map(host -> new InetSocketAddress(host.trim(), 9042)) // Assuming default port 9042
-                    .collect(Collectors.toList());
+                    .toList();
             List<String> contactPointsString = hosts.stream()
                     .map(host -> host.trim() + ":9042") // Ensure proper host:port format
-                    .collect(Collectors.toList());
+                    .toList();
             DriverConfigLoader loader = DriverConfigLoader.programmaticBuilder()
                     .withStringList(DefaultDriverOption.CONTACT_POINTS, contactPointsString)
                     .withString(DefaultDriverOption.REQUEST_CONSISTENCY, getConsistencyLevel().name())
-                    .withString(DefaultDriverOption.LOAD_BALANCING_LOCAL_DATACENTER, "datacenter1")
+                    .withString(DefaultDriverOption.LOAD_BALANCING_LOCAL_DATACENTER, Constants.DATA_CENTER)
                     .withInt(DefaultDriverOption.CONNECTION_POOL_LOCAL_SIZE,
                             Integer.parseInt(cache.getProperty(Constants.CORE_CONNECTIONS_PER_HOST_FOR_LOCAL)))
                     .withInt(DefaultDriverOption.CONNECTION_POOL_REMOTE_SIZE,
@@ -163,11 +163,15 @@ public class CassandraConnectionManagerImpl implements CassandraConnectionManage
         try {
             return DefaultConsistencyLevel.valueOf(consistency.toUpperCase());
         } catch (IllegalArgumentException exception) {
+            String errorMsg = String.format(
+                    "Invalid Cassandra consistency level '%s' specified in configuration. Using property key: %s",
+                    consistency,
+                    Constants.SUNBIRD_CASSANDRA_CONSISTENCY_LEVEL);
             logger.error("CassandraConnectionManagerImpl:getConsistencyLevel: Exception occurred with error message: ",
                      exception);
             throw new CustomException(
                     Constants.ERROR,
-                    exception.getMessage(),
+                    errorMsg,
                     HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }

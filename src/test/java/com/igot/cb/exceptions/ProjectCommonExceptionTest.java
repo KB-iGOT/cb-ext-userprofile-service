@@ -20,7 +20,7 @@ public class ProjectCommonExceptionTest {
         ProjectCommonException exception = new ProjectCommonException(mockCode, "Test message", 400);
         
         assertEquals("ERR_001", exception.getErrorCode());
-        assertEquals("Test message", exception.getErrorMessage());
+        assertEquals("Test message", exception.getMessage());
         assertEquals(400, exception.getErrorResponseCode());
         assertEquals(mockCode, exception.getResponseCode());
     }
@@ -39,7 +39,7 @@ public class ProjectCommonExceptionTest {
         );
         
         assertEquals("ERR_002", exception.getErrorCode());
-        assertEquals("Error occurred for user testUser in operation testOperation", exception.getErrorMessage());
+        assertEquals("Error occurred for user testUser in operation testOperation", exception.getMessage());
         assertEquals(500, exception.getErrorResponseCode());
     }
 
@@ -52,7 +52,7 @@ public class ProjectCommonExceptionTest {
         ProjectCommonException copy = new ProjectCommonException(original, "NewOperation");
         
         assertEquals(Constants.USER_ORG_SERVICE_PREFIX + "NewOperation" + "ERR_003", copy.getErrorCode());
-        assertEquals("Original message", copy.getErrorMessage());
+        assertEquals("Original message", copy.getMessage());
         assertEquals(400, copy.getErrorResponseCode());
     }
 
@@ -69,7 +69,7 @@ public class ProjectCommonExceptionTest {
         exception.setErrorResponseCode(500);
         
         assertEquals("NEW_ERR", exception.getErrorCode());
-        assertEquals("New message", exception.getErrorMessage());
+        assertEquals("New message", exception.getMessage());
         assertEquals(500, exception.getErrorResponseCode());
     }
 
@@ -95,7 +95,7 @@ public class ProjectCommonExceptionTest {
                 () -> ProjectCommonException.throwServerErrorException(mockResponseCode1, "Custom error message")
         );
         assertNotNull(exception1.getErrorCode());
-        assertEquals("Custom error message", exception1.getErrorMessage());
+        assertEquals("Custom error message", exception1.getMessage());
         assertNotEquals(0, exception1.getErrorResponseCode());
 
         // Case 2: Empty custom message, should use default message
@@ -108,7 +108,7 @@ public class ProjectCommonExceptionTest {
                 () -> ProjectCommonException.throwServerErrorException(mockResponseCode2, "")
         );
         assertNotNull(exception2.getErrorCode());
-        assertEquals("Default error message", exception2.getErrorMessage());
+        assertEquals("Default error message", exception2.getMessage());
         assertNotEquals(0, exception2.getErrorResponseCode());
 
         // Case 3: Null custom message, should use default message
@@ -121,7 +121,7 @@ public class ProjectCommonExceptionTest {
                 () -> ProjectCommonException.throwServerErrorException(mockResponseCode3, null)
         );
         assertNotNull(exception3.getErrorCode());
-        assertEquals("Default error message", exception3.getErrorMessage());
+        assertEquals("Default error message", exception3.getMessage());
         assertNotEquals(0, exception3.getErrorResponseCode());
     }
 
@@ -138,7 +138,7 @@ public class ProjectCommonExceptionTest {
         );
 
         assertNotNull(exception.getErrorCode());
-        assertEquals("Default error message", exception.getErrorMessage());
+        assertEquals("Default error message", exception.getMessage());
         assertNotEquals(0, exception.getErrorResponseCode());
     }
 
@@ -147,7 +147,7 @@ public class ProjectCommonExceptionTest {
         ProjectCommonException exception = new ProjectCommonException(
                 ResponseCode.SERVER_ERROR,
                 "Initial message",
-                ResponseCode.SERVER_ERROR.getResponseCode()
+                ResponseCode.SERVER_ERROR.getHttpStatusCode()
         );
         String newMessage = "New error message";
         exception.setMessage(newMessage);
@@ -163,7 +163,7 @@ public class ProjectCommonExceptionTest {
         ProjectCommonException exception = new ProjectCommonException(
                 ResponseCode.SERVER_ERROR,
                 "Test message",
-                ResponseCode.SERVER_ERROR.getResponseCode()
+                ResponseCode.SERVER_ERROR.getHttpStatusCode()
         );
         ResponseCode mockResponseCode = mock(ResponseCode.class);
         when(mockResponseCode.getErrorCode()).thenReturn("NEW_ERR_001");
