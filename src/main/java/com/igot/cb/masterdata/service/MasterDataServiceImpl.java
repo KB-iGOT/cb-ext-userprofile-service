@@ -54,6 +54,9 @@ public class MasterDataServiceImpl implements MasterDataService {
     @Autowired
     private InstituteRepository instituteRepository;
 
+    @Autowired
+    private ValidationService validationService;
+
     /**
      * Retrieves a list of all institutions from the master data.
      *
@@ -536,12 +539,12 @@ public class MasterDataServiceImpl implements MasterDataService {
 
             // Determine sort direction (default to DESC)
             Sort.Direction orderBy = Sort.Direction.DESC;
-            if ("ASC".equalsIgnoreCase(searchCriteria.getOrderBy())) {
+            if (Constants.ASC.equalsIgnoreCase(searchCriteria.getOrderBy())) {
                 orderBy = Sort.Direction.ASC;
             }
 
             // Build pageable
-            String sortBy = (searchCriteria.getSortBy() == null || searchCriteria.getSortBy().isBlank())
+            String sortBy = (StringUtils.isEmpty(searchCriteria.getSortBy()))
                     ? Constants.ID : searchCriteria.getSortBy();
 
             Pageable pageable = PageRequest.of(
@@ -551,17 +554,15 @@ public class MasterDataServiceImpl implements MasterDataService {
             );
 
             // Execute query
-            String keyword = searchCriteria.getSearch();
+            String keyword = searchCriteria.getSearchString();
+            if (!validationService.validateSearchString(keyword, apiResponse)) {
+                return apiResponse;
+            }
             Page<Degree> page;
-
-            if (keyword == null || keyword.isBlank()) {
-                logger.debug("No search keyword provided. Fetching all degrees...");
+            if (StringUtils.isEmpty(keyword)) {
                 page = degreeRepository.findByStatus(1, pageable);
             } else {
-                logger.debug("Searching degrees by keyword: {}", keyword);
-                page = degreeRepository.findByNameContainingIgnoreCaseAndStatus(
-                        keyword, 1, pageable
-                );
+                page = degreeRepository.findByNameContainingIgnoreCaseAndStatus(keyword, 1, pageable);
             }
 
             // Extract results
@@ -595,12 +596,12 @@ public class MasterDataServiceImpl implements MasterDataService {
 
             // Determine sort direction (default to DESC)
             Sort.Direction orderBy = Sort.Direction.DESC;
-            if ("ASC".equalsIgnoreCase(searchCriteria.getOrderBy())) {
+            if (Constants.ASC.equalsIgnoreCase(searchCriteria.getOrderBy())) {
                 orderBy = Sort.Direction.ASC;
             }
 
             // Build pageable
-            String sortBy = (searchCriteria.getSortBy() == null || searchCriteria.getSortBy().isBlank())
+            String sortBy = (StringUtils.isEmpty(searchCriteria.getSortBy()))
                     ? Constants.ID : searchCriteria.getSortBy();
 
             Pageable pageable = PageRequest.of(
@@ -610,16 +611,15 @@ public class MasterDataServiceImpl implements MasterDataService {
             );
 
             // Execute query
-            String keyword = searchCriteria.getSearch();
+            String keyword = searchCriteria.getSearchString();
+            if (!validationService.validateSearchString(keyword, apiResponse)) {
+                return apiResponse;
+            }
             Page<Institute> page;
-
-            if (keyword == null || keyword.isBlank()) {
-                logger.debug("No search keyword provided. Fetching all institutes...");
+            if (StringUtils.isEmpty(keyword)) {
                 page = instituteRepository.findByStatus(1, pageable);
             } else {
-                logger.debug("Searching institutes by keyword: {}", keyword);
-                page = instituteRepository.findByNameContainingIgnoreCaseAndStatus(keyword, 1, pageable
-                );
+                page = instituteRepository.findByNameContainingIgnoreCaseAndStatus(keyword, 1, pageable);
             }
 
             // Extract results
@@ -647,18 +647,15 @@ public class MasterDataServiceImpl implements MasterDataService {
 
     public ApiResponse addDegree(Degree degree) {
         ApiResponse apiResponse = ProjectUtil.createDefaultResponse(Constants.API_ADD_DEGREE);
-
         try {
             logger.info("Adding new degree: {}", degree);
-
             //Basic Validation
-            if (degree.getName() == null || degree.getName().isBlank()) {
+            if (StringUtils.isEmpty(degree.getName())) {
                 logger.warn("Validation failed: Degree name is empty");
                 ProjectUtil.errorResponse(apiResponse, "Degree name cannot be empty", HttpStatus.BAD_REQUEST);
                 return apiResponse;
             }
-
-            if (degree.getDescription() != null && degree.getDescription().length() > 255) {
+            if (StringUtils.isNotEmpty(degree.getDescription()) && degree.getDescription().length() > 255) {
                 logger.warn("Validation failed: Degree description too long");
                 ProjectUtil.errorResponse(apiResponse, "Degree description cannot exceed 255 characters", HttpStatus.BAD_REQUEST);
                 return apiResponse;
@@ -668,26 +665,22 @@ public class MasterDataServiceImpl implements MasterDataService {
             Optional<Degree> existingDegreeOpt = degreeRepository.findByNameIgnoreCase(degree.getName());
             if (existingDegreeOpt.isPresent()) {
                 Degree existingDegree = existingDegreeOpt.get();
-
                 if (existingDegree.getStatus() == 0) {
                     //Reactivate instead of creating a new one
                     logger.info("Degree '{}' exists but is inactive. Reactivating...", degree.getName());
-
                     existingDegree.setStatus(1);
-                    if (degree.getDescription() != null) {
+                    if (StringUtils.isNotEmpty(degree.getDescription())) {
                         existingDegree.setDescription(degree.getDescription());
                     }
-
                     Degree reactivatedDegree = degreeRepository.save(existingDegree);
                     logger.info("Degree '{}' reactivated successfully.", reactivatedDegree.getName());
-
                     apiResponse.getResult().put(Constants.RESULT, reactivatedDegree);
                     return apiResponse;
                 }
 
                 //Already active
                 logger.warn("Degree already exists and is active: {}", degree.getName());
-                ProjectUtil.errorResponse(apiResponse, "Degree already exists", HttpStatus.CONFLICT);
+                ProjectUtil.errorResponse(apiResponse, "Degree already exists and is active", HttpStatus.CONFLICT);
                 return apiResponse;
             }
 
@@ -712,47 +705,39 @@ public class MasterDataServiceImpl implements MasterDataService {
 
     public ApiResponse addInstitute(Institute institute) {
         ApiResponse apiResponse = ProjectUtil.createDefaultResponse(Constants.API_ADD_INSTITUTE);
-
         try {
             logger.info("Adding new institute: {}", institute);
-
             //Basic Validation
-            if (institute.getName() == null || institute.getName().isBlank()) {
+            if (StringUtils.isEmpty(institute.getName())) {
                 logger.warn("Validation failed: Institute name is empty");
                 ProjectUtil.errorResponse(apiResponse, "Institute name cannot be empty", HttpStatus.BAD_REQUEST);
                 return apiResponse;
             }
-
-            if (institute.getDescription() != null && institute.getDescription().length() > 255) {
+            if (StringUtils.isNotEmpty(institute.getDescription()) && institute.getDescription().length() > 255) {
                 logger.warn("Validation failed: Institute description too long");
                 ProjectUtil.errorResponse(apiResponse, "Institute description cannot exceed 255 characters", HttpStatus.BAD_REQUEST);
                 return apiResponse;
             }
-
             //Check if institute already exists
             Optional<Institute> existingInstituteOpt = instituteRepository.findByNameIgnoreCase(institute.getName());
             if (existingInstituteOpt.isPresent()) {
                 Institute existingInstitute = existingInstituteOpt.get();
-
                 if (existingInstitute.getStatus() == 0) {
                     //Reactivate instead of creating a new one
                     logger.info("Institute '{}' exists but is inactive. Reactivating...", institute.getName());
-
                     existingInstitute.setStatus(1);
-                    if (institute.getDescription() != null) {
+                    if (StringUtils.isNotEmpty(institute.getDescription())) {
                         existingInstitute.setDescription(institute.getDescription());
                     }
-
                     Institute reactivatedInstitute = instituteRepository.save(existingInstitute);
                     logger.info("Institute '{}' reactivated successfully.", reactivatedInstitute.getName());
-
                     apiResponse.getResult().put(Constants.RESULT, reactivatedInstitute);
                     return apiResponse;
                 }
 
                 //Already active
                 logger.warn("Institute already exists and is active: {}", institute.getName());
-                ProjectUtil.errorResponse(apiResponse, "Institute already exists", HttpStatus.CONFLICT);
+                ProjectUtil.errorResponse(apiResponse, "Institute already exists and is active", HttpStatus.CONFLICT);
                 return apiResponse;
             }
 
@@ -781,14 +766,12 @@ public class MasterDataServiceImpl implements MasterDataService {
 
         try {
             logger.info("{} degree with name: {}", status != 0 ? "Activating" : "Deactivating", degreeName);
-
             //Validate input
-            if (degreeName == null || degreeName.isBlank()) {
+            if (StringUtils.isEmpty(degreeName)) {
                 logger.warn("Degree name cannot be empty");
                 ProjectUtil.errorResponse(apiResponse, "Degree name cannot be empty", HttpStatus.BAD_REQUEST);
                 return apiResponse;
             }
-
             //Find degree by name
             Optional<Degree> optionalDegree = degreeRepository.findByNameIgnoreCase(degreeName);
             if (optionalDegree.isEmpty()) {
@@ -796,9 +779,7 @@ public class MasterDataServiceImpl implements MasterDataService {
                 ProjectUtil.errorResponse(apiResponse, "Degree not found", HttpStatus.NOT_FOUND);
                 return apiResponse;
             }
-
             Degree degree = optionalDegree.get();
-
             //Check if already in desired state
             if (status == 1 && degree.getStatus() == 1) {
                 logger.info("Degree '{}' is already active", degreeName);
@@ -813,7 +794,6 @@ public class MasterDataServiceImpl implements MasterDataService {
             //Update status
             degree.setStatus(status);
             degreeRepository.save(degree);
-
             logger.info("Degree '{}' {} successfully", degreeName, status == 1 ? "activated" : "deactivated");
             apiResponse.getResult().put(Constants.RESULT, degree);
 
@@ -827,17 +807,14 @@ public class MasterDataServiceImpl implements MasterDataService {
 
     public ApiResponse toggleInstituteStatusByName(String instituteName, int status) {
         ApiResponse apiResponse = ProjectUtil.createDefaultResponse(Constants.API_UPDATE_INSTITUTE_STATUS);
-
         try {
             logger.info("{} institute with name: {}", status == 1 ? "Activating" : "Deactivating", instituteName);
-
             //Validate input
-            if (instituteName == null || instituteName.isBlank()) {
+            if (StringUtils.isEmpty(instituteName)) {
                 logger.warn("Institute name cannot be empty");
                 ProjectUtil.errorResponse(apiResponse, "Institute name cannot be empty", HttpStatus.BAD_REQUEST);
                 return apiResponse;
             }
-
             //Find institute by name
             Optional<Institute> optionalInstitute = instituteRepository.findByNameIgnoreCase(instituteName);
             if (optionalInstitute.isEmpty()) {
@@ -845,9 +822,7 @@ public class MasterDataServiceImpl implements MasterDataService {
                 ProjectUtil.errorResponse(apiResponse, "Institute not found", HttpStatus.NOT_FOUND);
                 return apiResponse;
             }
-
             Institute institute = optionalInstitute.get();
-
             //Check if already in desired state
             if (status == 1 && institute.getStatus() == 1) {
                 logger.info("Institute '{}' is already active", instituteName);
@@ -870,9 +845,7 @@ public class MasterDataServiceImpl implements MasterDataService {
             logger.error("Unexpected error while {} institute '{}': {}", status == 1 ? "activating" : "deactivating", instituteName, e.getMessage(), e);
             ProjectUtil.errorResponse(apiResponse, "Unexpected error while updating institute status", HttpStatus.INTERNAL_SERVER_ERROR);
         }
-
         return apiResponse;
     }
-
 
 }
