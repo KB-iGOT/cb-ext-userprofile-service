@@ -1,6 +1,10 @@
 package com.igot.cb.masterdata.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.igot.cb.masterdata.model.Degree;
+import com.igot.cb.masterdata.model.Institute;
+import com.igot.cb.masterdata.model.SearchCriteria;
+import com.igot.cb.masterdata.model.StatusUpdateRequest;
 import com.igot.cb.masterdata.service.MasterDataService;
 import com.igot.cb.util.ApiResponse;
 import com.igot.cb.util.Constants;
@@ -17,6 +21,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -24,6 +29,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -109,5 +115,156 @@ class MasterDataControllerTest {
                 .andExpect(jsonPath("$.responseCode").value(HttpStatus.CREATED.name()))
                 .andExpect(jsonPath("$.result.response").value("Degree added successfully: Test Degree"));
         verify(masterDataService, times(1)).updateDegreesList(eq(authToken), any(Map.class));
+    }
+
+    @Test
+    void testSearchDegree() throws Exception {
+        SearchCriteria criteria = new SearchCriteria();
+        criteria.setSearchString("B.Tech");
+
+        ApiResponse mockResponse = ProjectUtil.createDefaultResponse("search-degree");
+        mockResponse.setResponseCode(HttpStatus.OK);
+        mockResponse.getResult().put("degrees", List.of("B.Tech"));
+
+        when(masterDataService.searchDegree(any(SearchCriteria.class))).thenReturn(mockResponse);
+
+        mockMvc.perform(post("/v1/masterdata/degree/search")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(new ObjectMapper().writeValueAsString(criteria)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.responseCode").value(HttpStatus.OK.name()))
+                .andExpect(jsonPath("$.result.degrees[0]").value("B.Tech"));
+
+        verify(masterDataService, times(1)).searchDegree(any(SearchCriteria.class));
+    }
+
+    @Test
+    void testSearchInstitute() throws Exception {
+        SearchCriteria criteria = new SearchCriteria();
+        criteria.setSearchString("IIT");
+
+        ApiResponse mockResponse = ProjectUtil.createDefaultResponse("search-institute");
+        mockResponse.setResponseCode(HttpStatus.OK);
+        mockResponse.getResult().put("institutes", List.of("IIT"));
+
+        when(masterDataService.searchInstitute(any(SearchCriteria.class))).thenReturn(mockResponse);
+
+        mockMvc.perform(post("/v1/masterdata/institute/search")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(new ObjectMapper().writeValueAsString(criteria)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.responseCode").value(HttpStatus.OK.name()))
+                .andExpect(jsonPath("$.result.institutes[0]").value("IIT"));
+
+        verify(masterDataService, times(1)).searchInstitute(any(SearchCriteria.class));
+    }
+
+
+    @Test
+    void testAddDegree() throws Exception {
+        Degree degree = new Degree();
+        degree.setName("MBA");
+
+        ApiResponse mockResponse = ProjectUtil.createDefaultResponse("add-degree");
+        mockResponse.setResponseCode(HttpStatus.CREATED);
+        mockResponse.getResult().put("degree", "MBA");
+
+        when(masterDataService.addDegree(any(Degree.class))).thenReturn(mockResponse);
+
+        mockMvc.perform(post("/v1/masterdata/add/degree")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(new ObjectMapper().writeValueAsString(degree)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.responseCode").value(HttpStatus.CREATED.name()))
+                .andExpect(jsonPath("$.result.degree").value("MBA"));
+
+        verify(masterDataService, times(1)).addDegree(any(Degree.class));
+    }
+
+    @Test
+    void testAddInstitute() throws Exception {
+        Institute institute = new Institute();
+        institute.setName("IIT Delhi");
+
+        ApiResponse mockResponse = ProjectUtil.createDefaultResponse("add-institute");
+        mockResponse.setResponseCode(HttpStatus.CREATED);
+        mockResponse.getResult().put("institute", "IIT Delhi");
+
+        when(masterDataService.addInstitute(any(Institute.class))).thenReturn(mockResponse);
+
+        mockMvc.perform(post("/v1/masterdata/add/institute")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(new ObjectMapper().writeValueAsString(institute)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.responseCode").value(HttpStatus.CREATED.name()))
+                .andExpect(jsonPath("$.result.institute").value("IIT Delhi"));
+
+        verify(masterDataService, times(1)).addInstitute(any(Institute.class));
+    }
+
+    @Test
+    void testUpdateDegreeStatus_Success() throws Exception {
+        StatusUpdateRequest request = new StatusUpdateRequest();
+        request.setName("MBA");
+        request.setStatus(1);
+
+        ApiResponse mockResponse = ProjectUtil.createDefaultResponse("update-degree-status");
+        mockResponse.getParams().setStatus("success");
+        mockResponse.setResponseCode(HttpStatus.OK);
+
+        when(masterDataService.toggleDegreeStatusByName(anyString(), anyInt()))
+                .thenReturn(mockResponse);
+
+        mockMvc.perform(put("/v1/masterdata/degree/update/status")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(new ObjectMapper().writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.params.status").value("success"));
+
+        verify(masterDataService).toggleDegreeStatusByName(anyString(), eq(1));
+    }
+
+    @Test
+    void testUpdateDegreeStatus_Failure() throws Exception {
+        StatusUpdateRequest request = new StatusUpdateRequest();
+        request.setName("MBA");
+        request.setStatus(1);
+
+        ApiResponse mockResponse = ProjectUtil.createDefaultResponse("update-degree-status");
+        mockResponse.getParams().setStatus("failure");
+        mockResponse.setResponseCode(HttpStatus.BAD_REQUEST);
+
+        when(masterDataService.toggleDegreeStatusByName(anyString(), anyInt()))
+                .thenReturn(mockResponse);
+
+        mockMvc.perform(put("/v1/masterdata/degree/update/status")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(new ObjectMapper().writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.params.status").value("failure"));
+
+        verify(masterDataService).toggleDegreeStatusByName(anyString(), eq(1));
+    }
+
+    @Test
+    void testInstituteUpdateStatus_Success() throws Exception {
+        StatusUpdateRequest request = new StatusUpdateRequest();
+        request.setName("IIT Delhi");
+        request.setStatus(1);
+
+        ApiResponse mockResponse = ProjectUtil.createDefaultResponse("update-institute-status");
+        mockResponse.getParams().setStatus("success");
+        mockResponse.setResponseCode(HttpStatus.OK);
+
+        when(masterDataService.toggleInstituteStatusByName(anyString(), anyInt()))
+                .thenReturn(mockResponse);
+
+        mockMvc.perform(put("/v1/masterdata/institute/update/status")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(new ObjectMapper().writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.params.status").value("success"));
+
+        verify(masterDataService).toggleInstituteStatusByName(anyString(), eq(1));
     }
 }

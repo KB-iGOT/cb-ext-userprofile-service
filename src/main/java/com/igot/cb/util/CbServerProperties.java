@@ -149,4 +149,7 @@ public class CbServerProperties {
 
     @Value("${db.table.user-enrolments}")
     private String userEnrolmentsTable;
+
+    @Value("${master_data_search_string_regex}")
+    private String masterDataSearchStringRegex;
 }

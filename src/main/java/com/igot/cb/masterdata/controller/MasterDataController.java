@@ -60,22 +60,22 @@ public class MasterDataController {
 
     @PostMapping(value = "/add/degree")
     public ResponseEntity<ApiResponse> addDegree(@RequestBody Degree degree) {
-        return new ResponseEntity<>(masterDataService.addDegree(degree), HttpStatus.OK);
+        return new ResponseEntity<>(masterDataService.addDegree(degree), HttpStatus.CREATED);
     }
 
     @PostMapping(value = "/add/institute")
     public ResponseEntity<ApiResponse> addInstitute(@RequestBody Institute institute) {
-        return new ResponseEntity<>(masterDataService.addInstitute(institute), HttpStatus.OK);
+        return new ResponseEntity<>(masterDataService.addInstitute(institute), HttpStatus.CREATED);
     }
 
     @PutMapping("/degree/update/status")
-    public ResponseEntity<ApiResponse> updateDegreeStatus(StatusUpdateRequest request) {
+    public ResponseEntity<ApiResponse> updateDegreeStatus(@RequestBody StatusUpdateRequest request) {
         ApiResponse response = masterDataService.toggleDegreeStatusByName(request.getName(), request.getStatus());
         return ResponseEntity.status(response.getParams().getStatus().equalsIgnoreCase(Constants.SUCCESS) ? HttpStatus.OK : HttpStatus.BAD_REQUEST).body(response);
     }
 
     @PutMapping("/institute/update/status")
-    public ResponseEntity<ApiResponse> instituteUpdateStatus(StatusUpdateRequest request) {
+    public ResponseEntity<ApiResponse> instituteUpdateStatus(@RequestBody StatusUpdateRequest request) {
         ApiResponse response = masterDataService.toggleInstituteStatusByName(request.getName(), request.getStatus());
         return ResponseEntity.status(response.getParams().getStatus().equalsIgnoreCase(Constants.SUCCESS) ? HttpStatus.OK : HttpStatus.BAD_REQUEST).body(response);
     }
