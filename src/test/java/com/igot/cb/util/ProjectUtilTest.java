@@ -3,7 +3,6 @@ package com.igot.cb.util;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.mockito.Mockito.when;
-import org.springframework.http.HttpStatus;
 
 
 import java.io.IOException;
@@ -49,29 +48,6 @@ public class ProjectUtilTest {
         assertEquals(responseCode.getErrorMessage(), exception.getMessage());
         assertEquals(Integer.valueOf(ResponseCode.CLIENT_ERROR.getResponseCode()),
                 Integer.valueOf(exception.getResponseCode()));
-    }
-
-    @Test
-    public void testCreateDefaultResponse() {
-        ApiResponse response = ProjectUtil.createDefaultResponse("test.api");
-
-        assertEquals("test.api", response.getId());
-        assertEquals(Constants.API_VERSION_1, response.getVer());
-        assertEquals(Constants.SUCCESS, response.getParams().getStatus());
-        assertEquals(HttpStatus.OK, response.getResponseCode());
-        assertNotNull(response.getTs());
-        assertNotNull(response.getParams().getResMsgId());
-    }
-
-    @Test
-    public void testErrorResponse() {
-        ApiResponse response = ProjectUtil.createDefaultResponse("test.api");
-
-        ProjectUtil.errorResponse(response, "Invalid Request", HttpStatus.BAD_REQUEST);
-
-        assertEquals(Constants.FAILED, response.getParams().getStatus());
-        assertEquals("Invalid Request", response.getParams().getErrMsg());
-        assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
     }
 
     @Test

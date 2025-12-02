@@ -7,6 +7,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 
@@ -37,6 +38,10 @@ class CacheServiceTest {
 
     @BeforeEach
     void setUp() {
+        // Manually inject the JedisPool mocks using reflection
+        ReflectionTestUtils.setField(cacheService, "jedisPool", jedisPool);
+        ReflectionTestUtils.setField(cacheService, "jedisDataPopulationPool", jedisDataPopulationPool);
+
         lenient().when(jedisPool.getResource()).thenReturn(jedis);
         lenient().when(jedisDataPopulationPool.getResource()).thenReturn(jedis);
     }

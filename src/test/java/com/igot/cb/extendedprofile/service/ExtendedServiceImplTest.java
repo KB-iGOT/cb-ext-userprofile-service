@@ -1,8 +1,8 @@
 package com.igot.cb.extendedprofile.service;
 
-import com.igot.cb.util.ApiResponse;
 import com.igot.cb.util.Constants;
 import org.apache.commons.collections4.MapUtils;
+import org.igot.common.ApiResponse;
 import org.igot.common.auth.AccessTokenValidator;
 import org.igot.common.cassandra.CassandraOperation;
 import org.junit.Before;
@@ -16,7 +16,6 @@ import org.springframework.http.HttpStatus;
 import java.util.*;
 
 import static org.junit.Assert.*;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;

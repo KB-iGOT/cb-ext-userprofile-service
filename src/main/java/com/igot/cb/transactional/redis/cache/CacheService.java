@@ -27,8 +27,11 @@ public class CacheService {
     @Autowired
     private JedisPool jedisDataPopulationPool;
 
-    @Autowired
     CbServerProperties serverProperties;
+
+    public CacheService(CbServerProperties serverProperties) {
+        this.serverProperties = serverProperties;
+    }
 
     private static final Logger logger = LoggerFactory.getLogger(CacheService.class);
 

@@ -2,16 +2,15 @@ package com.igot.cb.extendedprofile.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.igot.cb.util.ApiResponse;
 import com.igot.cb.util.Constants;
-import com.igot.cb.util.ProjectUtil;
+
+import lombok.extern.slf4j.Slf4j;
+
 import org.apache.commons.collections4.MapUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.apache.commons.lang3.StringUtils;
+import org.igot.common.ApiResponse;
 import org.igot.common.auth.AccessTokenValidator;
 import org.igot.common.cassandra.CassandraOperation;
 
@@ -21,19 +20,21 @@ import java.util.*;
  * @author mahesh.vakkund
  */
 @Service
+@Slf4j
 public class ExtendedServiceImpl implements ExtendedProfileService {
-    private final Logger logger = LoggerFactory.getLogger(ExtendedServiceImpl.class);
-
-    @Autowired
     AccessTokenValidator accessTokenValidator;
-
-    @Autowired
     CassandraOperation cassandraOperation;
+
+    public ExtendedServiceImpl(AccessTokenValidator accessTokenValidator,
+                               CassandraOperation cassandraOperation) {
+        this.accessTokenValidator = accessTokenValidator;
+        this.cassandraOperation = cassandraOperation;
+    }
 
     @Override
     public ApiResponse getStatesList(String authToken) {
-        logger.info("ExtendedServiceImpl::getStatesList started");
-        ApiResponse outgoingResponse = ProjectUtil.createDefaultResponse(Constants.API_GET_STATE_LIST);
+        log.info("ExtendedServiceImpl::getStatesList started");
+        ApiResponse outgoingResponse = ApiResponse.createDefaultResponse(Constants.API_GET_STATE_LIST);
         String userId = accessTokenValidator.fetchUserIdFromAccessToken(authToken);
         if (StringUtils.isEmpty(userId)) {
             updateErrorDetails(outgoingResponse, Constants.USER_ID_DOESNT_EXIST, HttpStatus.BAD_REQUEST);
@@ -57,9 +58,9 @@ public class ExtendedServiceImpl implements ExtendedProfileService {
                     })
                     .toList();
             outgoingResponse.getResult().put(Constants.STATES_LIST, stateDataList);
-            logger.info("ExtendedServiceImpl::getStatesList completed successfully with {} states", stateDataList.size());
+            log.info("ExtendedServiceImpl::getStatesList completed successfully with {} states", stateDataList.size());
         } catch (Exception e) {
-            logger.error("Error while fetching states list from Cassandra: {}", e.getMessage(), e);
+            log.error("Error while fetching states list from Cassandra: {}", e.getMessage(), e);
             updateErrorDetails(outgoingResponse, "Internal server error while fetching states list",
                     HttpStatus.INTERNAL_SERVER_ERROR);
             return outgoingResponse;
@@ -70,8 +71,8 @@ public class ExtendedServiceImpl implements ExtendedProfileService {
 
     @Override
     public ApiResponse getDistrictsList(String authToken,Map<String, Object> requestBody) {
-        logger.info("ExtendedServiceImpl::getDistrictsList started");
-        ApiResponse outgoingResponse = ProjectUtil.createDefaultResponse(Constants.API_GET_DISTRICT_LIST);
+        log.info("ExtendedServiceImpl::getDistrictsList started");
+        ApiResponse outgoingResponse = ApiResponse.createDefaultResponse(Constants.API_GET_DISTRICT_LIST);
         String userId = accessTokenValidator.fetchUserIdFromAccessToken(authToken);
         if (StringUtils.isEmpty(userId)) {
             updateErrorDetails(outgoingResponse, Constants.USER_ID_DOESNT_EXIST, HttpStatus.BAD_REQUEST);
@@ -105,7 +106,7 @@ public class ExtendedServiceImpl implements ExtendedProfileService {
                                 districtsList = mapper.readValue(contextDataJson,
                                         new TypeReference<List<String>>() {});
                             } catch (Exception e) {
-                                logger.error("Error parsing district data for state {}: {}",
+                                log.error("Error parsing district data for state {}: {}",
                                         map.get(Constants.CONTEXT_NAME), e.getMessage(), e);
                             }
                         }
@@ -114,10 +115,10 @@ public class ExtendedServiceImpl implements ExtendedProfileService {
                     })
                     .toList();
             outgoingResponse.getResult().put(Constants.DISTRICTS_LIST, districtsByState);
-            logger.info("ExtendedServiceImpl::getDistrictsList completed successfully with {} states",
+            log.info("ExtendedServiceImpl::getDistrictsList completed successfully with {} states",
                     districtsByState.size());
         } catch (Exception e) {
-            logger.error("Error while fetching districts list from Cassandra: {}", e.getMessage(), e);
+            log.error("Error while fetching districts list from Cassandra: {}", e.getMessage(), e);
             updateErrorDetails(outgoingResponse, "Internal server error while fetching districts list",
                     HttpStatus.INTERNAL_SERVER_ERROR);
         }

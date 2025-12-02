@@ -51,11 +51,7 @@ class ProfileServiceImplPrivateMethodTest {
 
     @Test
     void testGetBasicProfile_InvalidToken() {
-        Mockito.doAnswer(invocation -> {
-            ApiResponse resp = invocation.getArgument(1);
-            resp.setResponseCode(HttpStatus.UNAUTHORIZED);
-            return null;
-        }).when(accessTokenValidator).fetchUserIdFromAccessToken(eq("badToken"), any());
+        when(accessTokenValidator.fetchUserIdFromAccessToken("badToken")).thenReturn(null);
 
         ApiResponse response = profileService.getBasicProfile("user123", "badToken");
 
@@ -67,7 +63,7 @@ class ProfileServiceImplPrivateMethodTest {
         String userId = "user123";
         String userToken = "token123";
 
-        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(userToken), any())).thenReturn(userId);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userId);
 
         // Simulate cache hit with some missing fields
         Map<String, Object> cachedMap = new HashMap<>();
@@ -99,7 +95,7 @@ class ProfileServiceImplPrivateMethodTest {
         String userId = "user123";
         String userToken = "token123";
 
-        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(userToken), any())).thenReturn(userId);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userId);
         when(cacheService.getCache(anyString())).thenReturn(null);
 
         ProfileServiceImpl spyService = Mockito.spy(profileService);
@@ -117,7 +113,7 @@ class ProfileServiceImplPrivateMethodTest {
         String userId = "user123";
         String userToken = "token123";
 
-        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(userToken), any())).thenReturn("otherUser");
+        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn("otherUser");
         when(cacheService.getCache(anyString())).thenReturn(null);
 
         ProfileServiceImpl spyService = Mockito.spy(profileService);
@@ -136,7 +132,7 @@ class ProfileServiceImplPrivateMethodTest {
 
     @Test
     void testGetBasicProfile_Exception() {
-        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any())).thenReturn("user123");
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
         when(cacheService.getCache(anyString())).thenThrow(new RuntimeException("Cache failure"));
 
         ApiResponse response = profileService.getBasicProfile("user123", "token123");

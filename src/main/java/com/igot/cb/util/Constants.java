@@ -456,6 +456,10 @@ public class Constants {
     public static final String AUTH_TOKEN = "Authorization";
     public static final String APPROVED = "Approved";
     public static final String USER_EXTERNAL_COURSE_ENROLMENTS = "user_external_enrolments";
+    public static final String INVALID_USERID_ERROR_MSG = "Invalid UserId in the request";
+    public static final String USER_EXTENDED_PROFILE_PREFIX = "user:extendedProfile";
+    public static final String USER_EXTENDED_PROFILE_ALL_PREFIX = "user:extendedProfile:all:";
+    public static final String CUSTOM_FIELD = "Custom field ";
     private Constants() {
     }
 }

@@ -43,7 +43,7 @@ public class MasterDataServiceImplTest {
     @Test
     public void getInstitutionsList_InvalidToken() {
         String authToken = "invalid-auth-token";
-        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn("");
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(authToken), any())).thenReturn("");
         ApiResponse response = masterDataService.getInstitutionsList(authToken);
         assertNotNull(response);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
@@ -54,7 +54,7 @@ public class MasterDataServiceImplTest {
     @Test
     public void getInstitutionsList_NullUserId() {
         String authToken = "null-user-token";
-        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(null);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(authToken), any())).thenReturn(null);
         ApiResponse response = masterDataService.getInstitutionsList(authToken);
         assertNotNull(response);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
@@ -66,7 +66,7 @@ public class MasterDataServiceImplTest {
     public void getInstitutionsList_DataFromCache() {
         String authToken = "valid-auth-token";
         String userId = "test-user-id";
-        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(authToken), any())).thenReturn(userId);
         String cacheJson = "{\"institutions\":[\"IIT\",\"NIT\"]}";
         when(redisCacheMgr.getCache(Constants.INSTITUTION_LIST)).thenReturn(cacheJson);
         ApiResponse response = masterDataService.getInstitutionsList(authToken);
@@ -84,7 +84,7 @@ public class MasterDataServiceImplTest {
     public void getInstitutionsList_DataFromDatabase() {
         String authToken = "valid-auth-token";
         String userId = "test-user-id";
-        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(authToken), any())).thenReturn(userId);
         when(redisCacheMgr.getCache(Constants.INSTITUTION_LIST)).thenReturn(null);
         List<Map<String, Object>> dbResponse = new ArrayList<>();
         Map<String, Object> localRecord = new HashMap<>();
@@ -109,7 +109,7 @@ public class MasterDataServiceImplTest {
     public void getInstitutionsList_NoDataFound() {
         String authToken = "valid-auth-token";
         String userId = "test-user-id";
-        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(authToken), any())).thenReturn(userId);
         when(redisCacheMgr.getCache(Constants.INSTITUTION_LIST)).thenReturn(null);
         when(cassandraOperation.getRecordsByProperties(
                 eq(Constants.KEYSPACE_SUNBIRD),
@@ -130,7 +130,7 @@ public class MasterDataServiceImplTest {
         // Arrange
         String authToken = "valid-auth-token";
         String userId = "test-user-id";
-        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(authToken), any())).thenReturn(userId);
         when(redisCacheMgr.getCache(Constants.INSTITUTION_LIST)).thenReturn(null);
         when(cassandraOperation.getRecordsByProperties(
                 anyString(), anyString(), anyMap(), anyList(), any()))
@@ -146,7 +146,7 @@ public class MasterDataServiceImplTest {
     public void getInstitutionsList_CacheException() {
         String authToken = "valid-auth-token";
         String userId = "test-user-id";
-        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(authToken), any())).thenReturn(userId);
         when(redisCacheMgr.getCache(anyString())).thenThrow(new RuntimeException("Cache error"));
         when(cassandraOperation.getRecordsByProperties(
                 anyString(), anyString(), anyMap(), anyList(), any()))
@@ -162,7 +162,7 @@ public class MasterDataServiceImplTest {
     public void getInstitutionsList_InvalidJsonInCache() {
         String authToken = "valid-auth-token";
         String userId = "test-user-id";
-        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(authToken), any())).thenReturn(userId);
         when(redisCacheMgr.getCache(Constants.INSTITUTION_LIST)).thenReturn("{invalid-json}");
         when(cassandraOperation.getRecordsByProperties(
                 anyString(), anyString(), anyMap(), anyList(), any()))
@@ -177,7 +177,7 @@ public class MasterDataServiceImplTest {
     @Test
     public void getDegreesList_InvalidToken() {
         String authToken = "invalid-auth-token";
-        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn("");
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(authToken), any())).thenReturn("");
         ApiResponse response = masterDataService.getDegreesList(authToken);
         assertNotNull(response);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
@@ -188,7 +188,7 @@ public class MasterDataServiceImplTest {
     @Test
     public void getDegreesList_NullUserId() {
         String authToken = "null-user-token";
-        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(null);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(authToken), any())).thenReturn(null);
         ApiResponse response = masterDataService.getDegreesList(authToken);
         assertNotNull(response);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
@@ -200,7 +200,7 @@ public class MasterDataServiceImplTest {
     public void getDegreesList_DataFromCache() {
         String authToken = "valid-auth-token";
         String userId = "test-user-id";
-        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(authToken), any())).thenReturn(userId);
         String cacheJson = "{\"degrees\":[\"B.Tech\",\"M.Tech\"]}";
         when(redisCacheMgr.getCache(Constants.DEGREES_LIST)).thenReturn(cacheJson);
         ApiResponse response = masterDataService.getDegreesList(authToken);
@@ -218,7 +218,7 @@ public class MasterDataServiceImplTest {
     public void getDegreesList_DataFromDatabase() {
         String authToken = "valid-auth-token";
         String userId = "test-user-id";
-        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(authToken), any())).thenReturn(userId);
         when(redisCacheMgr.getCache(Constants.DEGREES_LIST)).thenReturn(null);
         List<Map<String, Object>> dbResponse = new ArrayList<>();
         Map<String, Object> localRecord = new HashMap<>();
@@ -243,7 +243,7 @@ public class MasterDataServiceImplTest {
     public void getDegreesList_NoDataFound() {
         String authToken = "valid-auth-token";
         String userId = "test-user-id";
-        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(authToken), any())).thenReturn(userId);
         when(redisCacheMgr.getCache(Constants.DEGREES_LIST)).thenReturn(null);
         when(cassandraOperation.getRecordsByProperties(
                 anyString(),
@@ -263,7 +263,7 @@ public class MasterDataServiceImplTest {
     public void getDegreesList_CacheException() {
         String authToken = "valid-auth-token";
         String userId = "test-user-id";
-        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(authToken), any())).thenReturn(userId);
         when(redisCacheMgr.getCache(anyString())).thenThrow(new RuntimeException("Cache error"));
         when(cassandraOperation.getRecordsByProperties(
                 anyString(), anyString(), anyMap(), anyList(), any()))
@@ -277,7 +277,7 @@ public class MasterDataServiceImplTest {
     public void getDegreesList_DatabaseException() {
         String authToken = "valid-auth-token";
         String userId = "test-user-id";
-        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(authToken), any())).thenReturn(userId);
         when(redisCacheMgr.getCache(Constants.DEGREES_LIST)).thenReturn(null);
         when(cassandraOperation.getRecordsByProperties(
                 anyString(), anyString(), anyMap(), anyList(), any()))
@@ -293,7 +293,7 @@ public class MasterDataServiceImplTest {
     public void getDegreesList_InvalidJsonInCache() {
         String authToken = "valid-auth-token";
         String userId = "test-user-id";
-        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(authToken), any())).thenReturn(userId);
         when(redisCacheMgr.getCache(Constants.DEGREES_LIST)).thenReturn("{invalid-json}");
         when(cassandraOperation.getRecordsByProperties(
                 anyString(), anyString(), anyMap(), anyList(), any()))
@@ -587,7 +587,7 @@ public class MasterDataServiceImplTest {
         // Arrange
         String authToken = "valid-auth-token";
         String userId = "test-user-id";
-        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(authToken), any())).thenReturn(userId);
         MasterDataServiceImpl spyService = spy(masterDataService);
         doThrow(new RuntimeException("Test exception"))
                 .when(spyService).getDegreesFromCache();
@@ -602,7 +602,7 @@ public class MasterDataServiceImplTest {
     public void testGetInstitutionsList_WhenDatabaseReturnsData_ThenDataIsCached() {
         String authToken = "valid-auth-token";
         String userId = "test-user-id";
-        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(authToken), any())).thenReturn(userId);
         when(redisCacheMgr.getCache(Constants.INSTITUTION_LIST)).thenReturn(null);
         Map<String, Object> institutionsMap = new HashMap<>();
         institutionsMap.put("institutions", List.of("IIT", "NIT", "IIIT"));
@@ -620,7 +620,7 @@ public class MasterDataServiceImplTest {
     public void testGetInstitutionsListExceptionHandling() {
         String authToken = "valid-auth-token";
         String userId = "test-user-id";
-        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(authToken), any())).thenReturn(userId);
         MasterDataServiceImpl spyService = spy(masterDataService);
         doThrow(new RuntimeException("Test exception"))
                 .when(spyService).getInstitutionsFromCache();
@@ -637,7 +637,7 @@ public class MasterDataServiceImplTest {
         String newInstitution = "New Test Institution";
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put(Constants.INSTITUTE_NAME, newInstitution);
-        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(authToken), any())).thenReturn(userId);
         Map<String, Object> institutionsMap = new HashMap<>();
         List<String> institutions = new ArrayList<>();
         institutions.add("Existing Institution");
@@ -668,7 +668,7 @@ public class MasterDataServiceImplTest {
         String existingInstitution = "Existing Institution";
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put(Constants.INSTITUTE_NAME, existingInstitution);
-        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(authToken), any())).thenReturn(userId);
         Map<String, Object> institutionsMap = new HashMap<>();
         List<String> institutions = new ArrayList<>();
         institutions.add(existingInstitution);
@@ -689,7 +689,7 @@ public class MasterDataServiceImplTest {
         String authToken = "invalid-token";
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put(Constants.INSTITUTE_NAME, "Test Institution");
-        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn("");
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(authToken), any())).thenReturn("");
         ApiResponse response = masterDataService.updateInstitutionList(authToken, requestBody);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
         assertEquals(Constants.FAILED, response.getParams().getStatus());
@@ -703,7 +703,7 @@ public class MasterDataServiceImplTest {
         String authToken = "valid-token";
         String userId = "test-user-id";
         Map<String, Object> requestBody = new HashMap<>();
-        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(authToken), any())).thenReturn(userId);
         ApiResponse response = masterDataService.updateInstitutionList(authToken, requestBody);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
         assertEquals(Constants.FAILED, response.getParams().getStatus());
@@ -716,7 +716,7 @@ public class MasterDataServiceImplTest {
         String userId = "test-user-id";
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put(Constants.INSTITUTE_NAME, null);
-        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(authToken), any())).thenReturn(userId);
         ApiResponse response = masterDataService.updateInstitutionList(authToken, requestBody);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
         assertEquals(Constants.FAILED, response.getParams().getStatus());
@@ -729,7 +729,7 @@ public class MasterDataServiceImplTest {
         String userId = "test-user-id";
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put(Constants.INSTITUTE_NAME, "Test Institution");
-        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(authToken), any())).thenReturn(userId);
         when(redisCacheMgr.getCache(Constants.INSTITUTION_LIST)).thenReturn(null);
         MasterDataServiceImpl spyService = spy(masterDataService);
         doReturn(Map.of()).when(spyService).getInstitutionsFromDatabase();
@@ -745,7 +745,7 @@ public class MasterDataServiceImplTest {
         String userId = "test-user-id";
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put(Constants.INSTITUTE_NAME, "Test Institution");
-        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(authToken), any())).thenReturn(userId);
         Map<String, Object> invalidInstitutionsMap = new HashMap<>();
         ObjectMapper objectMapper = new ObjectMapper();
         String institutionsJson = objectMapper.writeValueAsString(invalidInstitutionsMap);
@@ -762,7 +762,7 @@ public class MasterDataServiceImplTest {
         String userId = "test-user-id";
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put(Constants.INSTITUTE_NAME, "New Test Institution");
-        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(authToken), any())).thenReturn(userId);
         Map<String, Object> institutionsMap = new HashMap<>();
         List<String> institutions = new ArrayList<>();
         institutions.add("Existing Institution");
@@ -788,7 +788,7 @@ public class MasterDataServiceImplTest {
         String userId = "test-user-id";
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put(Constants.INSTITUTE_NAME, "New Test Institution");
-        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(authToken), any())).thenReturn(userId);
         Map<String, Object> institutionsMap = new HashMap<>();
         List<String> institutions = new ArrayList<>();
         institutions.add("Existing Institution");
@@ -815,7 +815,7 @@ public class MasterDataServiceImplTest {
         String userId = "test-user-id";
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put(Constants.INSTITUTE_NAME, "New Test Institution");
-        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(authToken), any())).thenReturn(userId);
         Map<String, Object> institutionsMap = new HashMap<>();
         List<String> institutions = new ArrayList<>();
         institutions.add("Existing Institution");
@@ -841,7 +841,7 @@ public class MasterDataServiceImplTest {
         String userId = "test-user-id";
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put(Constants.INSTITUTE_NAME, "New Test Institution");
-        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(authToken), any())).thenReturn(userId);
         MasterDataServiceImpl spyService = spy(masterDataService);
         doThrow(new RuntimeException("Process method error"))
                 .when(spyService)
@@ -859,7 +859,7 @@ public class MasterDataServiceImplTest {
         String userId = "test-user-id";
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put(Constants.INSTITUTE_NAME, "Test Institution");
-        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(authToken), any())).thenReturn(userId);
         Map<String, Object> institutionsMap = new HashMap<>();
         try {
             String institutionsJson = new ObjectMapper().writeValueAsString(institutionsMap);
@@ -881,7 +881,7 @@ public class MasterDataServiceImplTest {
         String userId = "test-user-id";
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put(Constants.INSTITUTE_NAME, "Test Institution");
-        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(authToken), any())).thenReturn(userId);
         Map<String, Object> institutionsMap = new HashMap<>();
         institutionsMap.put(Constants.INSTITUTIONS, null); // This will trigger the isEmpty check
         String institutionsJson = new ObjectMapper().writeValueAsString(institutionsMap);
@@ -1349,7 +1349,7 @@ public class MasterDataServiceImplTest {
         String newDegree = "New Test Degree";
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put(Constants.DEGREE_NAME, newDegree);
-        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(authToken), any())).thenReturn(userId);
         MasterDataServiceImpl spyService = spy(masterDataService);
         doAnswer(invocation -> {
             ApiResponse response = invocation.getArgument(1);
@@ -1371,7 +1371,7 @@ public class MasterDataServiceImplTest {
         String authToken = "invalid-token";
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put(Constants.DEGREE_NAME, "Test Degree");
-        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn("");
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(authToken), any())).thenReturn("");
         ApiResponse response = masterDataService.updateDegreesList(authToken, requestBody);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
         assertEquals(Constants.FAILED, response.getParams().getStatus());
@@ -1386,7 +1386,7 @@ public class MasterDataServiceImplTest {
         String authToken = "valid-token";
         String userId = "test-user-id";
         Map<String, Object> requestBody = new HashMap<>();
-        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(authToken), any())).thenReturn(userId);
         MasterDataServiceImpl spyService = spy(masterDataService);
         doAnswer(invocation -> {
             ApiResponse response = invocation.getArgument(1);
@@ -1408,7 +1408,7 @@ public class MasterDataServiceImplTest {
         String userId = "test-user-id";
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put(Constants.DEGREE_NAME, "Test Degree");
-        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(authToken), any())).thenReturn(userId);
         MasterDataServiceImpl spyService = spy(masterDataService);
         doReturn(true).when(spyService).validateDegreeRequest(any(), any());
         doThrow(new RuntimeException("Database connection error")).when(spyService).processDegreeUpdate(any(), any());
@@ -1426,7 +1426,7 @@ public class MasterDataServiceImplTest {
         String authToken = "null-user-token";
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put(Constants.DEGREE_NAME, "Test Degree");
-        when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(null);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(authToken), any())).thenReturn(null);
         ApiResponse response = masterDataService.updateDegreesList(authToken, requestBody);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
         assertEquals(Constants.FAILED, response.getParams().getStatus());

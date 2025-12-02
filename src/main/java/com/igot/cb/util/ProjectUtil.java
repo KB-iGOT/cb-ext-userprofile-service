@@ -3,10 +3,9 @@ package com.igot.cb.util;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
-import java.util.regex.Pattern;
 
 import org.apache.commons.lang3.StringUtils;
+import org.igot.common.ApiResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
@@ -56,17 +55,6 @@ public class ProjectUtil {
     public static CustomException createClientException(ResponseCode responseCode) {
         return new CustomException(responseCode.getErrorCode(), responseCode.getErrorMessage(),
                 ResponseCode.CLIENT_ERROR.getResponseCode());
-    }
-
-    public static ApiResponse createDefaultResponse(String api) {
-        ApiResponse response = new ApiResponse();
-        response.setId(api);
-        response.setVer(Constants.API_VERSION_1);
-        response.setParams(new ApiRespParam(UUID.randomUUID().toString()));
-        response.getParams().setStatus(Constants.SUCCESS);
-        response.setResponseCode(HttpStatus.OK);
-        response.setTs(java.time.LocalDateTime.now().toString());
-        return response;
     }
 
     public static void errorResponse(ApiResponse response, String errorMessage, HttpStatus httpStatus) {
