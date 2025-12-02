@@ -2,12 +2,13 @@ package com.igot.cb.profile;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.igot.cb.authentication.util.AccessTokenValidator;
 import com.igot.cb.profile.service.ProfileServiceImpl;
 import com.igot.cb.transactional.redis.cache.CacheService;
 import com.igot.cb.util.ApiResponse;
 import com.igot.cb.util.CbServerProperties;
 import com.igot.cb.util.UserUtility;
+
+import org.igot.common.auth.AccessTokenValidator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

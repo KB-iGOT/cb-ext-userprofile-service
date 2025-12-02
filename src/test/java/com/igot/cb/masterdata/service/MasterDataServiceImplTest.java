@@ -2,12 +2,13 @@ package com.igot.cb.masterdata.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.igot.cb.authentication.util.AccessTokenValidator;
-import com.igot.cb.transactional.cassandrautils.CassandraOperation;
 import com.igot.cb.transactional.redis.cache.CacheService;
 import com.igot.cb.util.ApiResponse;
 import com.igot.cb.util.Constants;
 import com.igot.cb.util.ProjectUtil;
+
+import org.igot.common.auth.AccessTokenValidator;
+import org.igot.common.cassandra.CassandraOperation;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
@@ -76,8 +77,8 @@ public class MasterDataServiceImplTest {
         assertTrue(response.getResult().containsKey(Constants.INSTITUTION_LIST));
         verify(redisCacheMgr).getCache(Constants.INSTITUTION_LIST);
         verify(redisCacheMgr, never()).putCache(anyString(), any());
-        verify(cassandraOperation, never()).getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), anyList(),
-                anyString());
+        verify(cassandraOperation, never()).getRecordsByProperties(anyString(), anyString(), anyMap(), anyList(),
+                any());
     }
 
     @Test
@@ -90,12 +91,12 @@ public class MasterDataServiceImplTest {
         Map<String, Object> localRecord = new HashMap<>();
         localRecord.put("field_value", "{\"institutions\":[\"IIT\",\"NIT\"]}");
         dbResponse.add(localRecord);
-        when(cassandraOperation.getRecordsByPropertiesByKey(
+        when(cassandraOperation.getRecordsByProperties(
                 anyString(),
                 anyString(),
                 anyMap(),
                 anyList(),
-                anyString()))
+                any()))
                 .thenReturn(dbResponse);
         ApiResponse response = masterDataService.getInstitutionsList(authToken);
         assertNotNull(response);
@@ -111,12 +112,12 @@ public class MasterDataServiceImplTest {
         String userId = "test-user-id";
         when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
         when(redisCacheMgr.getCache(Constants.INSTITUTION_LIST)).thenReturn(null);
-        when(cassandraOperation.getRecordsByPropertiesByKey(
+        when(cassandraOperation.getRecordsByProperties(
                 eq(Constants.KEYSPACE_SUNBIRD),
                 eq(Constants.SYSTEM_SETTINGS),
                 anyMap(),
                 anyList(),
-                anyString()))
+                any()))
                 .thenReturn(new ArrayList<>());
         ApiResponse response = masterDataService.getInstitutionsList(authToken);
         assertNotNull(response);
@@ -132,8 +133,8 @@ public class MasterDataServiceImplTest {
         String userId = "test-user-id";
         when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
         when(redisCacheMgr.getCache(Constants.INSTITUTION_LIST)).thenReturn(null);
-        when(cassandraOperation.getRecordsByPropertiesByKey(
-                anyString(), anyString(), anyMap(), anyList(), anyString()))
+        when(cassandraOperation.getRecordsByProperties(
+                anyString(), anyString(), anyMap(), anyList(), any()))
                 .thenThrow(new RuntimeException("Database connection error"));
         ApiResponse response = masterDataService.getInstitutionsList(authToken);
         assertNotNull(response);
@@ -148,8 +149,8 @@ public class MasterDataServiceImplTest {
         String userId = "test-user-id";
         when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
         when(redisCacheMgr.getCache(anyString())).thenThrow(new RuntimeException("Cache error"));
-        when(cassandraOperation.getRecordsByPropertiesByKey(
-                anyString(), anyString(), anyMap(), anyList(), anyString()))
+        when(cassandraOperation.getRecordsByProperties(
+                anyString(), anyString(), anyMap(), anyList(), any()))
                 .thenReturn(new ArrayList<>());
         ApiResponse response = masterDataService.getInstitutionsList(authToken);
         assertNotNull(response);
@@ -164,8 +165,8 @@ public class MasterDataServiceImplTest {
         String userId = "test-user-id";
         when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
         when(redisCacheMgr.getCache(Constants.INSTITUTION_LIST)).thenReturn("{invalid-json}");
-        when(cassandraOperation.getRecordsByPropertiesByKey(
-                anyString(), anyString(), anyMap(), anyList(), anyString()))
+        when(cassandraOperation.getRecordsByProperties(
+                anyString(), anyString(), anyMap(), anyList(), any()))
                 .thenReturn(new ArrayList<>());
         ApiResponse response = masterDataService.getInstitutionsList(authToken);
         assertNotNull(response);
@@ -210,8 +211,8 @@ public class MasterDataServiceImplTest {
         assertTrue(response.getResult().containsKey(Constants.DEGREES_LIST));
         verify(redisCacheMgr).getCache(Constants.DEGREES_LIST);
         verify(redisCacheMgr, never()).putCache(anyString(), any());
-        verify(cassandraOperation, never()).getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), anyList(),
-                anyString());
+        verify(cassandraOperation, never()).getRecordsByProperties(anyString(), anyString(), anyMap(), anyList(),
+                any());
     }
 
     @Test
@@ -224,12 +225,12 @@ public class MasterDataServiceImplTest {
         Map<String, Object> localRecord = new HashMap<>();
         localRecord.put(Constants.FIELD_KEY, "{\"degrees\":[\"B.Tech\",\"M.Tech\"]}");
         dbResponse.add(localRecord);
-        when(cassandraOperation.getRecordsByPropertiesByKey(
+        when(cassandraOperation.getRecordsByProperties(
                 anyString(),
                 anyString(),
                 anyMap(),
                 anyList(),
-                anyString()))
+                any()))
                 .thenReturn(dbResponse);
         ApiResponse response = masterDataService.getDegreesList(authToken);
         assertNotNull(response);
@@ -245,12 +246,12 @@ public class MasterDataServiceImplTest {
         String userId = "test-user-id";
         when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
         when(redisCacheMgr.getCache(Constants.DEGREES_LIST)).thenReturn(null);
-        when(cassandraOperation.getRecordsByPropertiesByKey(
+        when(cassandraOperation.getRecordsByProperties(
                 anyString(),
                 anyString(),
                 anyMap(),
                 anyList(),
-                anyString()))
+                any()))
                 .thenReturn(new ArrayList<>());
         ApiResponse response = masterDataService.getDegreesList(authToken);
         assertNotNull(response);
@@ -265,8 +266,8 @@ public class MasterDataServiceImplTest {
         String userId = "test-user-id";
         when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
         when(redisCacheMgr.getCache(anyString())).thenThrow(new RuntimeException("Cache error"));
-        when(cassandraOperation.getRecordsByPropertiesByKey(
-                anyString(), anyString(), anyMap(), anyList(), anyString()))
+        when(cassandraOperation.getRecordsByProperties(
+                anyString(), anyString(), anyMap(), anyList(), any()))
                 .thenReturn(new ArrayList<>());
         ApiResponse response = masterDataService.getDegreesList(authToken);
         assertNotNull(response);
@@ -279,8 +280,8 @@ public class MasterDataServiceImplTest {
         String userId = "test-user-id";
         when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
         when(redisCacheMgr.getCache(Constants.DEGREES_LIST)).thenReturn(null);
-        when(cassandraOperation.getRecordsByPropertiesByKey(
-                anyString(), anyString(), anyMap(), anyList(), anyString()))
+        when(cassandraOperation.getRecordsByProperties(
+                anyString(), anyString(), anyMap(), anyList(), any()))
                 .thenThrow(new RuntimeException("Database error"));
         ApiResponse response = masterDataService.getDegreesList(authToken);
         assertNotNull(response);
@@ -295,8 +296,8 @@ public class MasterDataServiceImplTest {
         String userId = "test-user-id";
         when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
         when(redisCacheMgr.getCache(Constants.DEGREES_LIST)).thenReturn("{invalid-json}");
-        when(cassandraOperation.getRecordsByPropertiesByKey(
-                anyString(), anyString(), anyMap(), anyList(), anyString()))
+        when(cassandraOperation.getRecordsByProperties(
+                anyString(), anyString(), anyMap(), anyList(), any()))
                 .thenReturn(new ArrayList<>());
         ApiResponse response = masterDataService.getDegreesList(authToken);
         assertNotNull(response);
@@ -356,12 +357,12 @@ public class MasterDataServiceImplTest {
         dbResponse.add(localRecord);
         Map<String, Object> expectedPropertiesMap = new HashMap<>();
         expectedPropertiesMap.put(Constants.ID, Constants.INSTITUTIONS_CONFIG);
-        when(cassandraOperation.getRecordsByPropertiesByKey(
+        when(cassandraOperation.getRecordsByProperties(
                 (Constants.KEYSPACE_SUNBIRD),
                 (Constants.SYSTEM_SETTINGS),
                 (expectedPropertiesMap),
                 (List.of(Constants.FIELD_KEY)),
-                (Constants.ID)))
+                null))
                 .thenReturn(dbResponse);
         Map<String, Object> result = masterDataService.getInstitutionsFromDatabase();
         assertNotNull(result);
@@ -375,8 +376,8 @@ public class MasterDataServiceImplTest {
 
     @Test
     public void testGetInstitutionsFromDatabase_EmptyResult() {
-        when(cassandraOperation.getRecordsByPropertiesByKey(
-                anyString(), anyString(), anyMap(), anyList(), anyString()))
+        when(cassandraOperation.getRecordsByProperties(
+                anyString(), anyString(), anyMap(), anyList(), any()))
                 .thenReturn(new ArrayList<>());
         Map<String, Object> result = masterDataService.getInstitutionsFromDatabase();
         assertNotNull(result);
@@ -385,8 +386,8 @@ public class MasterDataServiceImplTest {
 
     @Test
     public void testGetInstitutionsFromDatabase_NullResult() {
-        when(cassandraOperation.getRecordsByPropertiesByKey(
-                anyString(), anyString(), anyMap(), anyList(), anyString()))
+        when(cassandraOperation.getRecordsByProperties(
+                anyString(), anyString(), anyMap(), anyList(), any()))
                 .thenReturn(null);
         Map<String, Object> result = masterDataService.getInstitutionsFromDatabase();
         assertNotNull(result);
@@ -399,8 +400,8 @@ public class MasterDataServiceImplTest {
         Map<String, Object> localRecord = new HashMap<>();
         localRecord.put(Constants.FIELD_KEY, "");
         dbResponse.add(localRecord);
-        when(cassandraOperation.getRecordsByPropertiesByKey(
-                anyString(), anyString(), anyMap(), anyList(), anyString()))
+        when(cassandraOperation.getRecordsByProperties(
+                anyString(), anyString(), anyMap(), anyList(), any()))
                 .thenReturn(dbResponse);
         Map<String, Object> result = masterDataService.getInstitutionsFromDatabase();
         assertNotNull(result);
@@ -413,8 +414,8 @@ public class MasterDataServiceImplTest {
         Map<String, Object> localRecord = new HashMap<>();
         localRecord.put(Constants.FIELD_KEY, "{invalid-json}");
         dbResponse.add(localRecord);
-        when(cassandraOperation.getRecordsByPropertiesByKey(
-                anyString(), anyString(), anyMap(), anyList(), anyString()))
+        when(cassandraOperation.getRecordsByProperties(
+                anyString(), anyString(), anyMap(), anyList(), any()))
                 .thenReturn(dbResponse);
         Map<String, Object> result = masterDataService.getInstitutionsFromDatabase();
         assertNotNull(result);
@@ -423,8 +424,8 @@ public class MasterDataServiceImplTest {
 
     @Test
     public void testGetInstitutionsFromDatabase_Exception() {
-        when(cassandraOperation.getRecordsByPropertiesByKey(
-                anyString(), anyString(), anyMap(), anyList(), anyString()))
+        when(cassandraOperation.getRecordsByProperties(
+                anyString(), anyString(), anyMap(), anyList(), any()))
                 .thenThrow(new RuntimeException("Database error"));
         Map<String, Object> result = masterDataService.getInstitutionsFromDatabase();
         assertNotNull(result);
@@ -482,12 +483,12 @@ public class MasterDataServiceImplTest {
         dbResponse.add(localRecord);
         Map<String, Object> expectedPropertiesMap = new HashMap<>();
         expectedPropertiesMap.put(Constants.ID, Constants.DEGREES_CONFIG);
-        when(cassandraOperation.getRecordsByPropertiesByKey(
+        when(cassandraOperation.getRecordsByProperties(
                 (Constants.KEYSPACE_SUNBIRD),
                 (Constants.SYSTEM_SETTINGS),
                 (expectedPropertiesMap),
                 (List.of(Constants.FIELD_KEY)),
-                (Constants.ID)))
+                null))
                 .thenReturn(dbResponse);
         Map<String, Object> result = masterDataService.getDegreesFromDatabase();
         assertNotNull(result);
@@ -501,8 +502,8 @@ public class MasterDataServiceImplTest {
 
     @Test
     public void testGetDegreesFromDatabase_EmptyResult() {
-        when(cassandraOperation.getRecordsByPropertiesByKey(
-                anyString(), anyString(), anyMap(), anyList(), anyString()))
+        when(cassandraOperation.getRecordsByProperties(
+                anyString(), anyString(), anyMap(), anyList(), any()))
                 .thenReturn(new ArrayList<>());
         Map<String, Object> result = masterDataService.getDegreesFromDatabase();
         assertNotNull(result);
@@ -511,8 +512,8 @@ public class MasterDataServiceImplTest {
 
     @Test
     public void testGetDegreesFromDatabase_NullResult() {
-        when(cassandraOperation.getRecordsByPropertiesByKey(
-                anyString(), anyString(), anyMap(), anyList(), anyString()))
+        when(cassandraOperation.getRecordsByProperties(
+                anyString(), anyString(), anyMap(), anyList(), any()))
                 .thenReturn(null);
         Map<String, Object> result = masterDataService.getDegreesFromDatabase();
         assertNotNull(result);
@@ -525,8 +526,8 @@ public class MasterDataServiceImplTest {
         Map<String, Object> localRecord = new HashMap<>();
         localRecord.put(Constants.FIELD_KEY, "");
         dbResponse.add(localRecord);
-        when(cassandraOperation.getRecordsByPropertiesByKey(
-                anyString(), anyString(), anyMap(), anyList(), anyString()))
+        when(cassandraOperation.getRecordsByProperties(
+                anyString(), anyString(), anyMap(), anyList(), any()))
                 .thenReturn(dbResponse);
         Map<String, Object> result = masterDataService.getDegreesFromDatabase();
         assertNotNull(result);
@@ -539,8 +540,8 @@ public class MasterDataServiceImplTest {
         Map<String, Object> localRecord = new HashMap<>();
         localRecord.put(Constants.FIELD_KEY, "{invalid-json}");
         dbResponse.add(localRecord);
-        when(cassandraOperation.getRecordsByPropertiesByKey(
-                anyString(), anyString(), anyMap(), anyList(), anyString()))
+        when(cassandraOperation.getRecordsByProperties(
+                anyString(), anyString(), anyMap(), anyList(), any()))
                 .thenReturn(dbResponse);
         Map<String, Object> result = masterDataService.getDegreesFromDatabase();
         assertNotNull(result);
@@ -549,8 +550,8 @@ public class MasterDataServiceImplTest {
 
     @Test
     public void testGetDegreesFromDatabase_Exception() {
-        when(cassandraOperation.getRecordsByPropertiesByKey(
-                anyString(), anyString(), anyMap(), anyList(), anyString()))
+        when(cassandraOperation.getRecordsByProperties(
+                anyString(), anyString(), anyMap(), anyList(), any()))
                 .thenThrow(new RuntimeException("Database error"));
         Map<String, Object> result = masterDataService.getDegreesFromDatabase();
         assertNotNull(result);
@@ -649,7 +650,7 @@ public class MasterDataServiceImplTest {
         verify(cassandraOperation).updateRecord(
                 eq(Constants.KEYSPACE_SUNBIRD),
                 eq(Constants.SYSTEM_SETTINGS),
-                any(Map.class));
+                any(Map.class), anyMap());
         verify(redisCacheMgr).putCache(eq(Constants.INSTITUTION_LIST), mapCaptor.capture());
         Map<String, Object> capturedMap = mapCaptor.getValue();
         List<String> updatedInstitutions = (List<String>) capturedMap.get(Constants.INSTITUTIONS);
@@ -675,7 +676,7 @@ public class MasterDataServiceImplTest {
         assertEquals(HttpStatus.OK, response.getResponseCode());
         assertEquals(Constants.SUCCESS, response.getParams().getStatus());
         assertEquals("Institution already exists", response.getResult().get(Constants.RESPONSE));
-        verify(cassandraOperation, never()).updateRecord(anyString(), anyString(), anyMap());
+        verify(cassandraOperation, never()).updateRecord(anyString(), anyString(), anyMap(), anyMap());
         verify(redisCacheMgr, never()).putCache(anyString(), any());
     }
 
@@ -690,7 +691,7 @@ public class MasterDataServiceImplTest {
         assertEquals(Constants.FAILED, response.getParams().getStatus());
         assertEquals(Constants.USER_ID_DOESNT_EXIST, response.getParams().getErrMsg());
         verify(redisCacheMgr, never()).getCache(anyString());
-        verify(cassandraOperation, never()).updateRecord(anyString(), anyString(), anyMap());
+        verify(cassandraOperation, never()).updateRecord(anyString(), anyString(), anyMap(), anyMap());
     }
 
     @Test
@@ -770,7 +771,7 @@ public class MasterDataServiceImplTest {
                 .updateRecord(
                         eq(Constants.KEYSPACE_SUNBIRD),
                         eq(Constants.SYSTEM_SETTINGS),
-                        any(Map.class));
+                        any(Map.class), anyMap());
         ApiResponse response = masterDataService.updateInstitutionList(authToken, requestBody);
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
         assertEquals(Constants.FAILED, response.getParams().getStatus());
@@ -796,7 +797,7 @@ public class MasterDataServiceImplTest {
                 .updateRecord(
                         eq(Constants.KEYSPACE_SUNBIRD),
                         eq(Constants.SYSTEM_SETTINGS),
-                        any(Map.class));
+                        any(Map.class), anyMap());
         ApiResponse response = masterDataService.updateInstitutionList(authToken, requestBody);
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
         assertEquals(Constants.FAILED, response.getParams().getStatus());
@@ -822,7 +823,7 @@ public class MasterDataServiceImplTest {
                 .updateRecord(
                         eq(Constants.KEYSPACE_SUNBIRD),
                         eq(Constants.SYSTEM_SETTINGS),
-                        any(Map.class));
+                        any(Map.class), anyMap());
         ApiResponse response = masterDataService.updateInstitutionList(authToken, requestBody);
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
         assertEquals(Constants.FAILED, response.getParams().getStatus());
@@ -866,7 +867,7 @@ public class MasterDataServiceImplTest {
         assertEquals(HttpStatus.NOT_FOUND, response.getResponseCode());
         assertEquals(Constants.FAILED, response.getParams().getStatus());
         assertEquals("No institutions data found", response.getParams().getErrMsg());
-        verify(cassandraOperation, never()).updateRecord(anyString(), anyString(), anyMap());
+        verify(cassandraOperation, never()).updateRecord(anyString(), anyString(), anyMap(), anyMap());
         verify(redisCacheMgr, never()).putCache(eq(Constants.INSTITUTION_LIST), any());
     }
 
@@ -885,7 +886,7 @@ public class MasterDataServiceImplTest {
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
         assertEquals(Constants.FAILED, response.getParams().getStatus());
         assertEquals("Invalid institutions data format", response.getParams().getErrMsg());
-        verify(cassandraOperation, never()).updateRecord(anyString(), anyString(), anyMap());
+        verify(cassandraOperation, never()).updateRecord(anyString(), anyString(), anyMap(), anyMap());
     }
 
     @Test
@@ -1138,15 +1139,15 @@ public class MasterDataServiceImplTest {
         String expectedJson = new ObjectMapper().writeValueAsString(degreesMap);
         Map<String, Object> expectedUpdateMap = new HashMap<>();
         expectedUpdateMap.put(Constants.FIELD_KEY, expectedJson);
-        expectedUpdateMap.put(Constants.ID, Constants.DEGREES_CONFIG);
+        expectedUpdateMap.put(Constants.VALUE, expectedJson);
         masterDataService.saveDegreeChangesToDatabaseAndCache(degreesMap);
         verify(cassandraOperation).updateRecord(
                 eq(Constants.KEYSPACE_SUNBIRD),
                 eq(Constants.SYSTEM_SETTINGS),
                 argThat(updateMap -> updateMap.containsKey(Constants.FIELD_KEY) &&
-                        updateMap.containsKey(Constants.ID) &&
-                        updateMap.get(Constants.ID).equals(Constants.DEGREES_CONFIG) &&
-                        updateMap.get(Constants.FIELD_KEY).equals(expectedJson)));
+                        updateMap.containsKey(Constants.VALUE) &&
+                        updateMap.get(Constants.VALUE).equals(expectedJson) &&
+                        updateMap.get(Constants.FIELD_KEY).equals(expectedJson)), anyMap());
         verify(redisCacheMgr).putCache(Constants.DEGREES_LIST, degreesMap);
     }
 
@@ -1159,14 +1160,15 @@ public class MasterDataServiceImplTest {
         String expectedJson = new ObjectMapper().writeValueAsString(degreesMap);
         expectedUpdateMap.put(Constants.FIELD_KEY, expectedJson);
         expectedUpdateMap.put(Constants.ID, Constants.DEGREES_CONFIG);
+        expectedUpdateMap.put(Constants.VALUE, expectedJson);
         masterDataService.saveDegreeChangesToDatabaseAndCache(degreesMap);
         ArgumentCaptor<Map<String, Object>> updateMapCaptor = ArgumentCaptor.forClass(Map.class);
         verify(cassandraOperation).updateRecord(
                 eq(Constants.KEYSPACE_SUNBIRD),
                 eq(Constants.SYSTEM_SETTINGS),
-                updateMapCaptor.capture());
+                updateMapCaptor.capture(), anyMap());
         Map<String, Object> actualUpdateMap = updateMapCaptor.getValue();
-        assertEquals(expectedUpdateMap.get(Constants.ID), actualUpdateMap.get(Constants.ID));
+        assertEquals(expectedUpdateMap.get(Constants.VALUE), actualUpdateMap.get(Constants.VALUE));
         assertEquals(expectedUpdateMap.get(Constants.FIELD_KEY), actualUpdateMap.get(Constants.FIELD_KEY));
         verify(redisCacheMgr).putCache(Constants.DEGREES_LIST, degreesMap);
     }
@@ -1183,7 +1185,7 @@ public class MasterDataServiceImplTest {
                 eq(Constants.KEYSPACE_SUNBIRD),
                 eq(Constants.SYSTEM_SETTINGS),
                 argThat(map -> map.get(Constants.FIELD_KEY).equals(expectedJson) &&
-                        map.get(Constants.ID).equals(Constants.DEGREES_CONFIG)));
+                        map.get(Constants.VALUE).equals(expectedJson)), anyMap());
         verify(redisCacheMgr).putCache(Constants.DEGREES_LIST, emptyDegreesMap);
     }
 
@@ -1196,7 +1198,7 @@ public class MasterDataServiceImplTest {
         verify(cassandraOperation).updateRecord(
                 eq(Constants.KEYSPACE_SUNBIRD),
                 eq(Constants.SYSTEM_SETTINGS),
-                argThat(map -> map.get(Constants.FIELD_KEY).equals(expectedJson)));
+                argThat(map -> map.get(Constants.FIELD_KEY).equals(expectedJson)), anyMap());
         verify(redisCacheMgr).putCache(Constants.DEGREES_LIST, degreesMap);
     }
 
@@ -1211,7 +1213,7 @@ public class MasterDataServiceImplTest {
             spyService.saveDegreeChangesToDatabaseAndCache(degreesMap);
         });
         assertTrue(exception.getMessage().contains("Test serialization exception"));
-        verify(cassandraOperation, never()).updateRecord(anyString(), anyString(), anyMap());
+        verify(cassandraOperation, never()).updateRecord(anyString(), anyString(), anyMap(), anyMap());
         verify(redisCacheMgr, never()).putCache(anyString(), any());
     }
 
@@ -1221,7 +1223,7 @@ public class MasterDataServiceImplTest {
         List<String> degreesList = Arrays.asList("Bachelor's", "Master's");
         degreesMap.put(Constants.DEGREES, degreesList);
         doThrow(new RuntimeException("Database connection error"))
-                .when(cassandraOperation).updateRecord(anyString(), anyString(), anyMap());
+                .when(cassandraOperation).updateRecord(anyString(), anyString(), anyMap(), anyMap());
         RuntimeException exception = assertThrows(RuntimeException.class, () -> {
             masterDataService.saveDegreeChangesToDatabaseAndCache(degreesMap);
         });
@@ -1242,7 +1244,7 @@ public class MasterDataServiceImplTest {
         CacheService spyCacheService = spy(new CacheService()); // Your real cache class
         spyService.redisCacheMgr = spyCacheService;
 
-        when(cassandraOperation.updateRecord(anyString(), anyString(), anyMap()))
+        when(cassandraOperation.updateRecord(anyString(), anyString(), anyMap(), anyMap()))
                 .thenReturn(Map.of(Constants.RESPONSE, Constants.SUCCESS));
 
         // The operation should complete successfully despite cache failure
@@ -1254,7 +1256,7 @@ public class MasterDataServiceImplTest {
         verify(cassandraOperation).updateRecord(
                 eq(Constants.KEYSPACE_SUNBIRD),
                 eq(Constants.SYSTEM_SETTINGS),
-                any());
+                any(), anyMap());
 
     }
 

@@ -3,8 +3,6 @@ package com.igot.cb.masterdata.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.igot.cb.authentication.util.AccessTokenValidator;
-import com.igot.cb.transactional.cassandrautils.CassandraOperation;
 import com.igot.cb.transactional.redis.cache.CacheService;
 import com.igot.cb.util.ApiResponse;
 import com.igot.cb.util.Constants;
@@ -12,6 +10,8 @@ import com.igot.cb.util.ProjectUtil;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.igot.common.auth.AccessTokenValidator;
+import org.igot.common.cassandra.CassandraOperation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -147,8 +147,8 @@ public class MasterDataServiceImpl implements MasterDataService {
             properties.put(Constants.ID, Constants.INSTITUTIONS_CONFIG);
             List<String> fields = new ArrayList<>();
             fields.add(Constants.FIELD_KEY);
-            List<Map<String, Object>> rawData = cassandraOperation.getRecordsByPropertiesByKey(
-                    Constants.KEYSPACE_SUNBIRD, Constants.SYSTEM_SETTINGS, properties, fields, Constants.ID);
+            List<Map<String, Object>> rawData = cassandraOperation.getRecordsByProperties(
+                    Constants.KEYSPACE_SUNBIRD, Constants.SYSTEM_SETTINGS, properties, fields, null);
             if (rawData != null && !rawData.isEmpty()) {
                 String jsonString = (String) rawData.get(0).get(Constants.FIELD_KEY);
                 if (!StringUtils.isEmpty(jsonString)) {
@@ -189,8 +189,8 @@ public class MasterDataServiceImpl implements MasterDataService {
             properties.put(Constants.ID, Constants.DEGREES_CONFIG);
             List<String> fields = new ArrayList<>();
             fields.add(Constants.FIELD_KEY);
-            List<Map<String, Object>> rawData = cassandraOperation.getRecordsByPropertiesByKey(
-                    Constants.KEYSPACE_SUNBIRD, Constants.SYSTEM_SETTINGS, properties, fields, Constants.ID);
+            List<Map<String, Object>> rawData = cassandraOperation.getRecordsByProperties(
+                    Constants.KEYSPACE_SUNBIRD, Constants.SYSTEM_SETTINGS, properties, fields, null);
             if (rawData != null && !rawData.isEmpty()) {
                 String jsonString = (String) rawData.get(0).get(Constants.FIELD_KEY);
                 if (!StringUtils.isEmpty(jsonString)) {
@@ -361,8 +361,10 @@ public class MasterDataServiceImpl implements MasterDataService {
         Map<String, Object> updateMap = new HashMap<>();
         String jsonString = new ObjectMapper().writeValueAsString(institutionsMap);
         updateMap.put(Constants.FIELD_KEY, jsonString);
-        updateMap.put(Constants.ID, Constants.INSTITUTIONS_CONFIG);
-        cassandraOperation.updateRecord(Constants.KEYSPACE_SUNBIRD, Constants.SYSTEM_SETTINGS, updateMap);
+        updateMap.put(Constants.VALUE, jsonString);
+        Map<String, Object> primaryKey = new HashMap<>();
+        primaryKey.put(Constants.ID, Constants.INSTITUTIONS_CONFIG);
+        cassandraOperation.updateRecord(Constants.KEYSPACE_SUNBIRD, Constants.SYSTEM_SETTINGS, updateMap, primaryKey);
         redisCacheMgr.putCache(Constants.INSTITUTION_LIST, institutionsMap);
     }
 
@@ -489,8 +491,10 @@ public class MasterDataServiceImpl implements MasterDataService {
         Map<String, Object> updateMap = new HashMap<>();
         String jsonString = new ObjectMapper().writeValueAsString(degreesMap);
         updateMap.put(Constants.FIELD_KEY, jsonString);
-        updateMap.put(Constants.ID, Constants.DEGREES_CONFIG);
-        cassandraOperation.updateRecord(Constants.KEYSPACE_SUNBIRD, Constants.SYSTEM_SETTINGS, updateMap);
+        updateMap.put(Constants.VALUE, jsonString);
+        Map<String, Object> primaryKey = new HashMap<>();
+        primaryKey.put(Constants.ID, Constants.DEGREES_CONFIG);
+        cassandraOperation.updateRecord(Constants.KEYSPACE_SUNBIRD, Constants.SYSTEM_SETTINGS, updateMap, primaryKey);
         redisCacheMgr.putCache(Constants.DEGREES_LIST, degreesMap);
     }
 

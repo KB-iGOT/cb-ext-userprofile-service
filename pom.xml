@@ -225,6 +225,11 @@
             </exclusion>
         </exclusions>
     </dependency>
+    <dependency>
+			<groupId>net.karmayogibharat</groupId>
+			<artifactId>common-util</artifactId>
+			<version>1.0.1</version>
+	</dependency>
     </dependencies>
 
     <build>

@@ -1,10 +1,10 @@
 package com.igot.cb.extendedprofile.service;
 
-import com.igot.cb.authentication.util.AccessTokenValidator;
-import com.igot.cb.transactional.cassandrautils.CassandraOperation;
 import com.igot.cb.util.ApiResponse;
 import com.igot.cb.util.Constants;
 import org.apache.commons.collections4.MapUtils;
+import org.igot.common.auth.AccessTokenValidator;
+import org.igot.common.cassandra.CassandraOperation;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -16,6 +16,7 @@ import org.springframework.http.HttpStatus;
 import java.util.*;
 
 import static org.junit.Assert.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
@@ -57,12 +58,12 @@ public class ExtendedServiceImplTest {
         cassandraResponse.add(state2);
         Map<String, Object> expectedPropertiesMap = new HashMap<>();
         expectedPropertiesMap.put(Constants.CONTEXT_TYPE, Constants.STATE);
-        when(cassandraOperation.getRecordsByPropertiesByKey(
+        when(cassandraOperation.getRecordsByProperties(
                 (Constants.KEYSPACE_SUNBIRD),
                 (Constants.MASTER_DATA),
                 (expectedPropertiesMap),
                 (List.of(Constants.CONTEXT_NAME, Constants.ID)),
-                (Constants.CONTEXT_TYPE)))
+                null))
                 .thenReturn(cassandraResponse);
         ApiResponse response = extendedService.getStatesList(authToken);
         assertNotNull(response);
@@ -107,12 +108,12 @@ public class ExtendedServiceImplTest {
         String authToken = "valid-auth-token";
         String userId = "test-user-id";
         when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
-        when(cassandraOperation.getRecordsByPropertiesByKey(
+        when(cassandraOperation.getRecordsByProperties(
                 eq(Constants.KEYSPACE_SUNBIRD),
                 eq(Constants.MASTER_DATA),
                 anyMap(),
                 eq(List.of(Constants.CONTEXT_NAME, Constants.ID)),
-                eq(Constants.CONTEXT_TYPE)))
+                eq(null)))
                 .thenThrow(new RuntimeException("Database connection error"));
         ApiResponse response = extendedService.getStatesList(authToken);
         assertNotNull(response);
@@ -127,12 +128,12 @@ public class ExtendedServiceImplTest {
         String userId = "test-user-id";
         when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
         List<Map<String, Object>> emptyResponse = new ArrayList<>();
-        when(cassandraOperation.getRecordsByPropertiesByKey(
+        when(cassandraOperation.getRecordsByProperties(
                 eq(Constants.KEYSPACE_SUNBIRD),
                 eq(Constants.MASTER_DATA),
                 anyMap(),
                 eq(List.of(Constants.CONTEXT_NAME, Constants.ID)),
-                eq(Constants.CONTEXT_TYPE)))
+                eq(null)))
                 .thenReturn(emptyResponse);
         ApiResponse response = extendedService.getStatesList(authToken);
         assertNotNull(response);
@@ -160,12 +161,12 @@ public class ExtendedServiceImplTest {
         Map<String, Object> expectedPropertiesMap = new HashMap<>();
         expectedPropertiesMap.put(Constants.CONTEXT_TYPE, Constants.DISTRICT);
         expectedPropertiesMap.put(Constants.CONTEXT_NAME, "Maharashtra");
-        when(cassandraOperation.getRecordsByPropertiesByKey(
+        when(cassandraOperation.getRecordsByProperties(
                 (Constants.KEYSPACE_SUNBIRD),
                 (Constants.MASTER_DATA),
                 (expectedPropertiesMap),
                 (List.of(Constants.CONTEXT_NAME, Constants.CONTEXT_DATA)),
-                (Constants.CONTEXT_TYPE)))
+                null))
                 .thenReturn(cassandraResponse);
 
       ApiResponse response = extendedService.getDistrictsList(authToken, requestBody);
@@ -220,12 +221,12 @@ public class ExtendedServiceImplTest {
         String authToken = "valid-auth-token";
         String userId = "test-user-id";
         when(accessTokenValidator.fetchUserIdFromAccessToken(authToken)).thenReturn(userId);
-        when(cassandraOperation.getRecordsByPropertiesByKey(
+        when(cassandraOperation.getRecordsByProperties(
                 eq(Constants.KEYSPACE_SUNBIRD),
                 eq(Constants.MASTER_DATA),
                 anyMap(),
                 eq(List.of(Constants.CONTEXT_NAME, Constants.CONTEXT_DATA)),
-                eq(Constants.CONTEXT_TYPE)))
+                eq(null)))
                 .thenThrow(new RuntimeException("Database connection error"));
         ApiResponse response = extendedService.getDistrictsList(authToken, requestBody);
         assertNotNull(response);
@@ -247,12 +248,12 @@ public class ExtendedServiceImplTest {
         Map<String, Object> expectedPropertiesMap = new HashMap<>();
         expectedPropertiesMap.put(Constants.CONTEXT_TYPE, Constants.DISTRICT);
         expectedPropertiesMap.put(Constants.CONTEXT_NAME, "Maharashtra");
-        when(cassandraOperation.getRecordsByPropertiesByKey(
+        when(cassandraOperation.getRecordsByProperties(
                 (Constants.KEYSPACE_SUNBIRD),
                 (Constants.MASTER_DATA),
                 (expectedPropertiesMap),
                 (List.of(Constants.CONTEXT_NAME, Constants.CONTEXT_DATA)),
-                (Constants.CONTEXT_TYPE)))
+                null))
                 .thenReturn(cassandraResponse);
         ApiResponse response = extendedService.getDistrictsList(authToken, requestBody);
         assertNotNull(response);
@@ -278,12 +279,12 @@ public class ExtendedServiceImplTest {
         Map<String, Object> expectedPropertiesMap = new HashMap<>();
         expectedPropertiesMap.put(Constants.CONTEXT_TYPE, Constants.DISTRICT);
         expectedPropertiesMap.put(Constants.CONTEXT_NAME, "Maharashtra");
-        when(cassandraOperation.getRecordsByPropertiesByKey(
+        when(cassandraOperation.getRecordsByProperties(
                 (Constants.KEYSPACE_SUNBIRD),
                 (Constants.MASTER_DATA),
                 (expectedPropertiesMap),
                 (List.of(Constants.CONTEXT_NAME, Constants.CONTEXT_DATA)),
-                (Constants.CONTEXT_TYPE)))
+                null))
                 .thenReturn(emptyResponse);
         ApiResponse response = extendedService.getDistrictsList(authToken, requestBody);
         assertNotNull(response);
@@ -375,12 +376,12 @@ public class ExtendedServiceImplTest {
         Map<String, Object> expectedPropertiesMap = new HashMap<>();
         expectedPropertiesMap.put(Constants.CONTEXT_TYPE, Constants.DISTRICT);
         expectedPropertiesMap.put(Constants.CONTEXT_NAME, "Maharashtra");
-        when(cassandraOperation.getRecordsByPropertiesByKey(
+        when(cassandraOperation.getRecordsByProperties(
                 (Constants.KEYSPACE_SUNBIRD),
                 (Constants.MASTER_DATA),
                 (expectedPropertiesMap),
                 (List.of(Constants.CONTEXT_NAME, Constants.CONTEXT_DATA)),
-                (Constants.CONTEXT_TYPE)))
+                null))
                 .thenReturn(cassandraResponse);
         ApiResponse response = extendedService.getDistrictsList(authToken, requestBody);
         assertNotNull(response);

@@ -20,11 +20,13 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import com.igot.cb.common.OutboundRequestHandlerServiceImpl;
 import com.igot.cb.util.*;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.igot.common.auth.AccessTokenValidator;
+import org.igot.common.cassandra.CassandraOperation;
+import org.igot.common.service.OutboundRequestHandlerServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -34,10 +36,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.igot.cb.authentication.util.AccessTokenValidator;
 import com.igot.cb.profile.entity.CustomFieldEntity;
 import com.igot.cb.profile.repository.CustomFieldRepository;
-import com.igot.cb.transactional.cassandrautils.CassandraOperation;
 import com.igot.cb.transactional.elasticsearch.service.EsUtilServiceImpl;
 import com.igot.cb.transactional.redis.cache.CacheService;
 import com.igot.cb.transactional.service.RequestHandlerServiceImpl;
@@ -413,7 +413,7 @@ public class ProfileServiceImpl implements ProfileService {
                 Map<String, Object> queryParams = Map.of(Constants.USERID_KEY, userId);
                 List<String> fields = Arrays.asList(Constants.USERID_KEY, Constants.COURSE_ID, Constants.BATCH_ID,
                         Constants.ACTIVE, Constants.STATUS);
-                List<Map<String, Object>> allEnrolmentRecords = cassandraOperation.getAllRecordsByPrimaryKey(
+                List<Map<String, Object>> allEnrolmentRecords = cassandraOperation.getAllRecordsByProperties(
                         Constants.KEYSPACE_SUNBIRD_COURSES,
                         Constants.TABLE_USER_ENROLMENTS, queryParams, fields, 100);
                 List<String> completedCourseIdList = allEnrolmentRecords.stream()
@@ -458,7 +458,7 @@ public class ProfileServiceImpl implements ProfileService {
 
     private List<Map<String, Object>> getExistingContextData(String userId, String contextType) {
         Map<String, Object> query = Map.of(Constants.USERID_KEY, userId, Constants.CONTEXT_TYPE, contextType);
-        List<Map<String, Object>> rows = cassandraOperation.getRecordsByPropertiesByKey(Constants.KEYSPACE_SUNBIRD,
+        List<Map<String, Object>> rows = cassandraOperation.getRecordsByProperties(Constants.KEYSPACE_SUNBIRD,
                 Constants.TABLE_USER_EXTENDED_PROFILE, query, null, null);
         if (rows != null && !rows.isEmpty()) {
             String json = (String) rows.get(0).get(Constants.CONTEXT_DATA);
@@ -587,7 +587,7 @@ public class ProfileServiceImpl implements ProfileService {
         }
         String cacheKey = Constants.USER + ":basicProfile:" + userId;
         Map<String, Object> queryParams = Map.of(Constants.ID, userId);
-        List<Map<String, Object>> userList = cassandraOperation.getRecordsByPropertiesByKey(
+        List<Map<String, Object>> userList = cassandraOperation.getRecordsByProperties(
                 Constants.KEYSPACE_SUNBIRD, Constants.USER, queryParams, keyList, null);
 
         if (CollectionUtils.isEmpty(userList)) { 
@@ -931,8 +931,8 @@ public class ProfileServiceImpl implements ProfileService {
                 return Integer.parseInt(redisValue);
             }
 
-            List<Map<String, Object>> records = cassandraOperation.getRecordsByPropertiesByKey(Constants.KEYSPACE_SUNBIRD,Constants.USER_KARMA_POINTS_SUMMARY_TABLE,
-                    Map.of(Constants.USERID_KEY, userId), List.of(Constants.TOTAL_POINTS), userId);
+            List<Map<String, Object>> records = cassandraOperation.getRecordsByProperties(Constants.KEYSPACE_SUNBIRD,Constants.USER_KARMA_POINTS_SUMMARY_TABLE,
+                    Map.of(Constants.USERID_KEY, userId), List.of(Constants.TOTAL_POINTS), null);
             int totalPoints = 0;
             if(!CollectionUtils.isEmpty(records)){
                 totalPoints=(int) records.get(0).get(Constants.TOTAL_POINTS);
@@ -955,12 +955,12 @@ public class ProfileServiceImpl implements ProfileService {
             if (cachedValue != null) {
                 return Integer.parseInt(cachedValue);
             }
-            List<Map<String, Object>> courseRecords = cassandraOperation.getRecordsByPropertiesByKey(
+            List<Map<String, Object>> courseRecords = cassandraOperation.getRecordsByProperties(
                     Constants.KEYSPACE_SUNBIRD_COURSES,
                     serverConfig.getUserEnrolmentsTable(),
                     Map.of(Constants.USERID_KEY, userId),
                     List.of(Constants.ISSUED_CERTIFICATES),
-                    userId
+                    null
             );
 
             int totalIssuedCertificates = 0;
@@ -972,12 +972,12 @@ public class ProfileServiceImpl implements ProfileService {
                     .filter(CollectionUtils::isNotEmpty)
                     .count();
 
-            List<Map<String, Object>> eventRecords = cassandraOperation.getRecordsByPropertiesByKey(
+            List<Map<String, Object>> eventRecords = cassandraOperation.getRecordsByProperties(
                     Constants.KEYSPACE_SUNBIRD_COURSES,
                     Constants.USER_ENTITY_ENROLMENTS,
                     Map.of(Constants.USERID_KEY, userId),
                     List.of(Constants.ISSUED_CERTIFICATES,Constants.PROGRESS_KEY,Constants.STATUS),
-                    userId
+                    null
             );
 
             int certificatesFromEvents = (int) eventRecords.stream()
@@ -990,12 +990,12 @@ public class ProfileServiceImpl implements ProfileService {
                     .filter(CollectionUtils::isNotEmpty)
                     .count();
 
-            List<Map<String, Object>> externalCourseRecords = cassandraOperation.getRecordsByPropertiesByKey(
+            List<Map<String, Object>> externalCourseRecords = cassandraOperation.getRecordsByProperties(
                     Constants.KEYSPACE_SUNBIRD_COURSES,
                     Constants.USER_EXTERNAL_COURSE_ENROLMENTS,
                     Map.of(Constants.USERID_KEY, userId),
                     List.of(Constants.ISSUED_CERTIFICATES,Constants.PROGRESS_KEY,Constants.STATUS),
-                    userId
+                    null
             );
 
             int certificatesFromExternalCourses = (int) externalCourseRecords.stream()
@@ -1059,9 +1059,9 @@ public class ProfileServiceImpl implements ProfileService {
     }
 
     public List<String> getUserRoles(String userId, String rootOrgId) {
-        List<Map<String, Object>> userRoleList = cassandraOperation.getRecordsByPropertiesByKey(
+        List<Map<String, Object>> userRoleList = cassandraOperation.getRecordsByProperties(
                 Constants.KEYSPACE_SUNBIRD, Constants.USER_ROLES,
-                Map.of(Constants.USERID_KEY, userId), List.of(Constants.ROLE, Constants.SCOPE), userId
+                Map.of(Constants.USERID_KEY, userId), List.of(Constants.ROLE, Constants.SCOPE), null
         );
         return userRoleList.stream()
                 .map(userRoleObj -> {

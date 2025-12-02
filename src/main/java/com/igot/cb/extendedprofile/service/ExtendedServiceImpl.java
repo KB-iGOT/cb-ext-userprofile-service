@@ -2,8 +2,6 @@ package com.igot.cb.extendedprofile.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.igot.cb.authentication.util.AccessTokenValidator;
-import com.igot.cb.transactional.cassandrautils.CassandraOperation;
 import com.igot.cb.util.ApiResponse;
 import com.igot.cb.util.Constants;
 import com.igot.cb.util.ProjectUtil;
@@ -14,6 +12,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.apache.commons.lang3.StringUtils;
+import org.igot.common.auth.AccessTokenValidator;
+import org.igot.common.cassandra.CassandraOperation;
 
 import java.util.*;
 
@@ -30,7 +30,6 @@ public class ExtendedServiceImpl implements ExtendedProfileService {
     @Autowired
     CassandraOperation cassandraOperation;
 
-
     @Override
     public ApiResponse getStatesList(String authToken) {
         logger.info("ExtendedServiceImpl::getStatesList started");
@@ -43,12 +42,12 @@ public class ExtendedServiceImpl implements ExtendedProfileService {
         Map<String, Object> propertyMap = new HashMap<>();
         propertyMap.put(Constants.CONTEXT_TYPE, Constants.STATE);
         try {
-            List<Map<String, Object>> rawStateData = cassandraOperation.getRecordsByPropertiesByKey(
+            List<Map<String, Object>> rawStateData = cassandraOperation.getRecordsByProperties(
                     Constants.KEYSPACE_SUNBIRD,
                     Constants.MASTER_DATA,
                     propertyMap,
                     List.of(Constants.CONTEXT_NAME, Constants.ID),
-                    Constants.CONTEXT_TYPE);
+                    null);
             List<Map<String, Object>> stateDataList = rawStateData.stream()
                     .map(map -> {
                         Map<String, Object> transformedMap = new HashMap<>();
@@ -88,12 +87,12 @@ public class ExtendedServiceImpl implements ExtendedProfileService {
         propertyMap.put(Constants.CONTEXT_TYPE, Constants.DISTRICT);
         propertyMap.put(Constants.CONTEXT_NAME, requestBody.get(Constants.CONTEXT_NAME));
         try {
-            List<Map<String, Object>> cassandraResults = cassandraOperation.getRecordsByPropertiesByKey(
+            List<Map<String, Object>> cassandraResults = cassandraOperation.getRecordsByProperties(
                     Constants.KEYSPACE_SUNBIRD,
                     Constants.MASTER_DATA,
                     propertyMap,
                     List.of(Constants.CONTEXT_NAME, Constants.CONTEXT_DATA),
-                    Constants.CONTEXT_TYPE);
+                    null);
             List<Map<String, Object>> districtsByState = cassandraResults.stream()
                     .map(map -> {
                         Map<String, Object> transformedMap = new HashMap<>();

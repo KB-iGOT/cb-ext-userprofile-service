@@ -2,8 +2,9 @@ package com.igot.cb.profile;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.profile.service.ProfileServiceImpl;
-import com.igot.cb.transactional.cassandrautils.CassandraOperation;
 import com.igot.cb.util.Constants;
+
+import org.igot.common.cassandra.CassandraOperation;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -50,7 +51,7 @@ class ProfileServiceImpl2Test {
         roleMap.put("scope", List.of(Map.of("organisationId", rootOrgId)));
         userRoleList.add(roleMap);
 
-        when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), anyList(), anyString()))
+        when(cassandraOperation.getRecordsByProperties(anyString(), anyString(), anyMap(), anyList(), any()))
                 .thenReturn(userRoleList);
 
         List<String> result = profileService.getUserRoles(userId, rootOrgId);
@@ -65,7 +66,7 @@ class ProfileServiceImpl2Test {
         roleMap.put("scope", List.of(Map.of("organisationId", "otherOrg")));
         userRoleList.add(roleMap);
 
-        when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), anyList(), anyString()))
+        when(cassandraOperation.getRecordsByProperties(anyString(), anyString(), anyMap(), anyList(), any()))
                 .thenReturn(userRoleList);
 
         List<String> result = profileService.getUserRoles(userId, rootOrgId);
@@ -80,7 +81,7 @@ class ProfileServiceImpl2Test {
         roleMap.put("scope", "[{\"organisationId\":\"org001\"}]");
         userRoleList.add(roleMap);
 
-        when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), anyList(), anyString()))
+        when(cassandraOperation.getRecordsByProperties(anyString(), anyString(), anyMap(), anyList(), any()))
                 .thenReturn(userRoleList);
         when(mapper.readValue(anyString(), any(TypeReference.class)))
                 .thenReturn(List.of(Map.of("organisationId", rootOrgId)));
@@ -97,7 +98,7 @@ class ProfileServiceImpl2Test {
         roleMap.put("scope", "[{\"organisationId\":\"org001\"");
         userRoleList.add(roleMap);
 
-        when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), anyList(), anyString()))
+        when(cassandraOperation.getRecordsByProperties(anyString(), anyString(), anyMap(), anyList(), any()))
                 .thenReturn(userRoleList);
         when(mapper.readValue(anyString(), any(TypeReference.class)))
                 .thenThrow(new RuntimeException("JSON error"));
@@ -114,7 +115,7 @@ class ProfileServiceImpl2Test {
         roleMap.put("scope", Collections.emptyList());
         userRoleList.add(roleMap);
 
-        when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), anyList(), anyString()))
+        when(cassandraOperation.getRecordsByProperties(anyString(), anyString(), anyMap(), anyList(), any()))
                 .thenReturn(userRoleList);
 
         List<String> result = profileService.getUserRoles(userId, rootOrgId);
@@ -127,7 +128,7 @@ class ProfileServiceImpl2Test {
         Map<String, Object> localRecord = new HashMap<>();
         localRecord.put(Constants.ROLE, "admin");
         localRecord.put(Constants.SCOPE, List.of(Map.of(Constants.ORGANISATION_ID, rootOrgId)));
-        when(cassandraOperation.getRecordsByPropertiesByKey(
+        when(cassandraOperation.getRecordsByProperties(
                 any(), any(), any(), any(), any()
         )).thenReturn(List.of(localRecord));
 
@@ -142,7 +143,7 @@ class ProfileServiceImpl2Test {
         localRecord.put(Constants.ROLE, "manager");
         localRecord.put(Constants.SCOPE, "[{\"organisationId\":\"org001\"}]");
 
-        when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
+        when(cassandraOperation.getRecordsByProperties(any(), any(), any(), any(), any()))
                 .thenReturn(List.of(localRecord));
 
         when(mapper.readValue(anyString(), ArgumentMatchers.<TypeReference<List<Map<String, Object>>>>any()))
@@ -159,7 +160,7 @@ class ProfileServiceImpl2Test {
         localRecord.put(Constants.ROLE, "user");
         localRecord.put(Constants.SCOPE, "[invalid_json]");
 
-        when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
+        when(cassandraOperation.getRecordsByProperties(any(), any(), any(), any(), any()))
                 .thenReturn(List.of(localRecord));
 
         when(mapper.readValue(anyString(), ArgumentMatchers.<TypeReference<List<Map<String, Object>>>>any()))
@@ -176,7 +177,7 @@ class ProfileServiceImpl2Test {
         localRecord.put(Constants.ROLE, "guest");
         localRecord.put(Constants.SCOPE, List.of()); // Empty scopes
 
-        when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
+        when(cassandraOperation.getRecordsByProperties(any(), any(), any(), any(), any()))
                 .thenReturn(List.of(localRecord));
 
         List<String> roles = profileService.getUserRoles(userId, rootOrgId);
@@ -194,7 +195,7 @@ class ProfileServiceImpl2Test {
         record2.put(Constants.ROLE, "admin"); // duplicate
         record2.put(Constants.SCOPE, List.of(Map.of(Constants.ORGANISATION_ID, rootOrgId)));
 
-        when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
+        when(cassandraOperation.getRecordsByProperties(any(), any(), any(), any(), any()))
                 .thenReturn(List.of(record1, record2));
 
         List<String> roles = profileService.getUserRoles(userId, rootOrgId);
