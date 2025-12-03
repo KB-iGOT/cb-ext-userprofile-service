@@ -149,4 +149,10 @@ public class CbServerProperties {
 
     @Value("${db.table.user-enrolments}")
     private String userEnrolmentsTable;
+
+    @Value("${user.basic.details.filtered}")
+    private String basicDetailsFilteredKeys;
+
+    @Value("${profile.visible.allowed.fields}")
+    private String profileVisibleAllowedFields;
 }

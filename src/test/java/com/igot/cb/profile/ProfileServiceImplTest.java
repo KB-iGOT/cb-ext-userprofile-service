@@ -2,7 +2,9 @@ package com.igot.cb.profile;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.profile.repository.CustomFieldRepository;
+import com.igot.cb.profile.service.ProfileReaderServiceImpl;
 import com.igot.cb.profile.service.ProfileServiceImpl;
+import com.igot.cb.profile.service.UserInfoHelperServiceImpl;
 import com.igot.cb.transactional.elasticsearch.service.EsUtilServiceImpl;
 import com.igot.cb.transactional.redis.cache.CacheService;
 import com.igot.cb.util.*;
@@ -17,7 +19,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.*;
 
@@ -62,6 +63,12 @@ class ProfileServiceImplTest {
     @Mock
     private UserUtility userUtility;
 
+    @Mock
+    private UserInfoHelperServiceImpl userInfoHelperService;
+
+    @Mock
+    private ProfileReaderServiceImpl profileReaderService;
+
     private ProfileServiceImpl profileService;
 
     private static final String USER_ID = "user-123";
@@ -80,12 +87,10 @@ class ProfileServiceImplTest {
             requestHandlerService,
             customFieldRepository,
             esUtilService,
-            userUtility
+            userUtility,
+            userInfoHelperService,
+            profileReaderService
         );
-
-        // Set up @Value fields using ReflectionTestUtils
-        ReflectionTestUtils.setField(profileService, "profileVisibleAllowedFields", "name,email");
-        ReflectionTestUtils.setField(profileService, "basicDetailsFilteredKeys", "phone,address");
 
         // Set up common mock behaviors using lenient to avoid UnnecessaryStubbingException
         lenient().when(objectMapper.writeValueAsString(any())).thenAnswer(invocation ->
@@ -116,8 +121,7 @@ class ProfileServiceImplTest {
         when(serverProperties.getEducationalQualificationMandatoryFields()).thenReturn("");
         when(serverProperties.getAchievementsMandatoryFields()).thenReturn("");
         when(serverProperties.getServiceHistoryMandatoryFields()).thenReturn("");
-        when(cassandraOperation.getRecordsByProperties(any(), any(), anyMap(), any(), any()))
-            .thenReturn(new ArrayList<>());
+        when(profileReaderService.getExistingContextData(USER_ID, "education")).thenReturn(new ArrayList<>());
         when(cassandraOperation.insertRecord(any(), any(), any())).thenReturn(mockResponse);
 
         // Act
@@ -136,13 +140,17 @@ class ProfileServiceImplTest {
         Map<String, Object> request = new HashMap<>();
         request.put(Constants.REQUEST, new HashMap<>());
 
-        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(TOKEN), any())).thenReturn("");
+        doAnswer(invocation -> {
+            ApiResponse resp = invocation.getArgument(1);
+            resp.setResponseCode(HttpStatus.UNAUTHORIZED);
+            return "";
+        }).when(accessTokenValidator).fetchUserIdFromAccessToken(eq(TOKEN), any());
 
         // Act
         ApiResponse response = profileService.saveExtendedProfile(request, TOKEN);
 
         // Assert
-        assertEquals(HttpStatus.OK, response.getResponseCode());
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getResponseCode());
         verify(cassandraOperation, never()).insertRecord(any(), any(), any());
     }
 
@@ -210,9 +218,7 @@ class ProfileServiceImplTest {
 
         when(accessTokenValidator.fetchUserIdFromAccessToken(eq(TOKEN), any())).thenReturn(USER_ID);
         when(serverProperties.getContextType()).thenReturn(new String[]{"education"});
-        when(cassandraOperation.getRecordsByProperties(any(), any(), anyMap(), any(), any()))
-            .thenReturn(List.of(Map.of(Constants.CONTEXT_DATA, "[]")));
-        when(projectUtil.parseListOfMap(anyString())).thenReturn(new ArrayList<>(List.of(existing)));
+        when(profileReaderService.getExistingContextData(USER_ID, "education")).thenReturn(new ArrayList<>(List.of(existing)));
         when(cassandraOperation.insertRecord(any(), any(), any())).thenReturn(mockResponse);
 
         // Act
@@ -237,15 +243,10 @@ class ProfileServiceImplTest {
 
         Map<String, Object> request = Map.of(Constants.REQUEST, requestMap);
 
-        try {
-            when(accessTokenValidator.fetchUserIdFromAccessToken(eq(TOKEN), any())).thenReturn(USER_ID);
-            when(serverProperties.getContextType()).thenReturn(new String[]{"education"});
-            when(cassandraOperation.getRecordsByProperties(any(), any(), anyMap(), any(), any()))
-                .thenReturn(List.of(Map.of(Constants.CONTEXT_DATA, "[]")));
-            when(projectUtil.parseListOfMap(anyString())).thenReturn(new ArrayList<>());
-        } catch (Exception e) {
-            fail("Setup failed: " + e.getMessage());
-        }
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(TOKEN), any())).thenReturn(USER_ID);
+        when(serverProperties.getContextType()).thenReturn(new String[]{"education"});
+        when(profileReaderService.getExistingContextData(USER_ID, "education"))
+            .thenReturn(new ArrayList<>(List.of(Map.of(Constants.UUID, UUID.randomUUID().toString()))));
 
         // Act
         ApiResponse response = profileService.updateExtendedProfile(request, TOKEN);
@@ -274,9 +275,8 @@ class ProfileServiceImplTest {
 
         when(accessTokenValidator.fetchUserIdFromAccessToken(eq(TOKEN), any())).thenReturn(USER_ID);
         when(serverProperties.getContextType()).thenReturn(new String[]{"education"});
-        when(cassandraOperation.getRecordsByProperties(any(), any(), anyMap(), any(), any()))
-            .thenReturn(List.of(Map.of(Constants.CONTEXT_DATA, "[]")));
-        when(projectUtil.parseListOfMap(anyString())).thenReturn(new ArrayList<>(List.of(existingItem)));
+        when(profileReaderService.getExistingContextData(USER_ID, "education"))
+            .thenReturn(new ArrayList<>(List.of(existingItem)));
         when(cassandraOperation.insertRecord(any(), any(), any())).thenReturn(mockResponse);
 
         // Act
@@ -298,7 +298,7 @@ class ProfileServiceImplTest {
 
         when(accessTokenValidator.fetchUserIdFromAccessToken(eq(TOKEN), any())).thenReturn(USER_ID);
         when(cacheService.getCache(anyString())).thenReturn(cachedJson);
-        when(objectMapper.readValue(eq(cachedJson), eq(Map.class))).thenReturn(cachedData);
+        when(objectMapper.readValue(anyString(), eq(Map.class))).thenReturn(cachedData);
 
         // Act
         ApiResponse response = profileService.getExtendedProfileSummary(USER_ID, TOKEN);
@@ -317,9 +317,7 @@ class ProfileServiceImplTest {
         when(accessTokenValidator.fetchUserIdFromAccessToken(eq(TOKEN), any())).thenReturn(USER_ID);
         when(cacheService.getCache(anyString())).thenReturn(null);
         when(serverProperties.getContextType()).thenReturn(new String[]{"education"});
-        when(cassandraOperation.getRecordsByProperties(anyString(), anyString(), anyMap(), isNull(), isNull()))
-            .thenReturn(List.of(Map.of(Constants.CONTEXT_DATA, "[{\"field\":\"value\"}]")));
-        when(projectUtil.parseListOfMap(anyString())).thenReturn(dataList);
+        when(profileReaderService.getExistingContextData(USER_ID, "education")).thenReturn(dataList);
 
         // Act
         ApiResponse response = profileService.getExtendedProfileSummary(USER_ID, TOKEN);
@@ -327,7 +325,6 @@ class ProfileServiceImplTest {
         // Assert
         assertEquals(HttpStatus.OK, response.getResponseCode());
         assertNotNull(response.get(Constants.RESPONSE));
-        verify(cassandraOperation, atLeastOnce()).getRecordsByProperties(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -369,16 +366,13 @@ class ProfileServiceImplTest {
 
         when(accessTokenValidator.fetchUserIdFromAccessToken(eq(TOKEN), any())).thenReturn(USER_ID);
         when(cacheService.getCache(anyString())).thenReturn(null);
-        when(cassandraOperation.getRecordsByProperties(any(), any(), anyMap(), any(), any()))
-            .thenReturn(List.of(Map.of(Constants.CONTEXT_DATA, "[{\"field\":\"value\"}]")));
-        when(projectUtil.parseListOfMap(anyString())).thenReturn(contextData);
+        when(profileReaderService.getExistingContextData(USER_ID, "education")).thenReturn(contextData);
 
         // Act
         ApiResponse response = profileService.readFullExtendedProfile(USER_ID, "education", TOKEN);
 
         // Assert
         assertEquals(HttpStatus.OK, response.getResponseCode());
-        verify(cassandraOperation).getRecordsByProperties(any(), any(), any(), any(), any());
     }
 
     // ==================== getBasicProfile Tests ====================
@@ -394,9 +388,7 @@ class ProfileServiceImplTest {
 
         when(accessTokenValidator.fetchUserIdFromAccessToken(eq(TOKEN), any())).thenReturn(USER_ID);
         when(cacheService.getCache(anyString())).thenReturn(null);
-        when(serverProperties.getBasicProfileFields()).thenReturn(List.of(Constants.ID, "name", "email"));
-        when(cassandraOperation.getRecordsByProperties(any(), any(), anyMap(), any(), any()))
-            .thenReturn(List.of(userProfile));
+        when(profileReaderService.readUserDataFromDB(USER_ID, null)).thenReturn(userProfile);
         when(userUtility.decryptSpecificUserData(any(), any())).thenReturn(userProfile);
 
         // Act
@@ -410,125 +402,16 @@ class ProfileServiceImplTest {
     @Test
     void getBasicProfile_WithInvalidToken_ShouldReturnError() {
         // Arrange
-        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(TOKEN), any())).thenReturn("");
+        doAnswer(invocation -> {
+            ApiResponse resp = invocation.getArgument(1);
+            resp.setResponseCode(HttpStatus.UNAUTHORIZED);
+            return "";
+        }).when(accessTokenValidator).fetchUserIdFromAccessToken(eq(TOKEN), any());
 
         // Act
         ApiResponse response = profileService.getBasicProfile(USER_ID, TOKEN);
 
         // Assert
-        assertEquals(HttpStatus.OK, response.getResponseCode());
-    }
-
-    // ==================== listCompetencies Tests ====================
-
-    @Test
-    void listCompetencies_WithCacheHit_ShouldReturnCompetencies() {
-        // Arrange
-        Map<String, Object> competencies = new HashMap<>();
-        competencies.put("competencyAreaCounts", Map.of("area1", 5));
-
-        try {
-            when(accessTokenValidator.fetchUserIdFromAccessToken(eq(TOKEN), any())).thenReturn(USER_ID);
-            when(cacheService.getCache(anyString())).thenReturn("{}");
-            when(projectUtil.parseMap(anyString())).thenReturn(competencies);
-        } catch (Exception e) {
-            fail("Setup failed: " + e.getMessage());
-        }
-
-        // Act
-        ApiResponse response = profileService.listCompetencies(USER_ID, TOKEN);
-
-        // Assert
-        assertEquals(HttpStatus.OK, response.getResponseCode());
-        assertNotNull(response.get(Constants.RESPONSE));
-    }
-
-    @Test
-    void listCompetencies_WithInvalidToken_ShouldReturnError() {
-        // Arrange
-        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(TOKEN), any())).thenReturn("");
-
-        // Act
-        ApiResponse response = profileService.listCompetencies(USER_ID, TOKEN);
-
-        // Assert
-        assertEquals(HttpStatus.OK, response.getResponseCode());
-    }
-
-    @Test
-    void listCompetencies_WithNoCompletedCourses_ShouldReturnNoContent() {
-        // Arrange
-        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(TOKEN), any())).thenReturn(USER_ID);
-        when(cacheService.getCache(anyString())).thenReturn(null);
-        when(cassandraOperation.getAllRecordsByProperties(any(), any(), any(), any(), anyInt()))
-            .thenReturn(new ArrayList<>());
-
-        // Act
-        ApiResponse response = profileService.listCompetencies(USER_ID, TOKEN);
-
-        // Assert
-        assertEquals(HttpStatus.NO_CONTENT, response.getResponseCode());
-    }
-
-    // ==================== Helper Method Tests ====================
-
-    @Test
-    void getCourseMetadataBatched_WithValidCourseIds_ShouldReturnMetadata() {
-        // Arrange
-        List<String> courseIds = Arrays.asList("course1", "course2");
-        Map<String, String> courseDetailsMap = new HashMap<>();
-        courseDetailsMap.put("course1", "{\"courseId\":\"course1\",\"name\":\"Course 1\"}");
-        courseDetailsMap.put("course2", "{\"courseId\":\"course2\",\"name\":\"Course 2\"}");
-
-        try {
-            when(cacheService.getCourseMetadataAsJsonString(any())).thenReturn(courseDetailsMap);
-            when(projectUtil.parseMap(anyString())).thenAnswer(invocation -> {
-                String json = invocation.getArgument(0);
-                Map<String, Object> result = new HashMap<>();
-                if (json.contains("course1")) {
-                    result.put("courseId", "course1");
-                    result.put("name", "Course 1");
-                } else {
-                    result.put("courseId", "course2");
-                    result.put("name", "Course 2");
-                }
-                return result;
-            });
-        } catch (Exception e) {
-            fail("Setup failed: " + e.getMessage());
-        }
-
-        // Act
-        Map<String, Map<String, Object>> result = profileService.getCourseMetadataBatched(
-            courseIds, 100, Arrays.asList("courseId", "name")
-        );
-
-        // Assert
-        assertNotNull(result);
-        assertEquals(2, result.size());
-        assertTrue(result.containsKey("course1"));
-        assertTrue(result.containsKey("course2"));
-    }
-
-    @Test
-    void getUserRoles_ShouldReturnRoles() throws Exception {
-        // Arrange
-        Map<String, Object> userRole = new HashMap<>();
-        userRole.put(Constants.ROLE, "ADMIN");
-        List<Map<String, Object>> scopes = List.of(Map.of(Constants.ORGANISATION_ID, "org-123"));
-        userRole.put(Constants.SCOPE, objectMapper.writeValueAsString(scopes));
-
-        when(cassandraOperation.getRecordsByProperties(any(), any(), any(), any(), any()))
-            .thenReturn(List.of(userRole));
-        when(objectMapper.readValue(anyString(), any(com.fasterxml.jackson.core.type.TypeReference.class)))
-            .thenReturn(scopes);
-
-        // Act
-        List<String> roles = profileService.getUserRoles(USER_ID, "org-123");
-
-        // Assert
-        assertNotNull(roles);
-        assertEquals(1, roles.size());
-        assertEquals("ADMIN", roles.get(0));
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getResponseCode());
     }
 }

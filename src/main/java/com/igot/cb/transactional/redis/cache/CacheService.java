@@ -14,7 +14,7 @@ import redis.clients.jedis.JedisPool;
 @Service
 @Slf4j
 public class CacheService {
-    private static int CACHE_TTL = 84600;
+    private int cacheTtl = 84600;
 
     private final JedisPool jedisPool;
     private final JedisPool jedisDataPopulationPool;
@@ -49,7 +49,7 @@ public class CacheService {
         try (Jedis jedis = jedisDataPopulationPool.getResource()) {
             jedis.select(index);
             jedis.hset(key, field, value);
-            jedis.expire(key, CACHE_TTL);
+            jedis.expire(key, cacheTtl);
 
         } catch (Exception e) {
             logger.error("Error in hset: ", e);
@@ -67,7 +67,7 @@ public class CacheService {
     }
 
     public void putCache(String key, Object object) {
-        putCache(key, object, CACHE_TTL);
+        putCache(key, object, cacheTtl);
     }
 
     public String getCache(String key) {

@@ -2,6 +2,7 @@ package com.igot.cb.profile.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.profile.service.ProfileService;
+import com.igot.cb.profile.service.UserCompetencyService;
 import com.igot.cb.util.Constants;
 
 import org.igot.common.ApiResponse;
@@ -30,6 +31,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
     @Mock
     private ProfileService profileService;
+
+    @Mock
+    private UserCompetencyService userCompetencyService;
 
     @InjectMocks
     private ProfileController profileController;
@@ -201,13 +205,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
         ApiResponse mockResponse = ApiResponse.createDefaultResponse("GET_COMPETENCIES");
 
-        when(profileService.listCompetencies((userId), (authToken))).thenReturn(mockResponse);
+        when(userCompetencyService.listCompetencies((userId), (authToken))).thenReturn(mockResponse);
 
         mockMvc.perform(get("/user/profile/extended/competencies/{userId}", userId)
                         .header(Constants.X_AUTH_TOKEN, authToken))
                 .andExpect(status().isOk());
 
-        verify(profileService).listCompetencies((userId), (authToken));
+        verify(userCompetencyService).listCompetencies((userId), (authToken));
     }
 
 

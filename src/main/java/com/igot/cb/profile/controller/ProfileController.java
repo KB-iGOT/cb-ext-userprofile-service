@@ -1,6 +1,7 @@
 package com.igot.cb.profile.controller;
 
 import com.igot.cb.profile.service.ProfileService;
+import com.igot.cb.profile.service.UserCompetencyService;
 import com.igot.cb.util.Constants;
 
 import org.igot.common.ApiResponse;
@@ -14,9 +15,11 @@ import java.util.Map;
 @RequestMapping("/user/profile")
 public class ProfileController {
     private ProfileService profileService;
+    private UserCompetencyService userCompetencyService;
 
-    public ProfileController(ProfileService profileService) {
+    public ProfileController(ProfileService profileService, UserCompetencyService userCompetencyService) {
         this.profileService = profileService;
+        this.userCompetencyService = userCompetencyService;
     }
 
     @PostMapping("/extended")
@@ -90,7 +93,7 @@ public class ProfileController {
     @GetMapping("/extended/competencies/{userId}")
     public ResponseEntity<ApiResponse> getCompetencies(@PathVariable(Constants.USER_ID_RQST) String userId,
             @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken) {
-        ApiResponse response = profileService.listCompetencies(userId, authToken);
+        ApiResponse response = userCompetencyService.listCompetencies(userId, authToken);
         return new ResponseEntity<>(response, HttpStatus.valueOf(response.getResponseCode().value()));
     }
 

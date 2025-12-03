@@ -65,4 +65,7 @@ public class ProjectUtil {
         return propertiesCache.getProperty(key);
     }
 
+    public String buildCacheKey(String prefix, String contextType, String userId) {
+        return String.join(":", prefix, contextType, userId);
+    }
 }
