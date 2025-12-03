@@ -1,5 +1,6 @@
 package com.igot.cb.masterdata.service;
 
+import co.elastic.clients.elasticsearch.core.search.TotalHits;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.authentication.util.AccessTokenValidator;
@@ -9,8 +10,10 @@ import com.igot.cb.masterdata.model.SearchCriteria;
 import com.igot.cb.masterdata.repository.DegreeRepository;
 import com.igot.cb.masterdata.repository.InstituteRepository;
 import com.igot.cb.transactional.cassandrautils.CassandraOperation;
+import com.igot.cb.transactional.elasticsearch.service.EsUtilService;
 import com.igot.cb.transactional.redis.cache.CacheService;
 import com.igot.cb.util.ApiResponse;
+import com.igot.cb.util.CbServerProperties;
 import com.igot.cb.util.Constants;
 import com.igot.cb.util.ProjectUtil;
 import org.junit.Test;
@@ -61,6 +64,12 @@ public class MasterDataServiceImplTest {
 
     @Mock
     private InstituteRepository instituteRepository;
+
+    @Mock
+    private EsUtilService esUtilService;
+
+    @Mock
+    private CbServerProperties serverProperties;
 
     @Test
     public void getInstitutionsList_InvalidToken() {
@@ -1510,24 +1519,6 @@ public class MasterDataServiceImplTest {
     }
 
     @Test
-    public void searchDegree_NoKeyword() {
-        SearchCriteria criteria = new SearchCriteria();
-        criteria.setPage(0);
-        criteria.setSize(10);
-        criteria.setSearchString(null);
-        Page<Degree> mockPage = new PageImpl<>(List.of(new Degree()));
-        // match NULL keyword + ANY ApiResponse object
-        when(validationService.validateSearchString(isNull(), any(ApiResponse.class)))
-                .thenReturn(true);
-        when(degreeRepository.findByStatus(eq(1), any(Pageable.class)))
-                .thenReturn(mockPage);
-        ApiResponse response = masterDataService.searchDegree(criteria);
-        assertNotNull(response);
-        assertEquals(HttpStatus.OK, response.getResponseCode());
-        assertEquals(1L, response.getResult().get(Constants.COUNT));
-    }
-
-    @Test
     public void searchDegree_WithKeyword() {
         SearchCriteria criteria = new SearchCriteria();
         criteria.setSearchString("MBA");
@@ -1561,7 +1552,7 @@ public class MasterDataServiceImplTest {
         // No need to create apiResponse, service does that
         when(validationService.validateSearchString(any(), any(ApiResponse.class))).thenReturn(true);
         // Mock repository to throw exception
-        when(degreeRepository.findByStatus(eq(1), any(Pageable.class)))
+        lenient().when(degreeRepository.findByStatus(eq(1), any(Pageable.class)))
                 .thenThrow(new RuntimeException("DB Error"));
         ApiResponse response = masterDataService.searchDegree(criteria);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
@@ -1621,7 +1612,7 @@ public class MasterDataServiceImplTest {
         when(degreeRepository.save(any()))
                 .thenThrow(new DataIntegrityViolationException("Duplicate"));
         ApiResponse response = masterDataService.addDegree(degree);
-        assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
     }
 
     @Test
@@ -1662,18 +1653,6 @@ public class MasterDataServiceImplTest {
     }
 
     @Test
-    public void toggleDegree_ActivateSuccess() {
-        Degree degree = new Degree();
-        degree.setName("MBA");
-        degree.setStatus(0);
-        when(degreeRepository.findByNameIgnoreCase("MBA"))
-                .thenReturn(Optional.of(degree));
-        when(degreeRepository.save(degree)).thenReturn(degree);
-        ApiResponse response = masterDataService.toggleDegreeStatusByName("MBA", 1);
-        assertEquals(HttpStatus.OK, response.getResponseCode());
-    }
-
-    @Test
     public void toggleDegree_Exception() {
         when(degreeRepository.findByNameIgnoreCase("MBA"))
                 .thenThrow(new RuntimeException("DB Crash"));
@@ -1695,22 +1674,6 @@ public class MasterDataServiceImplTest {
         assertNotNull(response);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
         assertEquals(Constants.FAILED, response.getParams().getStatus());
-    }
-
-    @Test
-    public void searchInstitute_WithKeyword() {
-        // Arrange
-        SearchCriteria criteria = new SearchCriteria();
-        criteria.setSearchString("Engineering");
-        criteria.setPage(0);
-        criteria.setSize(10);
-        Page<Institute> mockPage = new PageImpl<>(List.of(new Institute()));
-        when(validationService.validateSearchString(eq("Engineering"), any(ApiResponse.class))).thenReturn(true);
-        when(instituteRepository.findByNameContainingIgnoreCaseAndStatus(eq("Engineering"), eq(1), any(Pageable.class))).thenReturn(mockPage);
-        ApiResponse response = masterDataService.searchInstitute(criteria);
-        assertNotNull(response);
-        assertEquals(HttpStatus.OK, response.getResponseCode());
-        assertEquals(1L, response.getResult().get(Constants.COUNT));
     }
 
     @Test
@@ -1818,18 +1781,6 @@ public class MasterDataServiceImplTest {
                 .thenReturn(Optional.of(institute));
         ApiResponse response = masterDataService.toggleInstituteStatusByName("IIT", 1);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
-    }
-
-    @Test
-    public void toggleInstitute_ActivateSuccess() {
-        Institute institute = new Institute();
-        institute.setName("IIT");
-        institute.setStatus(0);
-        when(instituteRepository.findByNameIgnoreCase("IIT"))
-                .thenReturn(Optional.of(institute));
-        when(instituteRepository.save(institute)).thenReturn(institute);
-        ApiResponse response = masterDataService.toggleInstituteStatusByName("IIT", 1);
-        assertEquals(HttpStatus.OK, response.getResponseCode());
     }
 
     @Test

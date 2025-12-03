@@ -150,6 +150,15 @@ public class CbServerProperties {
     @Value("${db.table.user-enrolments}")
     private String userEnrolmentsTable;
 
-    @Value("${master_data_search_string_regex}")
+    @Value("${master.data.search.string.regex}")
     private String masterDataSearchStringRegex;
+
+    @Value("${es.degree.index.name}")
+    private String esDegreeIndexName;
+
+    @Value("${es.institute.index.name}")
+    private String esInstituteIndexName;
+
+    @Value("${es.masterdata.index.doc.type}")
+    private String esMasterDataIndexDocType;
 }

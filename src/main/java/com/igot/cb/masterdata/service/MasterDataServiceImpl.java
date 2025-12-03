@@ -10,16 +10,30 @@ import com.igot.cb.masterdata.model.SearchCriteria;
 import com.igot.cb.masterdata.repository.DegreeRepository;
 import com.igot.cb.masterdata.repository.InstituteRepository;
 import com.igot.cb.transactional.cassandrautils.CassandraOperation;
+import com.igot.cb.transactional.elasticsearch.model.EsResponse;
+import com.igot.cb.transactional.elasticsearch.service.EsUtilService;
 import com.igot.cb.transactional.redis.cache.CacheService;
 import com.igot.cb.util.ApiResponse;
+import com.igot.cb.util.CbServerProperties;
 import com.igot.cb.util.Constants;
 import com.igot.cb.util.ProjectUtil;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.MultiMatchQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -56,6 +70,16 @@ public class MasterDataServiceImpl implements MasterDataService {
 
     @Autowired
     private ValidationService validationService;
+
+    @Autowired
+    private EsUtilService esUtilService;
+
+    @Autowired
+    private CbServerProperties serverProperties;
+
+    @Autowired
+    @Qualifier("igotESClient")
+    private RestHighLevelClient igotESClient;
 
     /**
      * Retrieves a list of all institutions from the master data.
@@ -536,45 +560,23 @@ public class MasterDataServiceImpl implements MasterDataService {
 
         try {
             logger.info("Searching degrees with criteria: {}", searchCriteria);
-
-            // Determine sort direction (default to DESC)
-            Sort.Direction orderBy = Sort.Direction.DESC;
-            if (Constants.ASC.equalsIgnoreCase(searchCriteria.getOrderBy())) {
-                orderBy = Sort.Direction.ASC;
+            // ------------------ Validation ------------------
+            if (searchCriteria.getPage() < 0 || searchCriteria.getSize() <= 0) {
+                ProjectUtil.errorResponse(apiResponse, "Invalid pagination parameters", HttpStatus.BAD_REQUEST);
+                return apiResponse;
             }
-
-            // Build pageable
-            String sortBy = (StringUtils.isEmpty(searchCriteria.getSortBy()))
-                    ? Constants.ID : searchCriteria.getSortBy();
-
-            Pageable pageable = PageRequest.of(
-                    searchCriteria.getPage(),
-                    searchCriteria.getSize(),
-                    Sort.by(orderBy, sortBy)
-            );
-
-            // Execute query
             String keyword = searchCriteria.getSearchString();
             if (!validationService.validateSearchString(keyword, apiResponse)) {
                 return apiResponse;
             }
-            Page<Degree> page;
-            if (StringUtils.isEmpty(keyword)) {
-                page = degreeRepository.findByStatus(1, pageable);
-            } else {
-                page = degreeRepository.findByNameContainingIgnoreCaseAndStatus(keyword, 1, pageable);
+            EsResponse esResponse = searchMasterDataInIgotES(serverProperties.getEsDegreeIndexName(), serverProperties.getEsMasterDataIndexDocType(), searchCriteria);
+
+            if (!esResponse.isSuccess()) {
+                ProjectUtil.errorResponse(apiResponse, esResponse.getMessage(), HttpStatus.BAD_REQUEST);
+                return apiResponse;
             }
-
-            // Extract results
-            List<Degree> result = page.getContent();
-            long count = page.getTotalElements();
-            long totalPages = page.getTotalPages();
-
-            logger.info("Found {} results across {} pages", count, totalPages);
-
-            // Populate response
-            apiResponse.getResult().put(Constants.RESULT, result);
-            apiResponse.getResult().put(Constants.COUNT, count);
+            apiResponse.getResult().put(Constants.RESULT, esResponse.getData());
+            apiResponse.getResult().put(Constants.COUNT, esResponse.getCount());
 
         } catch (IllegalArgumentException e) {
             logger.error("Invalid pagination or sorting parameters: {}", e.getMessage(), e);
@@ -594,45 +596,23 @@ public class MasterDataServiceImpl implements MasterDataService {
         try {
             logger.info("Searching institutes with criteria: {}", searchCriteria);
 
-            // Determine sort direction (default to DESC)
-            Sort.Direction orderBy = Sort.Direction.DESC;
-            if (Constants.ASC.equalsIgnoreCase(searchCriteria.getOrderBy())) {
-                orderBy = Sort.Direction.ASC;
+            // ------------------ Validation ------------------
+            if (searchCriteria.getPage() < 0 || searchCriteria.getSize() <= 0) {
+                ProjectUtil.errorResponse(apiResponse, "Invalid pagination parameters", HttpStatus.BAD_REQUEST);
+                return apiResponse;
             }
-
-            // Build pageable
-            String sortBy = (StringUtils.isEmpty(searchCriteria.getSortBy()))
-                    ? Constants.ID : searchCriteria.getSortBy();
-
-            Pageable pageable = PageRequest.of(
-                    searchCriteria.getPage(),
-                    searchCriteria.getSize(),
-                    Sort.by(orderBy, sortBy)
-            );
-
-            // Execute query
             String keyword = searchCriteria.getSearchString();
             if (!validationService.validateSearchString(keyword, apiResponse)) {
                 return apiResponse;
             }
-            Page<Institute> page;
-            if (StringUtils.isEmpty(keyword)) {
-                page = instituteRepository.findByStatus(1, pageable);
-            } else {
-                page = instituteRepository.findByNameContainingIgnoreCaseAndStatus(keyword, 1, pageable);
+            EsResponse esResponse = searchMasterDataInIgotES(serverProperties.getEsInstituteIndexName(), serverProperties.getEsMasterDataIndexDocType(), searchCriteria);
+
+            if (!esResponse.isSuccess()) {
+                ProjectUtil.errorResponse(apiResponse, esResponse.getMessage(), HttpStatus.BAD_REQUEST);
+                return apiResponse;
             }
-
-            // Extract results
-            List<Institute> result = page.getContent();
-            long count = page.getTotalElements();
-            long totalPages = page.getTotalPages();
-
-            logger.info("Found {} results across {} pages", count, totalPages);
-
-            // Populate response
-            apiResponse.getResult().put(Constants.RESULT, result);
-            apiResponse.getResult().put(Constants.COUNT, count);
-
+            apiResponse.getResult().put(Constants.RESULT, esResponse.getData());
+            apiResponse.getResult().put(Constants.COUNT, esResponse.getCount());
         } catch (IllegalArgumentException e) {
             logger.error("Invalid pagination or sorting parameters: {}", e.getMessage(), e);
             ProjectUtil.errorResponse(apiResponse, "Invalid pagination or sorting parameters", HttpStatus.BAD_REQUEST);
@@ -641,167 +621,182 @@ public class MasterDataServiceImpl implements MasterDataService {
             logger.error("Unexpected error during institute search: {}", e.getMessage(), e);
             ProjectUtil.errorResponse(apiResponse, "Unexpected error during institute search", HttpStatus.INTERNAL_SERVER_ERROR);
         }
-
         return apiResponse;
     }
 
     public ApiResponse addDegree(Degree degree) {
         ApiResponse apiResponse = ProjectUtil.createDefaultResponse(Constants.API_ADD_DEGREE);
+
         try {
-            logger.info("Adding new degree: {}", degree);
-            //Basic Validation
+            // ------------------ Basic Validation ------------------
             if (StringUtils.isEmpty(degree.getName())) {
-                logger.warn("Validation failed: Degree name is empty");
                 ProjectUtil.errorResponse(apiResponse, "Degree name cannot be empty", HttpStatus.BAD_REQUEST);
                 return apiResponse;
             }
             if (StringUtils.isNotEmpty(degree.getDescription()) && degree.getDescription().length() > 255) {
-                logger.warn("Validation failed: Degree description too long");
                 ProjectUtil.errorResponse(apiResponse, "Degree description cannot exceed 255 characters", HttpStatus.BAD_REQUEST);
                 return apiResponse;
             }
-
-            //Check if degree already exists
+            // ------------------ Check Existing ------------------
             Optional<Degree> existingDegreeOpt = degreeRepository.findByNameIgnoreCase(degree.getName());
             if (existingDegreeOpt.isPresent()) {
                 Degree existingDegree = existingDegreeOpt.get();
                 if (existingDegree.getStatus() == 0) {
-                    //Reactivate instead of creating a new one
-                    logger.info("Degree '{}' exists but is inactive. Reactivating...", degree.getName());
+                    // Reactivate inactive record in Postgres
                     existingDegree.setStatus(1);
                     if (StringUtils.isNotEmpty(degree.getDescription())) {
                         existingDegree.setDescription(degree.getDescription());
                     }
-                    Degree reactivatedDegree = degreeRepository.save(existingDegree);
-                    logger.info("Degree '{}' reactivated successfully.", reactivatedDegree.getName());
-                    apiResponse.getResult().put(Constants.RESULT, reactivatedDegree);
+                    Degree updated = degreeRepository.save(existingDegree);
+                    // Sync ES
+                    try {
+                        EsResponse esResponse = esUtilService.saveObjectInIgotES(updated, serverProperties.getEsDegreeIndexName(), serverProperties.getEsMasterDataIndexDocType(), updated.getId().toString());
+                        if (!esResponse.isSuccess()) {
+                            logger.warn("Failed to index reactivated degree in ES: {}", esResponse.getMessage());
+                        }
+                    } catch (Exception e) {
+                        logger.warn("Exception while indexing reactivated degree in ES: {}", e.getMessage(), e);
+                    }
+                    apiResponse.getResult().put(Constants.RESULT, updated);
                     return apiResponse;
                 }
-
-                //Already active
-                logger.warn("Degree already exists and is active: {}", degree.getName());
                 ProjectUtil.errorResponse(apiResponse, "Degree already exists and is active", HttpStatus.CONFLICT);
                 return apiResponse;
             }
-
-            //Set default values for new degree
+            // ------------------ Save to Postgres FIRST ------------------
             degree.setStatus(1);
-            //Save entity
             Degree savedDegree = degreeRepository.save(degree);
-            logger.info("Degree saved successfully with ID: {}", savedDegree.getId());
+            // ------------------ Save to Elasticsearch SECOND ------------------
+            EsResponse esResponse = esUtilService.saveObjectInIgotES(savedDegree, serverProperties.getEsDegreeIndexName(), serverProperties.getEsMasterDataIndexDocType(), savedDegree.getId().toString());
+            if (!esResponse.isSuccess()) {
+                logger.error("Failed to index degree in ES: {} — Rolling back DB", esResponse.getMessage());
+                // Rollback Postgres
+                degreeRepository.delete(savedDegree);
+                ProjectUtil.errorResponse(apiResponse, "Failed to add degree (ES indexing failed)", HttpStatus.INTERNAL_SERVER_ERROR);
+                return apiResponse;
+            }
             apiResponse.getResult().put(Constants.RESULT, savedDegree);
-
-        } catch (DataIntegrityViolationException e) {
-            logger.error("Data integrity violation while adding degree: {}", e.getMessage(), e);
-            ProjectUtil.errorResponse(apiResponse, "Invalid or duplicate degree data", HttpStatus.BAD_REQUEST);
+            return apiResponse;
 
         } catch (Exception e) {
-            logger.error("Unexpected error while adding degree: {}", e.getMessage(), e);
+            logger.error("Unexpected error while adding degree", e);
             ProjectUtil.errorResponse(apiResponse, "Unexpected error while adding degree", HttpStatus.INTERNAL_SERVER_ERROR);
+            return apiResponse;
         }
-
-        return apiResponse;
     }
 
     public ApiResponse addInstitute(Institute institute) {
         ApiResponse apiResponse = ProjectUtil.createDefaultResponse(Constants.API_ADD_INSTITUTE);
         try {
-            logger.info("Adding new institute: {}", institute);
-            //Basic Validation
             if (StringUtils.isEmpty(institute.getName())) {
-                logger.warn("Validation failed: Institute name is empty");
                 ProjectUtil.errorResponse(apiResponse, "Institute name cannot be empty", HttpStatus.BAD_REQUEST);
                 return apiResponse;
             }
-            if (StringUtils.isNotEmpty(institute.getDescription()) && institute.getDescription().length() > 255) {
-                logger.warn("Validation failed: Institute description too long");
+            if (StringUtils.isNotEmpty(institute.getDescription()) &&
+                    institute.getDescription().length() > 255) {
                 ProjectUtil.errorResponse(apiResponse, "Institute description cannot exceed 255 characters", HttpStatus.BAD_REQUEST);
                 return apiResponse;
             }
-            //Check if institute already exists
-            Optional<Institute> existingInstituteOpt = instituteRepository.findByNameIgnoreCase(institute.getName());
-            if (existingInstituteOpt.isPresent()) {
-                Institute existingInstitute = existingInstituteOpt.get();
-                if (existingInstitute.getStatus() == 0) {
-                    //Reactivate instead of creating a new one
-                    logger.info("Institute '{}' exists but is inactive. Reactivating...", institute.getName());
-                    existingInstitute.setStatus(1);
+            Optional<Institute> existingOpt = instituteRepository.findByNameIgnoreCase(institute.getName());
+            if (existingOpt.isPresent()) {
+                Institute existing = existingOpt.get();
+                // If inactive → reactivate
+                if (existing.getStatus() == 0) {
+                    existing.setStatus(1);
                     if (StringUtils.isNotEmpty(institute.getDescription())) {
-                        existingInstitute.setDescription(institute.getDescription());
+                        existing.setDescription(institute.getDescription());
                     }
-                    Institute reactivatedInstitute = instituteRepository.save(existingInstitute);
-                    logger.info("Institute '{}' reactivated successfully.", reactivatedInstitute.getName());
-                    apiResponse.getResult().put(Constants.RESULT, reactivatedInstitute);
+
+                    Institute updated = instituteRepository.save(existing);
+                    // Sync ES (best effort — reactivation generally should not rollback DB)
+                    try {
+                        EsResponse esResponse = esUtilService.saveObjectInIgotES(updated, serverProperties.getEsInstituteIndexName(), serverProperties.getEsMasterDataIndexDocType(), updated.getId().toString());
+                        if (!esResponse.isSuccess()) {
+                            logger.warn("Failed to index reactivated degree in ES: {}", esResponse.getMessage());
+                        }
+                    } catch (Exception e) {
+                        logger.warn("Exception while indexing reactivated degree in ES: {}", e.getMessage(), e);
+                    }
+                    apiResponse.getResult().put(Constants.RESULT, updated);
                     return apiResponse;
                 }
-
-                //Already active
-                logger.warn("Institute already exists and is active: {}", institute.getName());
+                // Active already
                 ProjectUtil.errorResponse(apiResponse, "Institute already exists and is active", HttpStatus.CONFLICT);
                 return apiResponse;
             }
-
-            //Set default values for new institute
+            // ----------------- SAVE TO POSTGRES -----------------
             institute.setStatus(1);
+            Institute saved = instituteRepository.save(institute);
 
-            //Save entity
-            Institute savedInstitute = instituteRepository.save(institute);
-            logger.info("Institute saved successfully with ID: {}", savedInstitute.getId());
-            apiResponse.getResult().put(Constants.RESULT, savedInstitute);
+            // ----------------- SAVE TO ELASTICSEARCH -----------------
+            EsResponse esResponse = esUtilService.saveObjectInIgotES(saved, serverProperties.getEsInstituteIndexName(), serverProperties.getEsMasterDataIndexDocType(), saved.getId().toString());
+            // If ES fails → rollback Postgres
+            if (!esResponse.isSuccess()) {
+                logger.error("Failed to index institute in ES: {} — Rolling back DB", esResponse.getMessage());
+                instituteRepository.delete(saved);
+                ProjectUtil.errorResponse(apiResponse, "Failed to add the institute (ES indexing failed)", HttpStatus.INTERNAL_SERVER_ERROR);
+                return apiResponse;
+            }
+            apiResponse.getResult().put(Constants.RESULT, saved);
+            return apiResponse;
 
         } catch (DataIntegrityViolationException e) {
-            logger.error("Data integrity violation while adding institute: {}", e.getMessage(), e);
+            logger.error("Data integrity violation while adding institute: {}", e.getMessage());
             ProjectUtil.errorResponse(apiResponse, "Invalid or duplicate institute data", HttpStatus.BAD_REQUEST);
+            return apiResponse;
 
         } catch (Exception e) {
             logger.error("Unexpected error while adding institute: {}", e.getMessage(), e);
             ProjectUtil.errorResponse(apiResponse, "Unexpected error while adding institute", HttpStatus.INTERNAL_SERVER_ERROR);
+            return apiResponse;
         }
-
-        return apiResponse;
     }
 
     public ApiResponse toggleDegreeStatusByName(String degreeName, int status) {
         ApiResponse apiResponse = ProjectUtil.createDefaultResponse(Constants.API_UPDATE_DEGREE_STATUS);
-
         try {
-            logger.info("{} degree with name: {}", status != 0 ? "Activating" : "Deactivating", degreeName);
-            //Validate input
+            logger.info("{} degree with name: {}", status == 1 ? "Activating" : "Deactivating", degreeName);
+            // Validate input
             if (StringUtils.isEmpty(degreeName)) {
-                logger.warn("Degree name cannot be empty");
                 ProjectUtil.errorResponse(apiResponse, "Degree name cannot be empty", HttpStatus.BAD_REQUEST);
                 return apiResponse;
             }
-            //Find degree by name
+            // Find degree by name
             Optional<Degree> optionalDegree = degreeRepository.findByNameIgnoreCase(degreeName);
             if (optionalDegree.isEmpty()) {
-                logger.warn("Degree not found with name: {}", degreeName);
                 ProjectUtil.errorResponse(apiResponse, "Degree not found", HttpStatus.NOT_FOUND);
                 return apiResponse;
             }
             Degree degree = optionalDegree.get();
-            //Check if already in desired state
-            if (status == 1 && degree.getStatus() == 1) {
-                logger.info("Degree '{}' is already active", degreeName);
-                ProjectUtil.errorResponse(apiResponse, "Degree is already active", HttpStatus.BAD_REQUEST);
-                return apiResponse;
-            } else if (status == 0 && degree.getStatus() == 0) {
-                logger.info("Degree '{}' is already inactive", degreeName);
-                ProjectUtil.errorResponse(apiResponse, "Degree is already inactive", HttpStatus.BAD_REQUEST);
+            // Check if already in desired state
+            if ((status == 1 && degree.getStatus() == 1) || (status == 0 && degree.getStatus() == 0)) {
+                String stateMsg = status == 1 ? "active" : "inactive";
+                ProjectUtil.errorResponse(apiResponse, "Degree is already " + stateMsg, HttpStatus.BAD_REQUEST);
                 return apiResponse;
             }
-
-            //Update status
+            // Update status
             degree.setStatus(status);
-            degreeRepository.save(degree);
-            logger.info("Degree '{}' {} successfully", degreeName, status == 1 ? "activated" : "deactivated");
-            apiResponse.getResult().put(Constants.RESULT, degree);
+            Degree updatedDegree = degreeRepository.save(degree);
 
+            // Push to IGOT ES
+            EsResponse esResponse = esUtilService.saveObjectInIgotES(
+                    updatedDegree,
+                    serverProperties.getEsDegreeIndexName(),
+                    serverProperties.getEsMasterDataIndexDocType(),
+                    updatedDegree.getId().toString()
+            );
+            if (!esResponse.isSuccess()) {
+                logger.warn("Failed to index degree in ES: {}. Postgres record remains intact.", esResponse.getMessage());
+                ProjectUtil.errorResponse(apiResponse, "Degree status updated in DB but failed to sync with ES", HttpStatus.INTERNAL_SERVER_ERROR);
+                apiResponse.getResult().put(Constants.RESULT, updatedDegree); // optionally return DB entity
+                return apiResponse;
+            }
+            logger.info("Degree '{}' {} successfully", degreeName, status == 1 ? "activated" : "deactivated");
+            apiResponse.getResult().put(Constants.RESULT, updatedDegree);
         } catch (Exception e) {
             logger.error("Unexpected error while {} degree '{}': {}", status == 1 ? "activating" : "deactivating", degreeName, e.getMessage(), e);
             ProjectUtil.errorResponse(apiResponse, "Unexpected error while updating degree status", HttpStatus.INTERNAL_SERVER_ERROR);
         }
-
         return apiResponse;
     }
 
@@ -809,37 +804,43 @@ public class MasterDataServiceImpl implements MasterDataService {
         ApiResponse apiResponse = ProjectUtil.createDefaultResponse(Constants.API_UPDATE_INSTITUTE_STATUS);
         try {
             logger.info("{} institute with name: {}", status == 1 ? "Activating" : "Deactivating", instituteName);
-            //Validate input
+
+            // Validate input
             if (StringUtils.isEmpty(instituteName)) {
-                logger.warn("Institute name cannot be empty");
                 ProjectUtil.errorResponse(apiResponse, "Institute name cannot be empty", HttpStatus.BAD_REQUEST);
                 return apiResponse;
             }
-            //Find institute by name
+            // Find institute by name
             Optional<Institute> optionalInstitute = instituteRepository.findByNameIgnoreCase(instituteName);
             if (optionalInstitute.isEmpty()) {
-                logger.warn("Institute not found with name: {}", instituteName);
                 ProjectUtil.errorResponse(apiResponse, "Institute not found", HttpStatus.NOT_FOUND);
                 return apiResponse;
             }
             Institute institute = optionalInstitute.get();
-            //Check if already in desired state
-            if (status == 1 && institute.getStatus() == 1) {
-                logger.info("Institute '{}' is already active", instituteName);
-                ProjectUtil.errorResponse(apiResponse, "Institute is already active", HttpStatus.BAD_REQUEST);
-                return apiResponse;
-            } else if (status == 0 && institute.getStatus() == 0) {
-                logger.info("Institute '{}' is already inactive", instituteName);
-                ProjectUtil.errorResponse(apiResponse, "Institute is already inactive", HttpStatus.BAD_REQUEST);
+            // Check if already in desired state
+            if ((status == 1 && institute.getStatus() == 1) || (status == 0 && institute.getStatus() == 0)) {
+                String stateMsg = status == 1 ? "active" : "inactive";
+                ProjectUtil.errorResponse(apiResponse, "Institute is already " + stateMsg, HttpStatus.BAD_REQUEST);
                 return apiResponse;
             }
-
-            //Update status and timestamp
+            // Update status
             institute.setStatus(status);
-            instituteRepository.save(institute);
-
+            Institute updatedInstitute = instituteRepository.save(institute);
+            // Push to IGOT ES
+            EsResponse esResponse = esUtilService.saveObjectInIgotES(
+                    updatedInstitute,
+                    serverProperties.getEsInstituteIndexName(),
+                    serverProperties.getEsMasterDataIndexDocType(),
+                    updatedInstitute.getId().toString()
+            );
+            if (!esResponse.isSuccess()) {
+                logger.warn("Failed to index institute in ES: {}. Postgres record remains intact.", esResponse.getMessage());
+                ProjectUtil.errorResponse(apiResponse, "Institute status updated in DB but failed to sync with ES", HttpStatus.INTERNAL_SERVER_ERROR);
+                apiResponse.getResult().put(Constants.RESULT, updatedInstitute); // optional: still return DB entity
+                return apiResponse;
+            }
             logger.info("Institute '{}' {} successfully", instituteName, status == 1 ? "activated" : "deactivated");
-            apiResponse.getResult().put(Constants.RESULT, institute);
+            apiResponse.getResult().put(Constants.RESULT, updatedInstitute);
 
         } catch (Exception e) {
             logger.error("Unexpected error while {} institute '{}': {}", status == 1 ? "activating" : "deactivating", instituteName, e.getMessage(), e);
@@ -848,4 +849,64 @@ public class MasterDataServiceImpl implements MasterDataService {
         return apiResponse;
     }
 
+    public EsResponse searchMasterDataInIgotES(String indexName, String docType, SearchCriteria searchCriteria) {
+        try {
+            int from = searchCriteria.getPage() * searchCriteria.getSize();
+            // Default sort field
+            String sortBy = searchCriteria.getSortBy();
+            if (StringUtils.isEmpty(sortBy)) {
+                sortBy = "id";  // default
+            }
+            sortBy = switch (sortBy) {
+                case "name" -> "name.keyword";
+                case "description" -> "description.keyword";
+                default -> sortBy;
+            };
+            // Default order
+            boolean isDesc = "DESC".equalsIgnoreCase(searchCriteria.getOrderBy());
+            SortOrder sortOrder = isDesc ? SortOrder.DESC : SortOrder.ASC;
+
+            SearchRequest searchRequest = new SearchRequest(indexName).types(docType);
+            SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
+                    .from(from)
+                    .size(searchCriteria.getSize())
+                    .sort(sortBy, sortOrder);
+
+            BoolQueryBuilder boolQuery = QueryBuilders.boolQuery();
+
+            if (StringUtils.isNotEmpty(searchCriteria.getSearchString())) {
+                MultiMatchQueryBuilder multiMatch = QueryBuilders.multiMatchQuery(searchCriteria.getSearchString())
+                        .field("name")
+                        .field("name.ngram")
+                        .field("description")
+                        .field("description.ngram");
+
+                boolQuery.must(multiMatch);
+            } else {
+                boolQuery.must(QueryBuilders.matchAllQuery());
+            }
+
+            int status = searchCriteria.getStatus() != null ? searchCriteria.getStatus() : 1;
+            boolQuery.filter(QueryBuilders.termQuery("status", status)); // only active
+            sourceBuilder.query(boolQuery);
+            searchRequest.source(sourceBuilder);
+            SearchResponse response = igotESClient.search(searchRequest, RequestOptions.DEFAULT);
+            List<Map<String, Object>> results = new ArrayList<>();
+            for (SearchHit hit : response.getHits().getHits()) {
+                results.add(hit.getSourceAsMap());
+            }
+            return EsResponse.builder()
+                    .success(true)
+                    .message("Search successful")
+                    .data(results)
+                    .count(response.getHits().getTotalHits())
+                    .build();
+
+        } catch (Exception e) {
+            return EsResponse.builder()
+                    .success(false)
+                    .message("Search failed: " + e.getMessage())
+                    .build();
+        }
+    }
 }
