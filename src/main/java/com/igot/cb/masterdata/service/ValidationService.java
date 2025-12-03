@@ -15,7 +15,7 @@ public class ValidationService {
     private CbServerProperties cbServerProperties;
 
     private static final int MIN_SEARCH_LENGTH = 2;
-    private static final int MAX_SEARCH_LENGTH = 100;
+    private static final int MAX_SEARCH_LENGTH = 50;
 
     public boolean validateSearchString(String keyword, ApiResponse apiResponse) {
 
