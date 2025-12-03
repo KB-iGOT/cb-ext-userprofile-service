@@ -72,7 +72,7 @@ public class ProfileController {
     }
 
     @DeleteMapping("/extended")
-    public ResponseEntity<?> deleteExtendedProfile(
+    public ResponseEntity<ApiResponse> deleteExtendedProfile(
             @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken,
             @RequestBody Map<String, Object> request) {
 
@@ -81,7 +81,7 @@ public class ProfileController {
     }
 
     @GetMapping("/basic/{userId}")
-    public ResponseEntity<Object> getBasicProfile(@PathVariable(Constants.USER_ID_RQST) String userId,
+    public ResponseEntity<ApiResponse> getBasicProfile(@PathVariable(Constants.USER_ID_RQST) String userId,
             @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken) {
         ApiResponse response = profileService.getBasicProfile(userId, authToken);
         return new ResponseEntity<>(response, response.getResponseCode());
