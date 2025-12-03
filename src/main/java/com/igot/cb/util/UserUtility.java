@@ -16,9 +16,9 @@ public class UserUtility {
     
     public Map<String, Object> decryptSpecificUserData(Map<String, Object> userMap, List<String> fieldsToDecrypt) {
         for (String key : fieldsToDecrypt) {
-            if (userMap.containsKey(key)) {
-                userMap.put(key, decryptionService.decryptData((String) userMap.get(key), false));
-            }
+            userMap.computeIfPresent(key, (k, value) ->
+                decryptionService.decryptData((String) value, false)
+            );
         }
         return userMap;
     }

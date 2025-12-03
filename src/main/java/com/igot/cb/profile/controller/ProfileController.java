@@ -22,7 +22,7 @@ public class ProfileController {
     @PostMapping("/extended")
     public ResponseEntity<ApiResponse> saveExtendedProfile(
             @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken,
-            @RequestBody Map<String, Object> request) throws Exception {
+            @RequestBody Map<String, Object> request) {
         ApiResponse response = profileService.saveExtendedProfile(request, authToken);
         return new ResponseEntity<>(response, response.getResponseCode());
     }
@@ -66,7 +66,7 @@ public class ProfileController {
     @PutMapping("/extended")
     public ResponseEntity<ApiResponse> updateExtendedProfile(
             @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken,
-            @RequestBody Map<String, Object> request) throws Exception {
+            @RequestBody Map<String, Object> request) {
         ApiResponse response = profileService.updateExtendedProfile(request, authToken);
         return new ResponseEntity<>(response, response.getResponseCode());
     }

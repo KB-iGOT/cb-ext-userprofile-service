@@ -31,7 +31,7 @@ class RedisConfigTest {
         when(cbProperties.getRedisNumTestsPerEvictionRun()).thenReturn(3);
         when(cbProperties.getRedisBlockWhenExhausted()).thenReturn(true);
 
-        RedisConfig redisConfig = new RedisConfig();
+        RedisConfig redisConfig = new RedisConfig(cbProperties);
         ReflectionTestUtils.setField(redisConfig, "cbProperties", cbProperties);
 
         JedisPool pool = redisConfig.jedisPool();
@@ -52,7 +52,7 @@ class RedisConfigTest {
         when(cbProperties.getRedisNumTestsPerEvictionRun()).thenReturn(2);
         when(cbProperties.getRedisBlockWhenExhausted()).thenReturn(false);
 
-        RedisConfig redisConfig = new RedisConfig();
+        RedisConfig redisConfig = new RedisConfig(cbProperties);
         ReflectionTestUtils.setField(redisConfig, "cbProperties", cbProperties);
 
         JedisPool pool = redisConfig.jedisDataPopulationPool();

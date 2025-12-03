@@ -1,7 +1,6 @@
 package com.igot.cb.transactional.redis.config;
 
 import com.igot.cb.util.CbServerProperties;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -12,8 +11,11 @@ import redis.clients.jedis.JedisPoolConfig;
 @EnableCaching
 public class RedisConfig {
 
-    @Autowired
     CbServerProperties cbProperties;
+
+    public RedisConfig(CbServerProperties cbProperties) {
+        this.cbProperties = cbProperties;
+    }
 
     @Bean
     public JedisPool jedisPool() {

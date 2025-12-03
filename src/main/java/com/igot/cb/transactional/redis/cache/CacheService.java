@@ -2,15 +2,11 @@ package com.igot.cb.transactional.redis.cache;
 
 import java.util.*;
 
-import com.igot.cb.util.CbServerProperties;
-
-
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
@@ -18,19 +14,16 @@ import redis.clients.jedis.JedisPool;
 @Service
 @Slf4j
 public class CacheService {
-
     private static int cache_ttl = 84600;
 
-    @Autowired
-    private JedisPool jedisPool;
+    private final JedisPool jedisPool;
+    private final JedisPool jedisDataPopulationPool;
 
-    @Autowired
-    private JedisPool jedisDataPopulationPool;
 
-    CbServerProperties serverProperties;
 
-    public CacheService(CbServerProperties serverProperties) {
-        this.serverProperties = serverProperties;
+    public CacheService(JedisPool jedisPool, JedisPool jedisDataPopulationPool) {
+        this.jedisPool = jedisPool;
+        this.jedisDataPopulationPool = jedisDataPopulationPool;
     }
 
     private static final Logger logger = LoggerFactory.getLogger(CacheService.class);
