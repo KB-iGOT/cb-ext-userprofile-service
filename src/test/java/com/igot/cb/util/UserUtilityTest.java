@@ -11,6 +11,7 @@ import java.util.Map;
 import org.igot.common.crypto.DecryptionService;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
@@ -18,6 +19,9 @@ public class UserUtilityTest {
 
     @Mock
     private DecryptionService mockDecryptionService;
+
+    @InjectMocks
+    private UserUtility userUtility;
 
     @Before
     public void setup() {
@@ -38,7 +42,7 @@ public class UserUtilityTest {
 
         List<String> fieldsToDecrypt = Arrays.asList("email", "phone", "address");
 
-        Map<String, Object> result = UserUtility.decryptSpecificUserData(userMap, fieldsToDecrypt);
+        Map<String, Object> result = userUtility.decryptSpecificUserData(userMap, fieldsToDecrypt);
 
         assertEquals("decrypted_encrypted_email@test.com", result.get("email"));
         assertEquals("decrypted_encrypted_1234567890", result.get("phone"));
@@ -55,7 +59,7 @@ public class UserUtilityTest {
         Map<String, Object> userMap = new HashMap<>();
         List<String> fieldsToDecrypt = Arrays.asList("email", "phone");
 
-        Map<String, Object> result = UserUtility.decryptSpecificUserData(userMap, fieldsToDecrypt);
+        Map<String, Object> result = userUtility.decryptSpecificUserData(userMap, fieldsToDecrypt);
 
         assertTrue(result.isEmpty());
         verify(mockDecryptionService, never()).decryptData(anyString(), anyBoolean());
@@ -68,7 +72,7 @@ public class UserUtilityTest {
 
         List<String> fieldsToDecrypt = Arrays.asList("email");
 
-        Map<String, Object> result = UserUtility.decryptSpecificUserData(userMap, fieldsToDecrypt);
+        Map<String, Object> result = userUtility.decryptSpecificUserData(userMap, fieldsToDecrypt);
 
         assertNull(result.get("email"));
         verify(mockDecryptionService, never()).decryptData(anyString(), anyBoolean());

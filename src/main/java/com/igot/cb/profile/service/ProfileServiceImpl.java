@@ -21,6 +21,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import com.igot.cb.util.*;
+
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -28,7 +29,6 @@ import org.igot.common.ApiResponse;
 import org.igot.common.auth.AccessTokenValidator;
 import org.igot.common.cassandra.CassandraOperation;
 import org.igot.common.service.OutboundRequestHandlerServiceImpl;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -41,7 +41,6 @@ import com.igot.cb.profile.entity.CustomFieldEntity;
 import com.igot.cb.profile.repository.CustomFieldRepository;
 import com.igot.cb.transactional.elasticsearch.service.EsUtilServiceImpl;
 import com.igot.cb.transactional.redis.cache.CacheService;
-import com.igot.cb.transactional.service.RequestHandlerServiceImpl;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -49,32 +48,17 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ProfileServiceImpl implements ProfileService {
 
-    @Autowired
     private AccessTokenValidator accessTokenValidator;
-
-    @Autowired
     private CbServerProperties serverConfig;
-    
-    @Autowired
     private CassandraOperation cassandraOperation;
-    
-    @Autowired
     private CacheService cacheService;
-    
-    @Autowired
     private ObjectMapper mapper;
-    
-    @Autowired
     private ProjectUtil projectUtil;
-    
-    @Autowired
-    private RequestHandlerServiceImpl requestHandlerService;
-    
-    @Autowired
+    private OutboundRequestHandlerServiceImpl requestHandlerService;
     private CustomFieldRepository customFieldRepository;
-    
-    @Autowired
     private EsUtilServiceImpl esUtilService;
+    private OutboundRequestHandlerServiceImpl outboundRequestHandlerService;
+    private UserUtility userUtility;
 
     @Value("${profile.visible.allowed.fields}")
     private String profileVisibleAllowedFields;
@@ -82,8 +66,29 @@ public class ProfileServiceImpl implements ProfileService {
     @Value("${user.basic.details.filtered}")
     private String basicDetailsFilteredKeys;
 
-    @Autowired
-    OutboundRequestHandlerServiceImpl outboundRequestHandlerService;
+    public ProfileServiceImpl(
+            AccessTokenValidator accessTokenValidator,
+            CbServerProperties serverConfig,
+            CassandraOperation cassandraOperation,
+            CacheService cacheService,
+            ObjectMapper mapper,
+            ProjectUtil projectUtil,
+            OutboundRequestHandlerServiceImpl requestHandlerService,
+            CustomFieldRepository customFieldRepository,
+            EsUtilServiceImpl esUtilService,
+            UserUtility userUtility) {
+        this.accessTokenValidator = accessTokenValidator;
+        this.serverConfig = serverConfig;
+        this.cassandraOperation = cassandraOperation;
+        this.cacheService = cacheService;
+        this.mapper = mapper;
+        this.projectUtil = projectUtil;
+        this.requestHandlerService = requestHandlerService;
+        this.customFieldRepository = customFieldRepository;
+        this.esUtilService = esUtilService;
+        this.outboundRequestHandlerService = requestHandlerService;
+        this.userUtility = userUtility;
+    }
 
     // -------------------- Service METHODS --------------------
 
@@ -380,7 +385,7 @@ public class ProfileServiceImpl implements ProfileService {
             } else {
                 userProfile = readUserDataFromDB(userId, null);
             }
-            UserUtility.decryptSpecificUserData(userProfile, Arrays.asList(Constants.USERNAME_LOWERCASE));
+            userUtility.decryptSpecificUserData(userProfile, Arrays.asList(Constants.USERNAME_LOWERCASE));
             if (MapUtils.isEmpty(userProfile)) {
                 response.setResponseCode(HttpStatus.NOT_FOUND);
                 response.put(Constants.RESPONSE, Collections.emptyMap());

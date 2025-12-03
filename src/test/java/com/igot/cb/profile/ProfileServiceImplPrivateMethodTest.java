@@ -42,6 +42,9 @@ class ProfileServiceImplPrivateMethodTest {
     @Mock
     private CbServerProperties serverConfig;
 
+    @Mock
+    private UserUtility userUtility;
+
     @BeforeEach
     void setup() {
         // Set private fields via ReflectionTestUtils
@@ -87,7 +90,7 @@ class ProfileServiceImplPrivateMethodTest {
 
         // Mock static methods
         try (MockedStatic<UserUtility> mockedUtility = Mockito.mockStatic(UserUtility.class)) {
-            mockedUtility.when(() -> UserUtility.decryptSpecificUserData(anyMap(), anyList())).then(inv -> null);
+            mockedUtility.when(() -> userUtility.decryptSpecificUserData(anyMap(), anyList())).then(inv -> null);
 
             ApiResponse response = spyService.getBasicProfile(userId, userToken);
             assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
@@ -106,7 +109,7 @@ class ProfileServiceImplPrivateMethodTest {
         doReturn(Collections.emptyMap()).when(spyService).readUserDataFromDB(eq(userId), isNull());
 
         try (MockedStatic<UserUtility> mockedUtility = Mockito.mockStatic(UserUtility.class)) {
-            mockedUtility.when(() -> UserUtility.decryptSpecificUserData(anyMap(), anyList())).then(inv -> null);
+            mockedUtility.when(() -> userUtility.decryptSpecificUserData(anyMap(), anyList())).then(inv -> null);
             ApiResponse response = spyService.getBasicProfile(userId, userToken);
             assertEquals(HttpStatus.NOT_FOUND, response.getResponseCode());
         }
@@ -127,7 +130,7 @@ class ProfileServiceImplPrivateMethodTest {
         doReturn(profileMap).when(spyService).readUserDataFromDB(eq(userId), isNull());
 
         try (MockedStatic<UserUtility> mockedUtility = Mockito.mockStatic(UserUtility.class)) {
-            mockedUtility.when(() -> UserUtility.decryptSpecificUserData(anyMap(), anyList())).then(inv -> null);
+            mockedUtility.when(() -> userUtility.decryptSpecificUserData(anyMap(), anyList())).then(inv -> null);
 
             ApiResponse response = spyService.getBasicProfile(userId, userToken);
             assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
