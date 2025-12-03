@@ -10,8 +10,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Configuration
 @Slf4j
@@ -30,18 +31,13 @@ public class EsConfig  {
 
     @Bean(name = "sbESClient")
     public RestHighLevelClient sbESClient() {
-        List<String> hosts = new ArrayList<>();
-        List<Integer> ports = new ArrayList<>();
         String[] splitedHost = sbESClientHost.split(",");
         String[] splitedPort = sbESClientPort.split(",");
 
-        for (String val : splitedHost) {
-            hosts.add(val);
-        }
-
-        for (String val : splitedPort) {
-            ports.add(Integer.parseInt(val));
-        }
+        List<String> hosts = Arrays.asList(splitedHost);
+        List<Integer> ports = Arrays.stream(splitedPort)
+                .map(Integer::parseInt)
+                .collect(Collectors.toList());
 
         HttpHost[] httpHosts = new HttpHost[hosts.size()];
         for (int i = 0; i < hosts.size(); i++) {

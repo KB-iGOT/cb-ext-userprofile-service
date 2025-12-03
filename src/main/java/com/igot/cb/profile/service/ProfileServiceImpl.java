@@ -623,8 +623,8 @@ public class ProfileServiceImpl implements ProfileService {
             ProfilePreference profilePref = ProfilePreference.PUBLIC; // default to PUBLIC
 
             Object preferenceObj = detailsMap.get(Constants.PROFILE_PREFERENCE);
-            if (preferenceObj instanceof Integer) {
-                ProfilePreference resolvedPref = ProfilePreference.fromValue((Integer) preferenceObj);
+            if (preferenceObj instanceof Integer prefInteger) {
+                ProfilePreference resolvedPref = ProfilePreference.fromValue(prefInteger);
                 if (resolvedPref != null) {
                     profilePref = resolvedPref;
                 }
@@ -692,7 +692,7 @@ public class ProfileServiceImpl implements ProfileService {
             header.put(Constants.X_AUTH_TOKEN, userAuthToken);
         }
         Map<String, Object> responseMap = new HashMap<>();
-        Map<String, Object> readData = (Map<String, Object>) outboundRequestHandlerService
+        Map<String, Object> readData = outboundRequestHandlerService
                 .fetchUsingGetWithHeadersProfile(serverConfig.hubGraphService + serverConfig.connectionApi + userId,
                         header);
         if (readData != null) {
@@ -981,8 +981,8 @@ public class ProfileServiceImpl implements ProfileService {
 
             int certificatesFromEvents = (int) eventRecords.stream()
                     .filter(MapUtils::isNotEmpty)
-                    .filter(r -> r.get(Constants.STATUS) instanceof Number && ((Number)r.get(Constants.STATUS)).intValue() == 2)
-                    .filter(r -> r.get(Constants.PROGRESS_KEY) instanceof Number && ((Number)r.get(Constants.PROGRESS_KEY)).intValue() == 100)
+                    .filter(r -> r.get(Constants.STATUS) instanceof Number numberStatus && numberStatus.intValue() == 2)
+                    .filter(r -> r.get(Constants.PROGRESS_KEY) instanceof Number numberProgress && numberProgress.intValue() == 100)
                     .map(r -> r.get(Constants.ISSUED_CERTIFICATES_KEY))
                     .filter(obj -> obj instanceof List<?>)
                     .map(obj -> (List<?>) obj)
@@ -999,8 +999,8 @@ public class ProfileServiceImpl implements ProfileService {
 
             int certificatesFromExternalCourses = (int) externalCourseRecords.stream()
                     .filter(MapUtils::isNotEmpty)
-                    .filter(r -> r.get(Constants.STATUS) instanceof Number && ((Number)r.get(Constants.STATUS)).intValue() == 2)
-                    .filter(r -> r.get(Constants.PROGRESS_KEY) instanceof Number && ((Number)r.get(Constants.PROGRESS_KEY)).intValue() == 100)
+                    .filter(r -> r.get(Constants.STATUS) instanceof Number numberStatus && numberStatus.intValue() == 2)
+                    .filter(r -> r.get(Constants.PROGRESS_KEY) instanceof Number numberProgress && numberProgress.intValue() == 100)
                     .map(r -> r.get(Constants.ISSUED_CERTIFICATES_KEY))
                     .filter(obj -> obj instanceof List<?>)
                     .map(obj -> (List<?>) obj)
@@ -1040,14 +1040,14 @@ public class ProfileServiceImpl implements ProfileService {
         String uri = serverConfig.getCommunityBaseUrl() + serverConfig.getCommunityPostCountApiUrl() + userId;
 
         try {
-            Map<String, Object> response = (Map<String, Object>) requestHandlerService.fetchUsingGetWithHeadersProfile(uri, null);
+            Map<String, Object> response = requestHandlerService.fetchUsingGetWithHeadersProfile(uri, null);
 
             return Optional.ofNullable(response)
                     .filter(MapUtils::isNotEmpty)
                     .map(rd -> (Map<String, Object>) rd.get(Constants.RESULT))
                     .filter(MapUtils::isNotEmpty)
                     .map(result -> result.get(Constants.POSTCOUNT))
-                    .filter(pc -> pc instanceof Integer)
+                    .filter(Integer.class::isInstance)
                     .map(Integer.class::cast)
                     .orElse(0);
 

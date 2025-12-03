@@ -14,7 +14,7 @@ import redis.clients.jedis.JedisPool;
 @Service
 @Slf4j
 public class CacheService {
-    private static int cache_ttl = 84600;
+    private static int CACHE_TTL = 84600;
 
     private final JedisPool jedisPool;
     private final JedisPool jedisDataPopulationPool;
@@ -49,7 +49,7 @@ public class CacheService {
         try (Jedis jedis = jedisDataPopulationPool.getResource()) {
             jedis.select(index);
             jedis.hset(key, field, value);
-            jedis.expire(key, cache_ttl);
+            jedis.expire(key, CACHE_TTL);
 
         } catch (Exception e) {
             logger.error("Error in hset: ", e);
@@ -61,14 +61,13 @@ public class CacheService {
             String data = objectMapper.writeValueAsString(object);
             jedis.set(key, data);
             jedis.expire(key, ttl);
-            logger.debug("Cache_key_value " + key + " is saved in redis");
         } catch (Exception e) {
             logger.error("Error in putCache", e);
         }
     }
 
     public void putCache(String key, Object object) {
-        putCache(key, object, cache_ttl);
+        putCache(key, object, CACHE_TTL);
     }
 
     public String getCache(String key) {

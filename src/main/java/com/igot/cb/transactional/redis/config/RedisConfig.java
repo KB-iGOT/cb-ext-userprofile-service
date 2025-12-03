@@ -20,9 +20,8 @@ public class RedisConfig {
     @Bean
     public JedisPool jedisPool() {
         final JedisPoolConfig poolConfig = buildPoolConfig();
-        JedisPool jedisPool = new JedisPool(poolConfig, cbProperties.getRedisHostName(),
+        return new JedisPool(poolConfig, cbProperties.getRedisHostName(),
                 Integer.parseInt(cbProperties.getRedisPort()));
-        return jedisPool;
     }
 
     @Bean
@@ -40,8 +39,6 @@ public class RedisConfig {
         poolConfig.setTestOnBorrow(cbProperties.getRedisTestOnBorrow());
         poolConfig.setTestOnReturn(cbProperties.getRedisTestOnReturn());
         poolConfig.setTestWhileIdle(cbProperties.getRedisTestWhileIdle());
-        poolConfig.setMinEvictableIdleTimeMillis(cbProperties.getRedisMinEvictableIdleTimeMillis());
-        poolConfig.setTimeBetweenEvictionRunsMillis(cbProperties.getRedisNumTestsPerEvictionRun());
         poolConfig.setNumTestsPerEvictionRun(cbProperties.getRedisNumTestsPerEvictionRun());
         poolConfig.setBlockWhenExhausted(cbProperties.getRedisBlockWhenExhausted());
         return poolConfig;

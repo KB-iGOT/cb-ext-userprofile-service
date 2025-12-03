@@ -26,11 +26,9 @@ import java.util.*;
 @SuppressWarnings("unchecked")
 @Slf4j
 public class MasterDataServiceImpl implements MasterDataService {
-
-
-    public AccessTokenValidator accessTokenValidator;
-    public CassandraOperation cassandraOperation;
-    public CacheService redisCacheMgr;
+    private final AccessTokenValidator accessTokenValidator;
+    private final CassandraOperation cassandraOperation;
+    private final CacheService redisCacheMgr;
 
 
     public MasterDataServiceImpl(AccessTokenValidator accessTokenValidator,

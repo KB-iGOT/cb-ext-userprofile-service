@@ -32,10 +32,10 @@ public class ProjectUtil {
     }
 
 
-    TypeReference<List<Map<String, Object>>> LIST_OF_MAP_TYPE = new TypeReference<List<Map<String, Object>>>() {
+    TypeReference<List<Map<String, Object>>> listOfMapType = new TypeReference<List<Map<String, Object>>>() {
     };
 
-    TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<Map<String, Object>>() {
+    TypeReference<Map<String, Object>> mapType = new TypeReference<Map<String, Object>>() {
     };
 
     public static void errorResponse(ApiResponse response, String errorMessage, HttpStatus httpStatus) {
@@ -45,11 +45,11 @@ public class ProjectUtil {
     }
 
     public List<Map<String, Object>> parseListOfMap(String json) throws IOException {
-        return mapper.readValue(json, LIST_OF_MAP_TYPE);
+        return mapper.readValue(json, listOfMapType);
     }
 
     public Map<String, Object> parseMap(String json) throws IOException {
-        return mapper.readValue(json, MAP_TYPE);
+        return mapper.readValue(json, mapType);
     }
 
     public String convertToString(Object object) {

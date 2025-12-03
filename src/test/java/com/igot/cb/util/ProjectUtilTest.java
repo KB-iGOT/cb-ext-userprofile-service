@@ -33,7 +33,7 @@ public class ProjectUtilTest {
                 Map.of("key1", "value1"),
                 Map.of("key2", "value2"));
 
-        when(objectMapper.readValue(json, projectUtil.LIST_OF_MAP_TYPE)).thenReturn(mockList);
+        when(objectMapper.readValue(json, projectUtil.listOfMapType)).thenReturn(mockList);
 
         List<Map<String, Object>> result = projectUtil.parseListOfMap(json);
 
@@ -47,7 +47,7 @@ public class ProjectUtilTest {
 
         Map<String, Object> mockMap = Map.of("key", "value");
 
-        when(objectMapper.readValue(json, projectUtil.MAP_TYPE)).thenReturn(mockMap);
+        when(objectMapper.readValue(json, projectUtil.mapType)).thenReturn(mockMap);
 
         Map<String, Object> result = projectUtil.parseMap(json);
 
