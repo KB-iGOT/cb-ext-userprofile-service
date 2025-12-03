@@ -136,7 +136,6 @@ public class ProfileServiceImpl implements ProfileService {
                 existingList.addAll(dataWithUUIDs);
             }
 
-            //sortContextData(existingList, contextType);
             if (!saveContextData(userId, contextType, existingList)) {
                 ProjectUtil.errorResponse(response, "Failed to save data for contextType: " + contextType,
                         HttpStatus.INTERNAL_SERVER_ERROR);
@@ -192,7 +191,6 @@ public class ProfileServiceImpl implements ProfileService {
             }
 
             List<Map<String, Object>> mergedList = new ArrayList<>(dataMap.values());
-            //sortContextData(mergedList, contextType);
 
             if (Constants.ACHIEVEMENTS.equalsIgnoreCase(contextType)) {
                 mergeAndSortByIssuedDateOrTitle(mergedList, new ArrayList<>());
@@ -241,7 +239,6 @@ public class ProfileServiceImpl implements ProfileService {
 
             List<Map<String, Object>> existingData = getExistingContextData(userId, contextType);
             existingData.removeIf(e -> uuids.contains(e.get(Constants.UUID)));
-            //sortContextData(existingData, contextType);
 
             if (!saveContextData(userId, contextType, existingData)) {
                 ProjectUtil.errorResponse(response, "Failed to delete data for contextType: " + contextType,
@@ -471,8 +468,10 @@ public class ProfileServiceImpl implements ProfileService {
     // -------------------- HELPER METHODS --------------------
 
     private List<Map<String, Object>> addUUIDs(List<Map<String, Object>> list) {
-        return list.stream().peek(item -> item.put(Constants.UUID, UUID.randomUUID().toString()))
-                .collect(Collectors.toList());
+        for (Map<String, Object> item : list) {
+            item.put(Constants.UUID, UUID.randomUUID().toString());
+        }
+        return list;
     }
 
     private List<Map<String, Object>> getExistingContextData(String userId, String contextType) {
@@ -504,25 +503,6 @@ public class ProfileServiceImpl implements ProfileService {
             log.error("Failed to serialize context data for userId: {}, contextType: {}", userId, contextType);
         }
         return false;
-    }
-
-    private void sortContextData(List<Map<String, Object>> dataList, String contextType) {
-        Comparator<Map<String, Object>> comparator = getSortingComparator(contextType);
-        if (comparator != null) {
-            dataList.sort(comparator.reversed());
-        }
-    }
-
-    private Comparator<Map<String, Object>> getSortingComparator(String contextType) {
-        return switch (contextType) {
-            case Constants.SERVICE_HISTORY ->
-                Comparator.comparing(map -> OffsetDateTime.parse((String) map.get(Constants.START_DATE)));
-            case Constants.EDUCATIONAL_QUALIFICATIONS ->
-                Comparator.comparing(map -> Integer.parseInt((String) map.get(Constants.START_YEAR)));
-            case Constants.ACHIVEMENTS ->
-                Comparator.comparing(map -> OffsetDateTime.parse((String) map.get(Constants.ISSUED_DATE)));
-            default -> null;
-        };
     }
 
     private String buildCacheKey(String prefix, String contextType, String userId) {
@@ -1137,7 +1117,9 @@ public class ProfileServiceImpl implements ProfileService {
         if (dateObj instanceof String str && !str.isBlank()) {
             try {
                 return OffsetDateTime.parse(str);
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                log.debug("Failed to prase DateTime field: ", e);
+            }
         }
         return null;
     }
@@ -1205,7 +1187,7 @@ public class ProfileServiceImpl implements ProfileService {
      * @return Error message if validation fails, null if validation passes
      */
     private String validateAdditionalFieldsRequest(Map<String, Object> request) {
-        StringBuffer str = new StringBuffer();
+        StringBuilder str = new StringBuilder();
         List<String> errList = new ArrayList<>();
 
         String userId = (String) request.get(Constants.USER_ID_RQST);
