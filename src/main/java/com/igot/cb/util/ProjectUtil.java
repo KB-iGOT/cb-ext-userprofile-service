@@ -4,16 +4,13 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.commons.lang3.StringUtils;
 import org.igot.common.ApiResponse;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.igot.common.PropertiesCache;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.igot.cb.exceptions.CustomException;
-import com.igot.cb.exceptions.ResponseCode;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -26,36 +23,20 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ProjectUtil {
 
-    public static PropertiesCache propertiesCache;
+    private PropertiesCache propertiesCache;
+    private ObjectMapper mapper;
 
-    static {
-        propertiesCache = PropertiesCache.getInstance();
+    public ProjectUtil(PropertiesCache propertiesCache, ObjectMapper mapper) {
+        this.propertiesCache = propertiesCache;
+        this.mapper = mapper;
     }
 
-    @Autowired
-    private ObjectMapper mapper;
 
     TypeReference<List<Map<String, Object>>> LIST_OF_MAP_TYPE = new TypeReference<List<Map<String, Object>>>() {
     };
 
     TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<Map<String, Object>>() {
     };
-
-    /**
-     * This method will create and return server exception to caller.
-     *
-     * @param responseCode ResponseCode
-     * @return ProjectCommonException
-     */
-    public static CustomException createServerError(ResponseCode responseCode) {
-        return new CustomException(responseCode.getErrorCode(), responseCode.getErrorMessage(),
-                ResponseCode.SERVER_ERROR.getResponseCode());
-    }
-
-    public static CustomException createClientException(ResponseCode responseCode) {
-        return new CustomException(responseCode.getErrorCode(), responseCode.getErrorMessage(),
-                ResponseCode.CLIENT_ERROR.getResponseCode());
-    }
 
     public static void errorResponse(ApiResponse response, String errorMessage, HttpStatus httpStatus) {
         response.setResponseCode(httpStatus);
@@ -80,11 +61,8 @@ public class ProjectUtil {
         }
     }
 
-    public static String getConfigValue(String key) {
-        if (StringUtils.isNotBlank(System.getenv(key))) {
-            return System.getenv(key);
-        }
-        return propertiesCache.readProperty(key);
+    public String getConfigValue(String key) {
+        return propertiesCache.getProperty(key);
     }
 
 }
