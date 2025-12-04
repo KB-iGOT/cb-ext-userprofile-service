@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.Map;
 
 import org.igot.common.ApiResponse;
-import org.igot.common.PropertiesCache;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
@@ -23,14 +22,11 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ProjectUtil {
 
-    private PropertiesCache propertiesCache;
     private ObjectMapper mapper;
 
-    public ProjectUtil(PropertiesCache propertiesCache, ObjectMapper mapper) {
-        this.propertiesCache = propertiesCache;
+    public ProjectUtil(ObjectMapper mapper) {
         this.mapper = mapper;
     }
-
 
     TypeReference<List<Map<String, Object>>> listOfMapType = new TypeReference<List<Map<String, Object>>>() {
     };
@@ -59,10 +55,6 @@ public class ProjectUtil {
             log.error("Error converting object to string: {}", e.getMessage(), e);
             return null;
         }
-    }
-
-    public String getConfigValue(String key) {
-        return propertiesCache.getProperty(key);
     }
 
     public String buildCacheKey(String prefix, String contextType, String userId) {

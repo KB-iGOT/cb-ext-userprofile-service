@@ -289,6 +289,433 @@ class ProfileReaderServiceImplTest {
         assertNotNull(newService);
     }
 
+    // ==================== readUserExtendedProfile Tests ====================
+
+    @Test
+    void testReadUserExtendedProfile_WithCacheHit_ReturnsLimitedSummary() {
+        String redisKey = "user_extended_profile:all:" + USER_ID;
+        String cachedJson = "{\"education\":{\"count\":5,\"data\":[{\"degree\":\"BS\"},{\"degree\":\"MS\"},{\"degree\":\"PhD\"}]}}";
+
+        when(projectUtil.buildCacheKey(Constants.USER_EXTENDED_PROFILE_PREFIX, "all", USER_ID))
+                .thenReturn(redisKey);
+        when(cacheService.getCache(redisKey)).thenReturn(cachedJson);
+
+        Map<String, Object> fullData = new HashMap<>();
+        Map<String, Object> educationBlock = new HashMap<>();
+        educationBlock.put(Constants.COUNT, 5);
+        educationBlock.put(Constants.DATA, List.of(
+                Map.of("degree", "BS"),
+                Map.of("degree", "MS"),
+                Map.of("degree", "PhD")
+        ));
+        fullData.put("education", educationBlock);
+
+        try {
+            when(projectUtil.parseMap(cachedJson)).thenReturn(fullData);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+        Map<String, Object> result = service.readUserExtendedProfile(USER_ID);
+
+        assertNotNull(result);
+        assertEquals(1, result.size());
+        assertTrue(result.containsKey("education"));
+
+        Map<String, Object> educationResult = (Map<String, Object>) result.get("education");
+        assertEquals(5, educationResult.get(Constants.COUNT));
+        List<Map<String, Object>> dataList = (List<Map<String, Object>>) educationResult.get(Constants.DATA);
+        assertEquals(2, dataList.size()); // Limited to 2 items
+    }
+
+    @Test
+    void testReadUserExtendedProfile_WithCacheMiss_FetchesFromDB() {
+        String redisKey = "user_extended_profile:all:" + USER_ID;
+        String[] contextTypes = {"education", "experience"};
+
+        when(projectUtil.buildCacheKey(Constants.USER_EXTENDED_PROFILE_PREFIX, "all", USER_ID))
+                .thenReturn(redisKey);
+        when(cacheService.getCache(redisKey)).thenReturn(null);
+        when(serverConfig.getContextType()).thenReturn(contextTypes);
+
+        // Mock education data
+        String educationJson = "[{\"degree\":\"BS\"},{\"degree\":\"MS\"}]";
+        Map<String, Object> educationRecord = Map.of(Constants.CONTEXT_DATA, educationJson);
+        when(cassandraOperation.getRecordsByProperties(
+                eq(Constants.KEYSPACE_SUNBIRD),
+                eq(Constants.TABLE_USER_EXTENDED_PROFILE),
+                eq(Map.of(Constants.USERID_KEY, USER_ID, Constants.CONTEXT_TYPE, "education")),
+                isNull(),
+                isNull()
+        )).thenReturn(List.of(educationRecord));
+
+        // Mock experience data
+        String experienceJson = "[{\"company\":\"ABC\"}]";
+        Map<String, Object> experienceRecord = Map.of(Constants.CONTEXT_DATA, experienceJson);
+        when(cassandraOperation.getRecordsByProperties(
+                eq(Constants.KEYSPACE_SUNBIRD),
+                eq(Constants.TABLE_USER_EXTENDED_PROFILE),
+                eq(Map.of(Constants.USERID_KEY, USER_ID, Constants.CONTEXT_TYPE, "experience")),
+                isNull(),
+                isNull()
+        )).thenReturn(List.of(experienceRecord));
+
+        try {
+            when(projectUtil.parseListOfMap(educationJson))
+                    .thenReturn(List.of(Map.of("degree", "BS"), Map.of("degree", "MS")));
+            when(projectUtil.parseListOfMap(experienceJson))
+                    .thenReturn(List.of(Map.of("company", "ABC")));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+        Map<String, Object> result = service.readUserExtendedProfile(USER_ID);
+
+        assertNotNull(result);
+        assertEquals(2, result.size());
+        assertTrue(result.containsKey("education"));
+        assertTrue(result.containsKey("experience"));
+
+        Map<String, Object> educationBlock = (Map<String, Object>) result.get("education");
+        assertEquals(2, educationBlock.get(Constants.COUNT));
+        List<Map<String, Object>> educationData = (List<Map<String, Object>>) educationBlock.get(Constants.DATA);
+        assertEquals(2, educationData.size());
+
+        Map<String, Object> experienceBlock = (Map<String, Object>) result.get("experience");
+        assertEquals(1, experienceBlock.get(Constants.COUNT));
+
+        verify(cacheService).putCache(eq(redisKey), eq(result));
+    }
+
+    @Test
+    void testReadUserExtendedProfile_WithEmptyContextData_ReturnsEmptyMap() {
+        String redisKey = "user_extended_profile:all:" + USER_ID;
+        String[] contextTypes = {"education", "experience"};
+
+        when(projectUtil.buildCacheKey(Constants.USER_EXTENDED_PROFILE_PREFIX, "all", USER_ID))
+                .thenReturn(redisKey);
+        when(cacheService.getCache(redisKey)).thenReturn(null);
+        when(serverConfig.getContextType()).thenReturn(contextTypes);
+
+        when(cassandraOperation.getRecordsByProperties(any(), any(), any(), any(), any()))
+                .thenReturn(Collections.emptyList());
+
+        Map<String, Object> result = service.readUserExtendedProfile(USER_ID);
+
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void testReadUserExtendedProfile_CacheReadException_FetchesFromDB() {
+        String redisKey = "user_extended_profile:all:" + USER_ID;
+        String[] contextTypes = {"education"};
+
+        when(projectUtil.buildCacheKey(Constants.USER_EXTENDED_PROFILE_PREFIX, "all", USER_ID))
+                .thenReturn(redisKey);
+        when(cacheService.getCache(redisKey)).thenThrow(new RuntimeException("Cache error"));
+        when(serverConfig.getContextType()).thenReturn(contextTypes);
+
+        String educationJson = "[{\"degree\":\"BS\"}]";
+        Map<String, Object> educationRecord = Map.of(Constants.CONTEXT_DATA, educationJson);
+        when(cassandraOperation.getRecordsByProperties(any(), any(), any(), any(), any()))
+                .thenReturn(List.of(educationRecord));
+
+        try {
+            when(projectUtil.parseListOfMap(educationJson))
+                    .thenReturn(List.of(Map.of("degree", "BS")));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+        Map<String, Object> result = service.readUserExtendedProfile(USER_ID);
+
+        assertNotNull(result);
+        assertEquals(1, result.size());
+        assertTrue(result.containsKey("education"));
+    }
+
+    @Test
+    void testReadUserExtendedProfile_ParseMapException_FetchesFromDB() {
+        String redisKey = "user_extended_profile:all:" + USER_ID;
+        String cachedJson = "{invalid json}";
+        String[] contextTypes = {"education"};
+
+        when(projectUtil.buildCacheKey(Constants.USER_EXTENDED_PROFILE_PREFIX, "all", USER_ID))
+                .thenReturn(redisKey);
+        when(cacheService.getCache(redisKey)).thenReturn(cachedJson);
+        when(serverConfig.getContextType()).thenReturn(contextTypes);
+
+        try {
+            when(projectUtil.parseMap(cachedJson)).thenThrow(new IOException("Parse error"));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+        String educationJson = "[{\"degree\":\"BS\"}]";
+        Map<String, Object> educationRecord = Map.of(Constants.CONTEXT_DATA, educationJson);
+        when(cassandraOperation.getRecordsByProperties(any(), any(), any(), any(), any()))
+                .thenReturn(List.of(educationRecord));
+
+        try {
+            when(projectUtil.parseListOfMap(educationJson))
+                    .thenReturn(List.of(Map.of("degree", "BS")));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+        Map<String, Object> result = service.readUserExtendedProfile(USER_ID);
+
+        assertNotNull(result);
+        assertEquals(1, result.size());
+        assertTrue(result.containsKey("education"));
+    }
+
+    @Test
+    void testReadUserExtendedProfile_CachePutException_ContinuesExecution() {
+        String redisKey = "user_extended_profile:all:" + USER_ID;
+        String[] contextTypes = {"education"};
+
+        when(projectUtil.buildCacheKey(Constants.USER_EXTENDED_PROFILE_PREFIX, "all", USER_ID))
+                .thenReturn(redisKey);
+        when(cacheService.getCache(redisKey)).thenReturn(null);
+        when(serverConfig.getContextType()).thenReturn(contextTypes);
+
+        String educationJson = "[{\"degree\":\"BS\"}]";
+        Map<String, Object> educationRecord = Map.of(Constants.CONTEXT_DATA, educationJson);
+        when(cassandraOperation.getRecordsByProperties(any(), any(), any(), any(), any()))
+                .thenReturn(List.of(educationRecord));
+
+        try {
+            when(projectUtil.parseListOfMap(educationJson))
+                    .thenReturn(List.of(Map.of("degree", "BS")));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+        doThrow(new RuntimeException("Cache error")).when(cacheService).putCache(anyString(), any());
+
+        Map<String, Object> result = service.readUserExtendedProfile(USER_ID);
+
+        assertNotNull(result);
+        assertEquals(1, result.size());
+        assertTrue(result.containsKey("education"));
+    }
+
+    @Test
+    void testReadUserExtendedProfile_WithMoreThanTwoItems_LimitsToTwo() {
+        String redisKey = "user_extended_profile:all:" + USER_ID;
+        String[] contextTypes = {"education"};
+
+        when(projectUtil.buildCacheKey(Constants.USER_EXTENDED_PROFILE_PREFIX, "all", USER_ID))
+                .thenReturn(redisKey);
+        when(cacheService.getCache(redisKey)).thenReturn(null);
+        when(serverConfig.getContextType()).thenReturn(contextTypes);
+
+        String educationJson = "[{\"degree\":\"BS\"},{\"degree\":\"MS\"},{\"degree\":\"PhD\"},{\"degree\":\"MBA\"}]";
+        Map<String, Object> educationRecord = Map.of(Constants.CONTEXT_DATA, educationJson);
+        when(cassandraOperation.getRecordsByProperties(any(), any(), any(), any(), any()))
+                .thenReturn(List.of(educationRecord));
+
+        List<Map<String, Object>> allEducation = List.of(
+                Map.of("degree", "BS"),
+                Map.of("degree", "MS"),
+                Map.of("degree", "PhD"),
+                Map.of("degree", "MBA")
+        );
+
+        try {
+            when(projectUtil.parseListOfMap(educationJson)).thenReturn(allEducation);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+        Map<String, Object> result = service.readUserExtendedProfile(USER_ID);
+
+        assertNotNull(result);
+        Map<String, Object> educationBlock = (Map<String, Object>) result.get("education");
+        assertEquals(4, educationBlock.get(Constants.COUNT));
+        List<Map<String, Object>> dataList = (List<Map<String, Object>>) educationBlock.get(Constants.DATA);
+        assertEquals(2, dataList.size()); // Limited to first 2 items
+        assertEquals("BS", dataList.get(0).get("degree"));
+        assertEquals("MS", dataList.get(1).get("degree"));
+    }
+
+    @Test
+    void testReadUserExtendedProfile_WithMixedContextTypes_FiltersEmptyOnes() {
+        String redisKey = "user_extended_profile:all:" + USER_ID;
+        String[] contextTypes = {"education", "experience", "skills"};
+
+        when(projectUtil.buildCacheKey(Constants.USER_EXTENDED_PROFILE_PREFIX, "all", USER_ID))
+                .thenReturn(redisKey);
+        when(cacheService.getCache(redisKey)).thenReturn(null);
+        when(serverConfig.getContextType()).thenReturn(contextTypes);
+
+        // Education has data
+        String educationJson = "[{\"degree\":\"BS\"}]";
+        Map<String, Object> educationRecord = Map.of(Constants.CONTEXT_DATA, educationJson);
+        when(cassandraOperation.getRecordsByProperties(
+                eq(Constants.KEYSPACE_SUNBIRD),
+                eq(Constants.TABLE_USER_EXTENDED_PROFILE),
+                eq(Map.of(Constants.USERID_KEY, USER_ID, Constants.CONTEXT_TYPE, "education")),
+                isNull(),
+                isNull()
+        )).thenReturn(List.of(educationRecord));
+
+        // Experience is empty
+        when(cassandraOperation.getRecordsByProperties(
+                eq(Constants.KEYSPACE_SUNBIRD),
+                eq(Constants.TABLE_USER_EXTENDED_PROFILE),
+                eq(Map.of(Constants.USERID_KEY, USER_ID, Constants.CONTEXT_TYPE, "experience")),
+                isNull(),
+                isNull()
+        )).thenReturn(Collections.emptyList());
+
+        // Skills is empty
+        when(cassandraOperation.getRecordsByProperties(
+                eq(Constants.KEYSPACE_SUNBIRD),
+                eq(Constants.TABLE_USER_EXTENDED_PROFILE),
+                eq(Map.of(Constants.USERID_KEY, USER_ID, Constants.CONTEXT_TYPE, "skills")),
+                isNull(),
+                isNull()
+        )).thenReturn(Collections.emptyList());
+
+        try {
+            when(projectUtil.parseListOfMap(educationJson))
+                    .thenReturn(List.of(Map.of("degree", "BS")));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+        Map<String, Object> result = service.readUserExtendedProfile(USER_ID);
+
+        assertNotNull(result);
+        assertEquals(1, result.size()); // Only education should be present
+        assertTrue(result.containsKey("education"));
+        assertFalse(result.containsKey("experience"));
+        assertFalse(result.containsKey("skills"));
+    }
+
+    @Test
+    void testReadUserExtendedProfile_BuildLimitedSummaryWithNonMapValue() {
+        String redisKey = "user_extended_profile:all:" + USER_ID;
+        String cachedJson = "{\"simpleField\":\"value\",\"education\":{\"count\":3,\"data\":[{\"degree\":\"BS\"}]}}";
+
+        when(projectUtil.buildCacheKey(Constants.USER_EXTENDED_PROFILE_PREFIX, "all", USER_ID))
+                .thenReturn(redisKey);
+        when(cacheService.getCache(redisKey)).thenReturn(cachedJson);
+
+        Map<String, Object> fullData = new HashMap<>();
+        fullData.put("simpleField", "value"); // Non-map value
+        Map<String, Object> educationBlock = new HashMap<>();
+        educationBlock.put(Constants.COUNT, 3);
+        educationBlock.put(Constants.DATA, List.of(Map.of("degree", "BS")));
+        fullData.put("education", educationBlock);
+
+        try {
+            when(projectUtil.parseMap(cachedJson)).thenReturn(fullData);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+        Map<String, Object> result = service.readUserExtendedProfile(USER_ID);
+
+        assertNotNull(result);
+        assertEquals(2, result.size());
+        assertEquals("value", result.get("simpleField")); // Non-map values should pass through
+        assertTrue(result.containsKey("education"));
+    }
+
+    @Test
+    void testReadUserExtendedProfile_BuildLimitedSummaryWithNonListData() {
+        String redisKey = "user_extended_profile:all:" + USER_ID;
+        String cachedJson = "{\"customField\":{\"count\":1,\"data\":\"stringData\"}}";
+
+        when(projectUtil.buildCacheKey(Constants.USER_EXTENDED_PROFILE_PREFIX, "all", USER_ID))
+                .thenReturn(redisKey);
+        when(cacheService.getCache(redisKey)).thenReturn(cachedJson);
+
+        Map<String, Object> fullData = new HashMap<>();
+        Map<String, Object> customBlock = new HashMap<>();
+        customBlock.put(Constants.COUNT, 1);
+        customBlock.put(Constants.DATA, "stringData"); // Non-list data
+        fullData.put("customField", customBlock);
+
+        try {
+            when(projectUtil.parseMap(cachedJson)).thenReturn(fullData);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+        Map<String, Object> result = service.readUserExtendedProfile(USER_ID);
+
+        assertNotNull(result);
+        assertEquals(1, result.size());
+        Map<String, Object> customResult = (Map<String, Object>) result.get("customField");
+        assertEquals("stringData", customResult.get(Constants.DATA)); // Non-list data should pass through
+    }
+
+    @Test
+    void testReadUserExtendedProfile_BuildLimitedSummaryWithExactlyTwoItems() {
+        String redisKey = "user_extended_profile:all:" + USER_ID;
+        String cachedJson = "{\"education\":{\"count\":2,\"data\":[{\"degree\":\"BS\"},{\"degree\":\"MS\"}]}}";
+
+        when(projectUtil.buildCacheKey(Constants.USER_EXTENDED_PROFILE_PREFIX, "all", USER_ID))
+                .thenReturn(redisKey);
+        when(cacheService.getCache(redisKey)).thenReturn(cachedJson);
+
+        Map<String, Object> fullData = new HashMap<>();
+        Map<String, Object> educationBlock = new HashMap<>();
+        educationBlock.put(Constants.COUNT, 2);
+        educationBlock.put(Constants.DATA, List.of(
+                Map.of("degree", "BS"),
+                Map.of("degree", "MS")
+        ));
+        fullData.put("education", educationBlock);
+
+        try {
+            when(projectUtil.parseMap(cachedJson)).thenReturn(fullData);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+        Map<String, Object> result = service.readUserExtendedProfile(USER_ID);
+
+        assertNotNull(result);
+        Map<String, Object> educationResult = (Map<String, Object>) result.get("education");
+        List<Map<String, Object>> dataList = (List<Map<String, Object>>) educationResult.get(Constants.DATA);
+        assertEquals(2, dataList.size()); // Should keep exactly 2 items
+    }
+
+    @Test
+    void testReadUserExtendedProfile_BuildLimitedSummaryWithOneItem() {
+        String redisKey = "user_extended_profile:all:" + USER_ID;
+        String cachedJson = "{\"education\":{\"count\":1,\"data\":[{\"degree\":\"BS\"}]}}";
+
+        when(projectUtil.buildCacheKey(Constants.USER_EXTENDED_PROFILE_PREFIX, "all", USER_ID))
+                .thenReturn(redisKey);
+        when(cacheService.getCache(redisKey)).thenReturn(cachedJson);
+
+        Map<String, Object> fullData = new HashMap<>();
+        Map<String, Object> educationBlock = new HashMap<>();
+        educationBlock.put(Constants.COUNT, 1);
+        educationBlock.put(Constants.DATA, List.of(Map.of("degree", "BS")));
+        fullData.put("education", educationBlock);
+
+        try {
+            when(projectUtil.parseMap(cachedJson)).thenReturn(fullData);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+        Map<String, Object> result = service.readUserExtendedProfile(USER_ID);
+
+        assertNotNull(result);
+        Map<String, Object> educationResult = (Map<String, Object>) result.get("education");
+        List<Map<String, Object>> dataList = (List<Map<String, Object>>) educationResult.get(Constants.DATA);
+        assertEquals(1, dataList.size()); // Should keep 1 item when less than 2
+    }
+
     // ==================== Integration Tests ====================
 
     @Test

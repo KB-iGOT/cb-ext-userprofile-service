@@ -214,6 +214,42 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         verify(userCompetencyService).listCompetencies((userId), (authToken));
     }
 
+    @Test
+     void testUpdateAdditionalFields() throws Exception {
+        String authToken = "test-auth-token";
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("userId", "user-123");
+        requestBody.put("orgId", "org-456");
+        requestBody.put("additionalFields", Map.of("field1", "value1", "field2", "value2"));
 
+        ApiResponse mockResponse = ApiResponse.createDefaultResponse("UPDATE_ADDITIONAL_FIELDS");
+
+        when(profileService.updateAdditionalFields((requestBody), (authToken))).thenReturn(mockResponse);
+
+        mockMvc.perform(post("/user/profile/update/additionalFields")
+                        .header(Constants.X_AUTH_TOKEN, authToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(requestBody)))
+                .andExpect(status().isOk());
+
+        verify(profileService).updateAdditionalFields((requestBody), (authToken));
+    }
+
+    @Test
+     void testGetAdditionalFieldsByOrg() throws Exception {
+        String authToken = "test-auth-token";
+        String userId = "user-123";
+        String orgId = "org-456";
+
+        ApiResponse mockResponse = ApiResponse.createDefaultResponse("GET_ADDITIONAL_FIELDS");
+
+        when(profileService.getAdditionalFieldsByOrg((userId), (orgId), (authToken))).thenReturn(mockResponse);
+
+        mockMvc.perform(get("/user/profile/getAdditionalFields/{userId}/{orgId}", userId, orgId)
+                        .header(Constants.X_AUTH_TOKEN, authToken))
+                .andExpect(status().isOk());
+
+        verify(profileService).getAdditionalFieldsByOrg((userId), (orgId), (authToken));
+    }
 
 }

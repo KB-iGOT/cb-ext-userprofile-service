@@ -335,6 +335,374 @@ class UserInfoHelperServiceImplTest {
         assertEquals(0.0, result);
     }
 
+    @Test
+    void testCalculateProfileCompletionPercentage_NullRequiredFields() {
+        Map<String, Object> profileData = new HashMap<>();
+        profileData.put("firstName", "John");
+
+        when(serverConfig.getProfileCompletionRequiredFields()).thenReturn(null);
+
+        double result = service.calculateProfileCompletionPercentage(profileData, USER_ID);
+
+        assertEquals(0.0, result);
+    }
+
+    @Test
+    void testCalculateProfileCompletionPercentage_EmptyRequiredFields() {
+        Map<String, Object> profileData = new HashMap<>();
+        profileData.put("firstName", "John");
+
+        when(serverConfig.getProfileCompletionRequiredFields()).thenReturn(List.of());
+
+        double result = service.calculateProfileCompletionPercentage(profileData, USER_ID);
+
+        assertEquals(0.0, result);
+    }
+
+    @Test
+    void testCalculateProfileCompletionPercentage_WithNestedDataFromProfileDetails() {
+        Map<String, Object> profileDetails = new HashMap<>();
+        profileDetails.put("mobile", "1234567890");
+        profileDetails.put("dateOfBirth", "1990-01-01");
+
+        Map<String, Object> profileData = new HashMap<>();
+        profileData.put(Constants.PROFILE_DETAILS, profileDetails);
+
+        when(serverConfig.getProfileCompletionRequiredFields())
+                .thenReturn(List.of("mobile", "dateOfBirth"));
+        when(serverConfig.getFieldWeight()).thenReturn(50.0);
+        when(serverConfig.getExtendedFieldsConfig()).thenReturn(List.of());
+
+        double result = service.calculateProfileCompletionPercentage(profileData, USER_ID);
+
+        assertEquals(100.0, result);
+    }
+
+    @Test
+    void testCalculateProfileCompletionPercentage_WithEmploymentDetailsAboutMe() {
+        Map<String, Object> employmentDetails = new HashMap<>();
+        employmentDetails.put(Constants.ABOUT_ME, "Software Engineer with 5 years experience");
+
+        Map<String, Object> profileDetails = new HashMap<>();
+        profileDetails.put(Constants.EMPLOYMENT_DETAILS, employmentDetails);
+
+        Map<String, Object> profileData = new HashMap<>();
+        profileData.put(Constants.PROFILE_DETAILS, profileDetails);
+
+        when(serverConfig.getProfileCompletionRequiredFields())
+                .thenReturn(List.of(Constants.EMPLOYMENT_DETAILS));
+        when(serverConfig.getFieldWeight()).thenReturn(100.0);
+        when(serverConfig.getExtendedFieldsConfig()).thenReturn(List.of());
+
+        double result = service.calculateProfileCompletionPercentage(profileData, USER_ID);
+
+        assertEquals(100.0, result);
+    }
+
+    @Test
+    void testCalculateProfileCompletionPercentage_WithEmploymentDetailsEmptyAboutMe() {
+        Map<String, Object> employmentDetails = new HashMap<>();
+        employmentDetails.put(Constants.ABOUT_ME, "   ");
+
+        Map<String, Object> profileDetails = new HashMap<>();
+        profileDetails.put(Constants.EMPLOYMENT_DETAILS, employmentDetails);
+
+        Map<String, Object> profileData = new HashMap<>();
+        profileData.put(Constants.PROFILE_DETAILS, profileDetails);
+
+        when(serverConfig.getProfileCompletionRequiredFields())
+                .thenReturn(List.of(Constants.EMPLOYMENT_DETAILS));
+        when(serverConfig.getExtendedFieldsConfig()).thenReturn(List.of());
+
+        double result = service.calculateProfileCompletionPercentage(profileData, USER_ID);
+
+        assertEquals(0.0, result);
+    }
+
+    @Test
+    void testCalculateProfileCompletionPercentage_WithEmploymentDetailsNullAboutMe() {
+        Map<String, Object> employmentDetails = new HashMap<>();
+        employmentDetails.put(Constants.ABOUT_ME, null);
+
+        Map<String, Object> profileDetails = new HashMap<>();
+        profileDetails.put(Constants.EMPLOYMENT_DETAILS, employmentDetails);
+
+        Map<String, Object> profileData = new HashMap<>();
+        profileData.put(Constants.PROFILE_DETAILS, profileDetails);
+
+        when(serverConfig.getProfileCompletionRequiredFields())
+                .thenReturn(List.of(Constants.EMPLOYMENT_DETAILS));
+        when(serverConfig.getExtendedFieldsConfig()).thenReturn(List.of());
+
+        double result = service.calculateProfileCompletionPercentage(profileData, USER_ID);
+
+        assertEquals(0.0, result);
+    }
+
+    @Test
+    void testCalculateProfileCompletionPercentage_WithServiceHistoryFromExtendedProfile() {
+        Map<String, Object> profileData = new HashMap<>();
+
+        when(serverConfig.getProfileCompletionRequiredFields())
+                .thenReturn(List.of(Constants.SERVICE_HISTORY));
+        when(serverConfig.getExtendedFieldsConfig()).thenReturn(List.of(Constants.SERVICE_HISTORY));
+        when(serverConfig.getFieldWeight()).thenReturn(100.0);
+        when(profileReaderService.getExistingContextData(USER_ID, Constants.SERVICE_HISTORY))
+                .thenReturn(List.of(Map.of("service", "Military")));
+
+        double result = service.calculateProfileCompletionPercentage(profileData, USER_ID);
+
+        assertEquals(100.0, result);
+    }
+
+    @Test
+    void testCalculateProfileCompletionPercentage_WithServiceHistoryFromProfessionalDetails() {
+        List<Map<String, Object>> professionalDetails = List.of(
+                Map.of("designation", "Senior Engineer"),
+                Map.of("organization", "TechCorp")
+        );
+
+        Map<String, Object> profileDetails = new HashMap<>();
+        profileDetails.put(Constants.PROFESSIONAL_DETAILS, professionalDetails);
+
+        Map<String, Object> profileData = new HashMap<>();
+        profileData.put(Constants.PROFILE_DETAILS, profileDetails);
+
+        when(serverConfig.getProfileCompletionRequiredFields())
+                .thenReturn(List.of(Constants.SERVICE_HISTORY));
+        when(serverConfig.getExtendedFieldsConfig()).thenReturn(List.of(Constants.SERVICE_HISTORY));
+        when(serverConfig.getFieldWeight()).thenReturn(100.0);
+        when(profileReaderService.getExistingContextData(USER_ID, Constants.SERVICE_HISTORY))
+                .thenReturn(Collections.emptyList());
+
+        double result = service.calculateProfileCompletionPercentage(profileData, USER_ID);
+
+        assertEquals(100.0, result);
+    }
+
+    @Test
+    void testCalculateProfileCompletionPercentage_WithServiceHistoryNoData() {
+        Map<String, Object> profileDetails = new HashMap<>();
+        profileDetails.put(Constants.PROFILE_DETAILS, new HashMap<>());
+
+        Map<String, Object> profileData = new HashMap<>();
+        profileData.put(Constants.PROFILE_DETAILS, profileDetails);
+
+        when(serverConfig.getProfileCompletionRequiredFields())
+                .thenReturn(List.of(Constants.SERVICE_HISTORY));
+        when(serverConfig.getExtendedFieldsConfig()).thenReturn(List.of(Constants.SERVICE_HISTORY));
+        when(profileReaderService.getExistingContextData(USER_ID, Constants.SERVICE_HISTORY))
+                .thenReturn(Collections.emptyList());
+
+        double result = service.calculateProfileCompletionPercentage(profileData, USER_ID);
+
+        assertEquals(0.0, result);
+    }
+
+    @Test
+    void testCalculateProfileCompletionPercentage_WithEmptyStringValue() {
+        Map<String, Object> profileData = new HashMap<>();
+        profileData.put("firstName", "");
+        profileData.put("lastName", "Doe");
+
+        when(serverConfig.getProfileCompletionRequiredFields())
+                .thenReturn(List.of("firstName", "lastName"));
+        when(serverConfig.getFieldWeight()).thenReturn(50.0);
+        when(serverConfig.getExtendedFieldsConfig()).thenReturn(List.of());
+
+        double result = service.calculateProfileCompletionPercentage(profileData, USER_ID);
+
+        assertEquals(50.0, result);
+    }
+
+    @Test
+    void testCalculateProfileCompletionPercentage_WithWhitespaceValue() {
+        Map<String, Object> profileData = new HashMap<>();
+        profileData.put("firstName", "   ");
+        profileData.put("lastName", "Doe");
+
+        when(serverConfig.getProfileCompletionRequiredFields())
+                .thenReturn(List.of("firstName", "lastName"));
+        when(serverConfig.getFieldWeight()).thenReturn(50.0);
+        when(serverConfig.getExtendedFieldsConfig()).thenReturn(List.of());
+
+        double result = service.calculateProfileCompletionPercentage(profileData, USER_ID);
+
+        assertEquals(50.0, result);
+    }
+
+    @Test
+    void testCalculateProfileCompletionPercentage_WithNullValue() {
+        Map<String, Object> profileData = new HashMap<>();
+        profileData.put("firstName", null);
+        profileData.put("lastName", "Doe");
+
+        when(serverConfig.getProfileCompletionRequiredFields())
+                .thenReturn(List.of("firstName", "lastName"));
+        when(serverConfig.getFieldWeight()).thenReturn(50.0);
+        when(serverConfig.getExtendedFieldsConfig()).thenReturn(List.of());
+
+        double result = service.calculateProfileCompletionPercentage(profileData, USER_ID);
+
+        assertEquals(50.0, result);
+    }
+
+    @Test
+    void testCalculateProfileCompletionPercentage_WithExceptionInFieldCheck() {
+        Map<String, Object> profileData = new HashMap<>();
+        profileData.put("firstName", "John");
+
+        when(serverConfig.getProfileCompletionRequiredFields())
+                .thenReturn(List.of("firstName", "education"));
+        when(serverConfig.getExtendedFieldsConfig()).thenReturn(List.of("education"));
+        when(serverConfig.getFieldWeight()).thenReturn(50.0);
+        when(profileReaderService.getExistingContextData(USER_ID, "education"))
+                .thenThrow(new RuntimeException("Database error"));
+
+        double result = service.calculateProfileCompletionPercentage(profileData, USER_ID);
+
+        assertEquals(50.0, result);
+    }
+
+    @Test
+    void testCalculateProfileCompletionPercentage_RoundingLogic() {
+        Map<String, Object> profileData = new HashMap<>();
+        profileData.put("field1", "value1");
+        profileData.put("field2", "value2");
+
+        when(serverConfig.getProfileCompletionRequiredFields())
+                .thenReturn(List.of("field1", "field2", "field3"));
+        when(serverConfig.getFieldWeight()).thenReturn(33.33);
+        when(serverConfig.getExtendedFieldsConfig()).thenReturn(List.of());
+
+        double result = service.calculateProfileCompletionPercentage(profileData, USER_ID);
+
+        // 33.33 * 2 = 66.66, rounded to 66.7
+        assertEquals(66.7, result, 0.1);
+    }
+
+    @Test
+    void testCalculateProfileCompletionPercentage_CappedAt100() {
+        Map<String, Object> profileData = new HashMap<>();
+        profileData.put("field1", "value1");
+        profileData.put("field2", "value2");
+
+        when(serverConfig.getProfileCompletionRequiredFields())
+                .thenReturn(List.of("field1", "field2"));
+        when(serverConfig.getFieldWeight()).thenReturn(60.0); // Total would be 120.0
+        when(serverConfig.getExtendedFieldsConfig()).thenReturn(List.of());
+
+        double result = service.calculateProfileCompletionPercentage(profileData, USER_ID);
+
+        assertEquals(100.0, result);
+    }
+
+    @Test
+    void testCalculateProfileCompletionPercentage_MixedFieldsFromRootAndNested() {
+        Map<String, Object> nestedData = new HashMap<>();
+        nestedData.put("department", "Engineering");
+
+        Map<String, Object> profileDetails = new HashMap<>();
+        profileDetails.put("department", "Engineering");
+
+        Map<String, Object> profileData = new HashMap<>();
+        profileData.put("firstName", "John");
+        profileData.put(Constants.PROFILE_DETAILS, profileDetails);
+
+        when(serverConfig.getProfileCompletionRequiredFields())
+                .thenReturn(List.of("firstName", "department"));
+        when(serverConfig.getFieldWeight()).thenReturn(50.0);
+        when(serverConfig.getExtendedFieldsConfig()).thenReturn(List.of());
+
+        double result = service.calculateProfileCompletionPercentage(profileData, USER_ID);
+
+        assertEquals(100.0, result);
+    }
+
+    @Test
+    void testCalculateProfileCompletionPercentage_ProfileDetailsNotMap() {
+        Map<String, Object> profileData = new HashMap<>();
+        profileData.put("firstName", "John");
+        profileData.put(Constants.PROFILE_DETAILS, "invalid-data");
+
+        when(serverConfig.getProfileCompletionRequiredFields())
+                .thenReturn(List.of("firstName", "lastName"));
+        when(serverConfig.getFieldWeight()).thenReturn(50.0);
+        when(serverConfig.getExtendedFieldsConfig()).thenReturn(List.of());
+
+        double result = service.calculateProfileCompletionPercentage(profileData, USER_ID);
+
+        assertEquals(50.0, result);
+    }
+
+    @Test
+    void testCalculateProfileCompletionPercentage_EmploymentDetailsNotMap() {
+        Map<String, Object> profileDetails = new HashMap<>();
+        profileDetails.put(Constants.EMPLOYMENT_DETAILS, "invalid-data");
+
+        Map<String, Object> profileData = new HashMap<>();
+        profileData.put(Constants.PROFILE_DETAILS, profileDetails);
+
+        when(serverConfig.getProfileCompletionRequiredFields())
+                .thenReturn(List.of(Constants.EMPLOYMENT_DETAILS));
+        when(serverConfig.getExtendedFieldsConfig()).thenReturn(List.of());
+
+        double result = service.calculateProfileCompletionPercentage(profileData, USER_ID);
+
+        assertEquals(0.0, result);
+    }
+
+    @Test
+    void testCalculateProfileCompletionPercentage_ProfessionalDetailsNotList() {
+        Map<String, Object> profileDetails = new HashMap<>();
+        profileDetails.put(Constants.PROFESSIONAL_DETAILS, "invalid-data");
+
+        Map<String, Object> profileData = new HashMap<>();
+        profileData.put(Constants.PROFILE_DETAILS, profileDetails);
+
+        when(serverConfig.getProfileCompletionRequiredFields())
+                .thenReturn(List.of(Constants.SERVICE_HISTORY));
+        when(serverConfig.getExtendedFieldsConfig()).thenReturn(List.of(Constants.SERVICE_HISTORY));
+        when(profileReaderService.getExistingContextData(USER_ID, Constants.SERVICE_HISTORY))
+                .thenReturn(Collections.emptyList());
+
+        double result = service.calculateProfileCompletionPercentage(profileData, USER_ID);
+
+        assertEquals(0.0, result);
+    }
+
+    @Test
+    void testCalculateProfileCompletionPercentage_ProfessionalDetailsEmptyList() {
+        Map<String, Object> profileDetails = new HashMap<>();
+        profileDetails.put(Constants.PROFESSIONAL_DETAILS, Collections.emptyList());
+
+        Map<String, Object> profileData = new HashMap<>();
+        profileData.put(Constants.PROFILE_DETAILS, profileDetails);
+
+        when(serverConfig.getProfileCompletionRequiredFields())
+                .thenReturn(List.of(Constants.SERVICE_HISTORY));
+        when(serverConfig.getExtendedFieldsConfig()).thenReturn(List.of(Constants.SERVICE_HISTORY));
+        when(profileReaderService.getExistingContextData(USER_ID, Constants.SERVICE_HISTORY))
+                .thenReturn(Collections.emptyList());
+
+        double result = service.calculateProfileCompletionPercentage(profileData, USER_ID);
+
+        assertEquals(0.0, result);
+    }
+
+    @Test
+    void testCalculateProfileCompletionPercentage_NoFieldsFilled() {
+        Map<String, Object> profileData = new HashMap<>();
+
+        when(serverConfig.getProfileCompletionRequiredFields())
+                .thenReturn(List.of("field1", "field2", "field3"));
+        when(serverConfig.getExtendedFieldsConfig()).thenReturn(List.of());
+
+        double result = service.calculateProfileCompletionPercentage(profileData, USER_ID);
+
+        assertEquals(0.0, result);
+    }
+
     // ==================== sanitizeProfile Tests ====================
 
     @Test
