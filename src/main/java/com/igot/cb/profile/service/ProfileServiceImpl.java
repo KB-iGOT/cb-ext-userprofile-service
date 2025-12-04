@@ -63,7 +63,6 @@ public class ProfileServiceImpl implements ProfileService {
             CacheService cacheService,
             ObjectMapper mapper,
             ProjectUtil projectUtil,
-            OutboundRequestHandlerServiceImpl requestHandlerService,
             CustomFieldRepository customFieldRepository,
             EsUtilServiceImpl esUtilService,
             UserUtility userUtility,
@@ -254,25 +253,11 @@ public class ProfileServiceImpl implements ProfileService {
         if (accessTokenValidator.fetchUserIdFromAccessToken(userToken, response) == null) {
             ProjectUtil.errorResponse(response, Constants.INVALID_USERID_ERROR_MSG, HttpStatus.BAD_REQUEST);
             return response;
-        }
-
-        String redisKey = buildCacheKey(Constants.USER_EXTENDED_PROFILE_PREFIX, "all", userId);
-        try {
-            String cachedJson = cacheService.getCache(redisKey);
-            if (cachedJson != null) {
-                Map<String, Object> cachedResult = mapper.readValue(cachedJson, Map.class);
-                Map<String, Object> limitedResult = buildLimitedSummary(cachedResult);
-                response.setResponseCode(HttpStatus.OK);
-                response.put(Constants.RESPONSE, limitedResult);
-                return response;
-            }
-        } catch (Exception e) {
-            log.error("Failed to fetch summary from cache for userId {}: {}", userId, e);
-        }
+        }       
 
         Map<String, Object> result = new HashMap<>();
         for (String contextType : serverConfig.getContextType()) {
-            List<Map<String, Object>> data = profileReaderService.getExistingContextData(userId, contextType);
+            List<Map<String, Object>> data = profileReaderService.readUserExtendedProfile(userId, contextType);
             if (!data.isEmpty()) {
                 Map<String, Object> contextSummary = new HashMap<>();
                 contextSummary.put(Constants.COUNT, data.size());
@@ -287,11 +272,6 @@ public class ProfileServiceImpl implements ProfileService {
         }
 
         result.put(Constants.USERID_KEY, userId);
-        try {
-            cacheService.putCache(redisKey, result);
-        } catch (Exception e) {
-            log.warn("Failed to cache extended profile summary for userId {}: {}", userId, e.getMessage());
-        }
 
         response.setResponseCode(HttpStatus.OK);
         response.put(Constants.RESPONSE, result);
@@ -381,7 +361,7 @@ public class ProfileServiceImpl implements ProfileService {
                 return response;
             }
             userProfile.put(Constants.PROFILE_COMPLETION_PERCENTAGE, userInfoHelperService.calculateProfileCompletionPercentage(userProfile,
-                    userId, userToken));
+                    userId));
             userProfile.put(Constants.KARMA_POINTS, userInfoHelperService.getUserKarmaPoints(userId));
             userProfile.put(Constants.CERTIFICATE_COUNT, userInfoHelperService.getIssuedCertificateCount(userId));
             userProfile.put(Constants.POSTCOUNT, userInfoHelperService.getUserPostCount(userId));

@@ -84,7 +84,6 @@ class ProfileServiceImplTest {
             cacheService,
             objectMapper,
             projectUtil,
-            requestHandlerService,
             customFieldRepository,
             esUtilService,
             userUtility,
@@ -292,13 +291,14 @@ class ProfileServiceImplTest {
     @Test
     void getExtendedProfileSummary_WithCacheHit_ShouldReturnCachedData() throws Exception {
         // Arrange
-        Map<String, Object> cachedData = new HashMap<>();
-        cachedData.put("education", Map.of("count", 2));
-        String cachedJson = new ObjectMapper().writeValueAsString(cachedData);
+        List<Map<String, Object>> dataList = List.of(
+            Map.of("field1", "value1"),
+            Map.of("field2", "value2")
+        );
 
         when(accessTokenValidator.fetchUserIdFromAccessToken(eq(TOKEN), any())).thenReturn(USER_ID);
-        when(cacheService.getCache(anyString())).thenReturn(cachedJson);
-        when(objectMapper.readValue(anyString(), eq(Map.class))).thenReturn(cachedData);
+        when(serverProperties.getContextType()).thenReturn(new String[]{"education"});
+        when(profileReaderService.readUserExtendedProfile(USER_ID, "education")).thenReturn(dataList);
 
         // Act
         ApiResponse response = profileService.getExtendedProfileSummary(USER_ID, TOKEN);
@@ -306,7 +306,7 @@ class ProfileServiceImplTest {
         // Assert
         assertEquals(HttpStatus.OK, response.getResponseCode());
         assertNotNull(response.get(Constants.RESPONSE));
-        verify(cassandraOperation, never()).getRecordsByProperties(any(), any(), any(), any(), any());
+        verify(profileReaderService).readUserExtendedProfile(USER_ID, "education");
     }
 
     @Test
@@ -315,9 +315,8 @@ class ProfileServiceImplTest {
         List<Map<String, Object>> dataList = List.of(Map.of("field", "value"));
 
         when(accessTokenValidator.fetchUserIdFromAccessToken(eq(TOKEN), any())).thenReturn(USER_ID);
-        when(cacheService.getCache(anyString())).thenReturn(null);
         when(serverProperties.getContextType()).thenReturn(new String[]{"education"});
-        when(profileReaderService.getExistingContextData(USER_ID, "education")).thenReturn(dataList);
+        when(profileReaderService.readUserExtendedProfile(USER_ID, "education")).thenReturn(dataList);
 
         // Act
         ApiResponse response = profileService.getExtendedProfileSummary(USER_ID, TOKEN);

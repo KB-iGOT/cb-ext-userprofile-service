@@ -303,7 +303,7 @@ class UserInfoHelperServiceImplTest {
         when(serverConfig.getFieldWeight()).thenReturn(33.33);
         when(serverConfig.getExtendedFieldsConfig()).thenReturn(List.of());
 
-        double result = service.calculateProfileCompletionPercentage(profileData, USER_ID, USER_TOKEN);
+        double result = service.calculateProfileCompletionPercentage(profileData, USER_ID);
 
         assertEquals(99.9, result, 0.1);
     }
@@ -320,14 +320,14 @@ class UserInfoHelperServiceImplTest {
         when(profileReaderService.getExistingContextData(USER_ID, "education"))
                 .thenReturn(List.of(Map.of("degree", "BS")));
 
-        double result = service.calculateProfileCompletionPercentage(profileData, USER_ID, USER_TOKEN);
+        double result = service.calculateProfileCompletionPercentage(profileData, USER_ID);
 
         assertEquals(100.0, result);
     }
 
     @Test
     void testCalculateProfileCompletionPercentage_NullProfile() {
-        double result = service.calculateProfileCompletionPercentage(null, USER_ID, USER_TOKEN);
+        double result = service.calculateProfileCompletionPercentage(null, USER_ID);
 
         assertEquals(0.0, result);
     }

@@ -72,7 +72,6 @@ class ProfileServiceImplPrivateMethodTest {
             cacheService,
             mapper,
             projectUtil,
-            requestHandlerService,
             customFieldRepository,
             esUtilService,
             userUtility,

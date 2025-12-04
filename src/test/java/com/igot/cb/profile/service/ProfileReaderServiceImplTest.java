@@ -122,7 +122,7 @@ class ProfileReaderServiceImplTest {
     }
 
     @Test
-    void testReadUserDataFromDB_NullProfileDetails_SetsEmptyMap() {
+    void testReadUserDataFromDB_VerifysProfileDetails_SetsEmptyMap() {
         List<String> keyList = List.of("id");
         Map<String, Object> userRecord = new HashMap<>();
         userRecord.put(Constants.ID, USER_ID);
@@ -135,35 +135,29 @@ class ProfileReaderServiceImplTest {
 
         assertNotNull(result);
         assertEquals(Map.of(), result.get(Constants.PROFILE_DETAILS));
-    }
 
-    @Test
-    void testReadUserDataFromDB_BlankProfileDetails_SetsEmptyMap() {
-        List<String> keyList = List.of("id");
-        Map<String, Object> userRecord = new HashMap<>();
+        //Check for Empty Map
+        userRecord.clear();
         userRecord.put(Constants.ID, USER_ID);
         userRecord.put(Constants.PROFILE_DETAILS, "   ");
 
         when(cassandraOperation.getRecordsByProperties(any(), any(), any(), any(), any()))
                 .thenReturn(List.of(userRecord));
 
-        Map<String, Object> result = service.readUserDataFromDB(USER_ID, keyList);
+        result = service.readUserDataFromDB(USER_ID, keyList);
 
         assertNotNull(result);
         assertEquals(Map.of(), result.get(Constants.PROFILE_DETAILS));
-    }
 
-    @Test
-    void testReadUserDataFromDB_InvalidJsonProfileDetails_SetsEmptyMap() throws Exception {
-        List<String> keyList = List.of("id");
-        Map<String, Object> userRecord = new HashMap<>();
+        //Check for Invalid Json
+        userRecord.clear();
         userRecord.put(Constants.ID, USER_ID);
         userRecord.put(Constants.PROFILE_DETAILS, "");
 
         when(cassandraOperation.getRecordsByProperties(any(), any(), any(), any(), any()))
                 .thenReturn(List.of(userRecord));
 
-        Map<String, Object> result = service.readUserDataFromDB(USER_ID, keyList);
+        result = service.readUserDataFromDB(USER_ID, keyList);
 
         assertNotNull(result);
         assertEquals(Map.of(), result.get(Constants.PROFILE_DETAILS));

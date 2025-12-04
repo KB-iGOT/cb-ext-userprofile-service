@@ -71,7 +71,7 @@ public class ProfileReaderServiceImpl {
         return userObj;
     }
 
-    private List<Map<String, Object>> readUserExtendedProfile(String userId, String contextType) {
+    public List<Map<String, Object>> readUserExtendedProfile(String userId, String contextType) {
         String redisKey = projectUtil.buildCacheKey(Constants.USER_EXTENDED_PROFILE_PREFIX, contextType, userId);
         List<Map<String, Object>> contextData = null;
 

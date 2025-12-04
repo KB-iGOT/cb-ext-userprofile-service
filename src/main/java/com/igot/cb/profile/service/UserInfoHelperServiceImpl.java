@@ -212,7 +212,7 @@ public class UserInfoHelperServiceImpl {
     }
 
     public double calculateProfileCompletionPercentage(Map<String, Object> profileData,
-                                                          String userId, String userToken) {
+                                                          String userId) {
         List<String> requiredFields = serverConfig.getProfileCompletionRequiredFields();
         if (profileData == null || requiredFields == null || requiredFields.isEmpty())
             return 0.0;
@@ -227,7 +227,7 @@ public class UserInfoHelperServiceImpl {
             boolean isFilled;
             try {
                 if (isExtendedProfileField(field)) {
-                    isFilled = hasExtendedProfileData(userId, field, userToken)
+                    isFilled = hasExtendedProfileData(userId, field)
                             || (Constants.SERVICE_HISTORY.equalsIgnoreCase(field) &&
                             Optional.ofNullable(profileData.get(Constants.PROFILE_DETAILS))
                                     .filter(Map.class::isInstance)
@@ -270,7 +270,7 @@ public class UserInfoHelperServiceImpl {
                 .anyMatch(f -> f.equalsIgnoreCase(field));
     }
 
-    private boolean hasExtendedProfileData(String userId, String contextType, String userToken) {
+    private boolean hasExtendedProfileData(String userId, String contextType) {
         try {
             List<Map<String, Object>> contextData = profileReaderService.getExistingContextData(userId, contextType);
             return !CollectionUtils.isEmpty(contextData);
