@@ -24,7 +24,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.igot.common.ApiResponse;
 import org.igot.common.auth.AccessTokenValidator;
 import org.igot.common.cassandra.CassandraOperation;
-import org.igot.common.service.OutboundRequestHandlerServiceImpl;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -255,16 +254,7 @@ public class ProfileServiceImpl implements ProfileService {
             return response;
         }       
 
-        Map<String, Object> result = new HashMap<>();
-        for (String contextType : serverConfig.getContextType()) {
-            List<Map<String, Object>> data = profileReaderService.readUserExtendedProfile(userId, contextType);
-            if (!data.isEmpty()) {
-                Map<String, Object> contextSummary = new HashMap<>();
-                contextSummary.put(Constants.COUNT, data.size());
-                contextSummary.put(Constants.DATA, data.stream().limit(2).collect(Collectors.toList()));
-                result.put(contextType, contextSummary);
-            }
-        }
+        Map<String, Object> result = profileReaderService.readUserExtendedProfile(userId);
 
         if (result.isEmpty()) {
             ProjectUtil.errorResponse(response, "No data found for user.", HttpStatus.NO_CONTENT);
@@ -272,7 +262,6 @@ public class ProfileServiceImpl implements ProfileService {
         }
 
         result.put(Constants.USERID_KEY, userId);
-
         response.setResponseCode(HttpStatus.OK);
         response.put(Constants.RESPONSE, result);
         return response;
@@ -482,34 +471,6 @@ public class ProfileServiceImpl implements ProfileService {
                 .findFirst()
                 .map(key -> "Invalid context type in request: " + key)
                 .orElse(null);
-    }
-
-    private Map<String, Object> buildLimitedSummary(Map<String, Object> fullData) {
-        Map<String, Object> limitedData = new HashMap<>();
-
-        for (Map.Entry<String, Object> entry : fullData.entrySet()) {
-            String key = entry.getKey();
-
-            if (!(entry.getValue() instanceof Map)) {
-                limitedData.put(key, entry.getValue());
-                continue;
-            }
-
-            Map<String, Object> contextBlock = (Map<String, Object>) entry.getValue();
-            Object dataObj = contextBlock.get(Constants.DATA);
-
-            if (dataObj instanceof List) {
-                List<Map<String, Object>> dataList = (List<Map<String, Object>>) dataObj;
-                Map<String, Object> limitedBlock = new HashMap<>();
-                limitedBlock.put(Constants.COUNT, contextBlock.get(Constants.COUNT));
-                limitedBlock.put(Constants.DATA, dataList.size() > 2 ? dataList.subList(0, 2) : dataList);
-                limitedData.put(key, limitedBlock);
-            } else {
-                limitedData.put(key, contextBlock);
-            }
-        }
-
-        return limitedData;
     }
 
     private void mergeAndSortByIssuedDateOrTitle(List<Map<String, Object>> existingList, List<Map<String, Object>> newList) {

@@ -52,7 +52,7 @@ class ProfileReaderServiceImplTest {
     // ==================== readUserDataFromDB Tests ====================
 
     @Test
-    void testReadUserDataFromDB_WithKeyList_Success() throws Exception {
+    void testReadUserDataFromDB_WithKeyList_Success() {
         List<String> keyList = List.of("id", "firstName", "email");
         Map<String, Object> userRecord = new HashMap<>();
         userRecord.put(Constants.ID, USER_ID);
@@ -71,8 +71,12 @@ class ProfileReaderServiceImplTest {
         )).thenReturn(userList);
 
         Map<String, Object> profileDetailsMap = Map.of("phone", "123-456");
-        when(mapper.readValue(eq("{\"phone\":\"123-456\"}"), any(TypeReference.class)))
-                .thenReturn(profileDetailsMap);
+        try {
+            when(mapper.readValue(eq("{\"phone\":\"123-456\"}"), any(TypeReference.class)))
+                    .thenReturn(profileDetailsMap);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
 
         Map<String, Object> result = service.readUserDataFromDB(USER_ID, keyList);
 
@@ -182,7 +186,7 @@ class ProfileReaderServiceImplTest {
     // ==================== getExistingContextData Tests ====================
 
     @Test
-    void testGetExistingContextData_Success() throws Exception {
+    void testGetExistingContextData_Success() {
         Map<String, Object> query = Map.of(
                 Constants.USERID_KEY, USER_ID,
                 Constants.CONTEXT_TYPE, CONTEXT_TYPE
@@ -204,7 +208,11 @@ class ProfileReaderServiceImplTest {
                 Map.of("degree", "BS"),
                 Map.of("degree", "MS")
         );
-        when(projectUtil.parseListOfMap(contextDataJson)).thenReturn(expectedData);
+        try {
+            when(projectUtil.parseListOfMap(contextDataJson)).thenReturn(expectedData);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
 
         List<Map<String, Object>> result = service.getExistingContextData(USER_ID, CONTEXT_TYPE);
 
@@ -237,15 +245,19 @@ class ProfileReaderServiceImplTest {
     }
 
     @Test
-    void testGetExistingContextData_ParseException_ReturnsEmptyList() throws Exception {
+    void testGetExistingContextData_ParseException_ReturnsEmptyList() {
         String contextDataJson = "{invalid json}";
         Map<String, Object> dbRecord = Map.of(Constants.CONTEXT_DATA, contextDataJson);
         List<Map<String, Object>> dbRecords = List.of(dbRecord);
 
         when(cassandraOperation.getRecordsByProperties(any(), any(), any(), any(), any()))
                 .thenReturn(dbRecords);
-        when(projectUtil.parseListOfMap(contextDataJson))
-                .thenThrow(new IOException("Parse error"));
+        try {
+            when(projectUtil.parseListOfMap(contextDataJson))
+                    .thenThrow(new IOException("Parse error"));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
 
         List<Map<String, Object>> result = service.getExistingContextData(USER_ID, CONTEXT_TYPE);
 
@@ -280,7 +292,7 @@ class ProfileReaderServiceImplTest {
     // ==================== Integration Tests ====================
 
     @Test
-    void testReadUserDataFromDB_FullProfileDetailsJson() throws Exception {
+    void testReadUserDataFromDB_FullProfileDetailsJson() {
         List<String> keyList = List.of("id", Constants.PROFILE_DETAILS);
         String profileDetailsJson = "{\"personalDetails\":{\"dob\":\"1990-01-01\"},\"professionalDetails\":[{\"designation\":\"Engineer\"}]}";
 
@@ -295,8 +307,12 @@ class ProfileReaderServiceImplTest {
         expectedProfileDetails.put("personalDetails", Map.of("dob", "1990-01-01"));
         expectedProfileDetails.put("professionalDetails", List.of(Map.of("designation", "Engineer")));
 
-        when(mapper.readValue(eq(profileDetailsJson), any(TypeReference.class)))
-                .thenReturn(expectedProfileDetails);
+        try {
+            when(mapper.readValue(eq(profileDetailsJson), any(TypeReference.class)))
+                    .thenReturn(expectedProfileDetails);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
 
         Map<String, Object> result = service.readUserDataFromDB(USER_ID, keyList);
 
@@ -305,14 +321,18 @@ class ProfileReaderServiceImplTest {
     }
 
     @Test
-    void testGetExistingContextData_MultipleContextTypes() throws Exception {
+    void testGetExistingContextData_MultipleContextTypes() {
         String educationJson = "[{\"degree\":\"BS\"}]";
         Map<String, Object> dbRecord = Map.of(Constants.CONTEXT_DATA, educationJson);
 
         when(cassandraOperation.getRecordsByProperties(any(), any(), any(), any(), any()))
                 .thenReturn(List.of(dbRecord));
-        when(projectUtil.parseListOfMap(educationJson))
-                .thenReturn(List.of(Map.of("degree", "BS")));
+        try {
+            when(projectUtil.parseListOfMap(educationJson))
+                    .thenReturn(List.of(Map.of("degree", "BS")));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
 
         List<Map<String, Object>> result = service.getExistingContextData(USER_ID, CONTEXT_TYPE);
 

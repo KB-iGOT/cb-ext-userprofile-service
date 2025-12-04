@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.transactional.redis.cache.CacheService;
 import com.igot.cb.util.CbServerProperties;
 import com.igot.cb.util.Constants;
-import com.igot.cb.util.ProfilePreference;
 import org.igot.common.cassandra.CassandraOperation;
 import org.igot.common.service.OutboundRequestHandlerServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
@@ -255,7 +254,7 @@ class UserInfoHelperServiceImplTest {
     }
 
     @Test
-    void testGetUserRoles_WithStringScope_ValidJson() throws Exception {
+    void testGetUserRoles_WithStringScope_ValidJson() {
         Map<String, Object> role1 = new HashMap<>();
         role1.put(Constants.ROLE, "VIEWER");
         String scopeJson = "[{\"organisationId\":\"" + ROOT_ORG_ID + "\"}]";
@@ -264,9 +263,13 @@ class UserInfoHelperServiceImplTest {
         List<Map<String, Object>> roleRecords = List.of(role1);
         when(cassandraOperation.getRecordsByProperties(any(), any(), any(), any(), any()))
                 .thenReturn(roleRecords);
-        when(mapper.readValue(eq(scopeJson), any(com.fasterxml.jackson.core.type.TypeReference.class))).thenReturn(
-                List.of(Map.of(Constants.ORGANISATION_ID, ROOT_ORG_ID))
-        );
+        try {
+            when(mapper.readValue(eq(scopeJson), any(com.fasterxml.jackson.core.type.TypeReference.class))).thenReturn(
+                    List.of(Map.of(Constants.ORGANISATION_ID, ROOT_ORG_ID))
+            );
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
 
         List<String> result = service.getUserRoles(USER_ID, ROOT_ORG_ID);
 

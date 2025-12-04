@@ -2,13 +2,14 @@ package com.igot.cb.profile.service;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.igot.common.cassandra.CassandraOperation;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -71,32 +72,36 @@ public class ProfileReaderServiceImpl {
         return userObj;
     }
 
-    public List<Map<String, Object>> readUserExtendedProfile(String userId, String contextType) {
-        String redisKey = projectUtil.buildCacheKey(Constants.USER_EXTENDED_PROFILE_PREFIX, contextType, userId);
-        List<Map<String, Object>> contextData = null;
-
+    public Map<String, Object> readUserExtendedProfile(String userId) {
+        String redisKey = projectUtil.buildCacheKey(Constants.USER_EXTENDED_PROFILE_PREFIX, "all", userId);
+        
         try {
             String cachedJson = cacheService.getCache(redisKey);
             if (cachedJson != null) {
-                contextData = projectUtil.parseListOfMap(cachedJson);
+                Map<String, Object> cachedResult = projectUtil.parseMap(cachedJson);
+                return buildLimitedSummary(cachedResult);
             }
         } catch (Exception e) {
             log.warn("Error reading from cache for key {}: {}", redisKey, e.getMessage());
         }
 
-        if (contextData == null) {
-            contextData = getExistingContextData(userId, contextType);
-            if (contextData == null || contextData.isEmpty()) {
-                log.error("Failed to read user extended profile for userId: {}, contextType: {}", userId, contextType);
-                return contextData;
-            }
-            try {
-                cacheService.putCache(redisKey, contextData);
-            } catch (Exception e) {
-                log.warn("Failed to cache data for key {}: {}", redisKey, e.getMessage());
+        Map<String, Object> result = new HashMap<>();
+        for (String contextType : serverConfig.getContextType()) {
+            List<Map<String, Object>> data = getExistingContextData(userId, contextType);
+            if (!data.isEmpty()) {
+                Map<String, Object> contextSummary = new HashMap<>();
+                contextSummary.put(Constants.COUNT, data.size());
+                contextSummary.put(Constants.DATA, data.stream().limit(2).collect(Collectors.toList()));
+                result.put(contextType, contextSummary);
             }
         }
-        return contextData;
+
+        try {
+            cacheService.putCache(redisKey, result);
+        } catch (Exception e) {
+            log.warn("Failed to cache extended profile summary for userId {}: {}", userId, e.getMessage());
+        }
+        return result;
     }
 
     public List<Map<String, Object>> getExistingContextData(String userId, String contextType) {
@@ -112,5 +117,33 @@ public class ProfileReaderServiceImpl {
             }
         }
         return new ArrayList<>();
+    }
+
+    private Map<String, Object> buildLimitedSummary(Map<String, Object> fullData) {
+        Map<String, Object> limitedData = new HashMap<>();
+
+        for (Map.Entry<String, Object> entry : fullData.entrySet()) {
+            String key = entry.getKey();
+
+            if (!(entry.getValue() instanceof Map)) {
+                limitedData.put(key, entry.getValue());
+                continue;
+            }
+
+            Map<String, Object> contextBlock = (Map<String, Object>) entry.getValue();
+            Object dataObj = contextBlock.get(Constants.DATA);
+
+            if (dataObj instanceof List) {
+                List<Map<String, Object>> dataList = (List<Map<String, Object>>) dataObj;
+                Map<String, Object> limitedBlock = new HashMap<>();
+                limitedBlock.put(Constants.COUNT, contextBlock.get(Constants.COUNT));
+                limitedBlock.put(Constants.DATA, dataList.size() > 2 ? dataList.subList(0, 2) : dataList);
+                limitedData.put(key, limitedBlock);
+            } else {
+                limitedData.put(key, contextBlock);
+            }
+        }
+
+        return limitedData;
     }
 }
