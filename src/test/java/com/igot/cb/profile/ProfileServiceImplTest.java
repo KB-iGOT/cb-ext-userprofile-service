@@ -1,6 +1,8 @@
 package com.igot.cb.profile;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.igot.cb.profile.entity.CustomFieldEntity;
 import com.igot.cb.profile.repository.CustomFieldRepository;
 import com.igot.cb.profile.service.ProfileReaderServiceImpl;
 import com.igot.cb.profile.service.ProfileServiceImpl;
@@ -12,7 +14,6 @@ import com.igot.cb.util.*;
 import org.igot.common.ApiResponse;
 import org.igot.common.auth.AccessTokenValidator;
 import org.igot.common.cassandra.CassandraOperation;
-import org.igot.common.service.OutboundRequestHandlerServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -50,9 +51,6 @@ class ProfileServiceImplTest {
 
     @Mock
     private ProjectUtil projectUtil;
-
-    @Mock
-    private OutboundRequestHandlerServiceImpl requestHandlerService;
 
     @Mock
     private CustomFieldRepository customFieldRepository;
@@ -197,6 +195,157 @@ class ProfileServiceImplTest {
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
     }
 
+    @Test
+    void saveExtendedProfile_WithMultipleContextTypes_ShouldSucceed() {
+        // Arrange
+        Map<String, Object> education = new HashMap<>();
+        education.put("degree", "PhD");
+
+        Map<String, Object> service = new HashMap<>();
+        service.put("position", "Manager");
+
+        Map<String, Object> requestMap = new HashMap<>();
+        requestMap.put(Constants.USER_ID_RQST, USER_ID);
+        requestMap.put("education", List.of(education));
+        requestMap.put("experience", List.of(service));
+
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestMap);
+
+        ApiResponse mockResponse = new ApiResponse();
+        mockResponse.put(Constants.RESPONSE, Constants.SUCCESS);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(TOKEN), any())).thenReturn(USER_ID);
+        when(serverProperties.getContextType()).thenReturn(new String[]{"education", "experience"});
+        when(serverProperties.getEducationalQualificationMandatoryFields()).thenReturn("");
+        when(serverProperties.getAchievementsMandatoryFields()).thenReturn("");
+        when(serverProperties.getServiceHistoryMandatoryFields()).thenReturn("");
+        when(profileReaderService.getExistingContextData(eq(USER_ID), anyString())).thenReturn(new ArrayList<>());
+        when(cassandraOperation.insertRecord(any(), any(), any())).thenReturn(mockResponse);
+
+        // Act
+        ApiResponse response = profileService.saveExtendedProfile(request, TOKEN);
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        verify(cassandraOperation, times(2)).insertRecord(any(), any(), any());
+    }
+
+    @Test
+    void saveExtendedProfile_WithMandatoryFieldValidationError_ShouldReturnBadRequest() {
+        // Arrange
+        Map<String, Object> education = new HashMap<>();
+        education.put("degree", "");
+
+        Map<String, Object> requestMap = new HashMap<>();
+        requestMap.put(Constants.USER_ID_RQST, USER_ID);
+        requestMap.put(Constants.EDUCATIONAL_QUALIFICATIONS, List.of(education));
+
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestMap);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(TOKEN), any())).thenReturn(USER_ID);
+        when(serverProperties.getContextType()).thenReturn(new String[]{Constants.EDUCATIONAL_QUALIFICATIONS});
+        when(serverProperties.getEducationalQualificationMandatoryFields()).thenReturn("degree,institution");
+        when(serverProperties.getAchievementsMandatoryFields()).thenReturn("");
+        when(serverProperties.getServiceHistoryMandatoryFields()).thenReturn("");
+
+        // Act
+        ApiResponse response = profileService.saveExtendedProfile(request, TOKEN);
+
+        // Assert
+        assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
+    }
+
+    @Test
+    void saveExtendedProfile_WithServiceHistoryCurrentlyWorking_ShouldSkipEndDateValidation() {
+        // Arrange
+        Map<String, Object> service = new HashMap<>();
+        service.put("position", "Engineer");
+        service.put("organization", "ABC Corp");
+        service.put(Constants.START_DATE, "2023-01-01");
+        service.put(Constants.CURRENTLY_WORKING, "true");
+        // No endDate
+
+        Map<String, Object> requestMap = new HashMap<>();
+        requestMap.put(Constants.USER_ID_RQST, USER_ID);
+        requestMap.put(Constants.SERVICE_HISTORY, List.of(service));
+
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestMap);
+
+        ApiResponse mockResponse = new ApiResponse();
+        mockResponse.put(Constants.RESPONSE, Constants.SUCCESS);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(TOKEN), any())).thenReturn(USER_ID);
+        when(serverProperties.getContextType()).thenReturn(new String[]{Constants.SERVICE_HISTORY});
+        when(serverProperties.getEducationalQualificationMandatoryFields()).thenReturn("");
+        when(serverProperties.getAchievementsMandatoryFields()).thenReturn("");
+        when(serverProperties.getServiceHistoryMandatoryFields()).thenReturn("position,organization,startDate,endDate");
+        when(profileReaderService.getExistingContextData(USER_ID, Constants.SERVICE_HISTORY)).thenReturn(new ArrayList<>());
+        when(cassandraOperation.insertRecord(any(), any(), any())).thenReturn(mockResponse);
+
+        // Act
+        ApiResponse response = profileService.saveExtendedProfile(request, TOKEN);
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+    }
+
+    @Test
+    void saveExtendedProfile_WithCassandraFailure_ShouldReturnInternalServerError() {
+        // Arrange
+        Map<String, Object> data = new HashMap<>();
+        data.put("field1", "value1");
+
+        Map<String, Object> requestMap = new HashMap<>();
+        requestMap.put(Constants.USER_ID_RQST, USER_ID);
+        requestMap.put("education", List.of(data));
+
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestMap);
+
+        ApiResponse mockResponse = new ApiResponse();
+        mockResponse.put(Constants.RESPONSE, "failed");
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(TOKEN), any())).thenReturn(USER_ID);
+        when(serverProperties.getContextType()).thenReturn(new String[]{"education"});
+        when(serverProperties.getEducationalQualificationMandatoryFields()).thenReturn("");
+        when(serverProperties.getAchievementsMandatoryFields()).thenReturn("");
+        when(serverProperties.getServiceHistoryMandatoryFields()).thenReturn("");
+        when(profileReaderService.getExistingContextData(USER_ID, "education")).thenReturn(new ArrayList<>());
+        when(cassandraOperation.insertRecord(any(), any(), any())).thenReturn(mockResponse);
+
+        // Act
+        ApiResponse response = profileService.saveExtendedProfile(request, TOKEN);
+
+        // Assert
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
+    }
+
+    @Test
+    void saveExtendedProfile_WithEmptyContextList_ShouldSucceed() {
+        // Arrange
+        Map<String, Object> requestMap = new HashMap<>();
+        requestMap.put(Constants.USER_ID_RQST, USER_ID);
+        requestMap.put("education", new ArrayList<>());  // Empty list
+
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestMap);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(TOKEN), any())).thenReturn(USER_ID);
+        when(serverProperties.getContextType()).thenReturn(new String[]{"education"});
+        when(serverProperties.getEducationalQualificationMandatoryFields()).thenReturn("");
+        when(serverProperties.getAchievementsMandatoryFields()).thenReturn("");
+        when(serverProperties.getServiceHistoryMandatoryFields()).thenReturn("");
+
+        // Act
+        ApiResponse response = profileService.saveExtendedProfile(request, TOKEN);
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+    }
+
     // ==================== updateExtendedProfile Tests ====================
 
     @Test
@@ -259,6 +408,82 @@ class ProfileServiceImplTest {
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
     }
 
+    @Test
+    void updateExtendedProfile_WithAchievements_ShouldSort() {
+        // Arrange
+        String uuid1 = UUID.randomUUID().toString();
+        String uuid2 = UUID.randomUUID().toString();
+
+        Map<String, Object> achievement1 = new HashMap<>();
+        achievement1.put(Constants.UUID, uuid1);
+        achievement1.put(Constants.TITLE, "Updated Achievement");
+        achievement1.put(Constants.ISSUED_DATE, "2024-06-01T00:00:00Z");
+
+        Map<String, Object> existingAchievement1 = new HashMap<>();
+        existingAchievement1.put(Constants.UUID, uuid1);
+        existingAchievement1.put(Constants.TITLE, "Old Achievement");
+        existingAchievement1.put(Constants.ISSUED_DATE, "2023-01-01T00:00:00Z");
+
+        Map<String, Object> existingAchievement2 = new HashMap<>();
+        existingAchievement2.put(Constants.UUID, uuid2);
+        existingAchievement2.put(Constants.TITLE, "Another Achievement");
+        existingAchievement2.put(Constants.ISSUED_DATE, "2024-01-01T00:00:00Z");
+
+        Map<String, Object> requestMap = new HashMap<>();
+        requestMap.put(Constants.USER_ID_RQST, USER_ID);
+        requestMap.put(Constants.ACHIEVEMENTS, List.of(achievement1));
+
+        Map<String, Object> request = Map.of(Constants.REQUEST, requestMap);
+
+        ApiResponse mockResponse = new ApiResponse();
+        mockResponse.put(Constants.RESPONSE, Constants.SUCCESS);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(TOKEN), any())).thenReturn(USER_ID);
+        when(serverProperties.getContextType()).thenReturn(new String[]{Constants.ACHIEVEMENTS});
+        when(profileReaderService.getExistingContextData(USER_ID, Constants.ACHIEVEMENTS))
+            .thenReturn(new ArrayList<>(List.of(existingAchievement1, existingAchievement2)));
+        when(cassandraOperation.insertRecord(any(), any(), any())).thenReturn(mockResponse);
+
+        // Act
+        ApiResponse response = profileService.updateExtendedProfile(request, TOKEN);
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+    }
+
+    @Test
+    void updateExtendedProfile_WithCassandraFailure_ShouldReturnInternalServerError() {
+        // Arrange
+        String uuid = UUID.randomUUID().toString();
+        Map<String, Object> incoming = new HashMap<>();
+        incoming.put(Constants.UUID, uuid);
+        incoming.put("key", "newValue");
+
+        Map<String, Object> existing = new HashMap<>();
+        existing.put(Constants.UUID, uuid);
+        existing.put("key", "oldValue");
+
+        Map<String, Object> requestMap = new HashMap<>();
+        requestMap.put(Constants.USER_ID_RQST, USER_ID);
+        requestMap.put("education", List.of(incoming));
+
+        Map<String, Object> request = Map.of(Constants.REQUEST, requestMap);
+
+        ApiResponse mockResponse = new ApiResponse();
+        mockResponse.put(Constants.RESPONSE, "failed");
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(TOKEN), any())).thenReturn(USER_ID);
+        when(serverProperties.getContextType()).thenReturn(new String[]{"education"});
+        when(profileReaderService.getExistingContextData(USER_ID, "education")).thenReturn(new ArrayList<>(List.of(existing)));
+        when(cassandraOperation.insertRecord(any(), any(), any())).thenReturn(mockResponse);
+
+        // Act
+        ApiResponse response = profileService.updateExtendedProfile(request, TOKEN);
+
+        // Assert
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
+    }
+
     // ==================== deleteExtendedProfile Tests ====================
 
     @Test
@@ -289,6 +514,108 @@ class ProfileServiceImplTest {
         // Assert
         assertEquals(HttpStatus.OK, response.getResponseCode());
         assertEquals(Constants.SUCCESS, response.get(Constants.RESPONSE));
+    }
+
+    @Test
+    void deleteExtendedProfile_WithInvalidToken_ShouldReturnUnauthorized() {
+        // Arrange
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, new HashMap<>());
+
+        doAnswer(invocation -> {
+            ApiResponse resp = invocation.getArgument(1);
+            resp.setResponseCode(HttpStatus.UNAUTHORIZED);
+            return "";
+        }).when(accessTokenValidator).fetchUserIdFromAccessToken(eq(TOKEN), any());
+
+        // Act
+        ApiResponse response = profileService.deleteExtendedProfile(request, TOKEN);
+
+        // Assert
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getResponseCode());
+    }
+
+    @Test
+    void deleteExtendedProfile_WithUserIdMismatch_ShouldReturnBadRequest() {
+        // Arrange
+        Map<String, Object> requestMap = new HashMap<>();
+        requestMap.put(Constants.USER_ID_RQST, "different-user");
+
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestMap);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(TOKEN), any())).thenReturn(USER_ID);
+
+        // Act
+        ApiResponse response = profileService.deleteExtendedProfile(request, TOKEN);
+
+        // Assert
+        assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
+    }
+
+    @Test
+    void deleteExtendedProfile_WithCassandraFailure_ShouldReturnInternalServerError() {
+        // Arrange
+        String uuid = UUID.randomUUID().toString();
+        Map<String, Object> deleteItem = Map.of(Constants.UUID, uuid);
+        Map<String, Object> existingItem = Map.of(Constants.UUID, uuid, "key", "value");
+
+        Map<String, Object> requestMap = new HashMap<>();
+        requestMap.put(Constants.USER_ID_RQST, USER_ID);
+        requestMap.put("education", List.of(deleteItem));
+
+        Map<String, Object> request = Map.of(Constants.REQUEST, requestMap);
+
+        ApiResponse mockResponse = new ApiResponse();
+        mockResponse.put(Constants.RESPONSE, "failed");
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(TOKEN), any())).thenReturn(USER_ID);
+        when(serverProperties.getContextType()).thenReturn(new String[]{"education"});
+        when(profileReaderService.getExistingContextData(USER_ID, "education"))
+            .thenReturn(new ArrayList<>(List.of(existingItem)));
+        when(cassandraOperation.insertRecord(any(), any(), any())).thenReturn(mockResponse);
+
+        // Act
+        ApiResponse response = profileService.deleteExtendedProfile(request, TOKEN);
+
+        // Assert
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
+    }
+
+    @Test
+    void deleteExtendedProfile_WithMultipleItems_ShouldDeleteAll() {
+        // Arrange
+        String uuid1 = UUID.randomUUID().toString();
+        String uuid2 = UUID.randomUUID().toString();
+        String uuid3 = UUID.randomUUID().toString();
+
+        Map<String, Object> deleteItem1 = Map.of(Constants.UUID, uuid1);
+        Map<String, Object> deleteItem2 = Map.of(Constants.UUID, uuid2);
+
+        Map<String, Object> existingItem1 = Map.of(Constants.UUID, uuid1, "key", "value1");
+        Map<String, Object> existingItem2 = Map.of(Constants.UUID, uuid2, "key", "value2");
+        Map<String, Object> existingItem3 = Map.of(Constants.UUID, uuid3, "key", "value3");
+
+        Map<String, Object> requestMap = new HashMap<>();
+        requestMap.put(Constants.USER_ID_RQST, USER_ID);
+        requestMap.put("education", List.of(deleteItem1, deleteItem2));
+
+        Map<String, Object> request = Map.of(Constants.REQUEST, requestMap);
+
+        ApiResponse mockResponse = new ApiResponse();
+        mockResponse.put(Constants.RESPONSE, Constants.SUCCESS);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(TOKEN), any())).thenReturn(USER_ID);
+        when(serverProperties.getContextType()).thenReturn(new String[]{"education"});
+        when(profileReaderService.getExistingContextData(USER_ID, "education"))
+            .thenReturn(new ArrayList<>(List.of(existingItem1, existingItem2, existingItem3)));
+        when(cassandraOperation.insertRecord(any(), any(), any())).thenReturn(mockResponse);
+
+        // Act
+        ApiResponse response = profileService.deleteExtendedProfile(request, TOKEN);
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getResponseCode());
     }
 
     // ==================== getExtendedProfileSummary Tests ====================
@@ -693,5 +1020,230 @@ class ProfileServiceImplTest {
 
         // Assert
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
+    }
+
+    @Test
+    void updateAdditionalFields_WithValidTextFields_ShouldSucceed() throws Exception {
+        // Arrange
+        String customFieldId = "cf-123";
+        Map<String, Object> customField = new HashMap<>();
+        customField.put(Constants.CUSTOM_FIELD_ID, customFieldId);
+        customField.put(Constants.FIELD_TYPE, Constants.TEXT);
+        customField.put(Constants.ATTRIBUTE_NAME, "employeeId");
+        customField.put(Constants.VALUE, "EMP-12345");
+
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.USER_ID_RQST, USER_ID);
+        request.put(Constants.ORGANISATION_ID, "org-123");
+        request.put(Constants.CUSTOM_FIELD_VALUES, List.of(customField));
+
+        CustomFieldEntity customFieldEntity = mock(CustomFieldEntity.class);
+        JsonNode customFieldData = mock(JsonNode.class);
+        JsonNode orgIdNode = mock(JsonNode.class);
+        JsonNode attrNameNode = mock(JsonNode.class);
+        JsonNode typeNode = mock(JsonNode.class);
+
+        ApiResponse mockResponse = new ApiResponse();
+        mockResponse.put(Constants.RESPONSE, Constants.SUCCESS);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(TOKEN), any())).thenReturn(USER_ID);
+        when(customFieldRepository.findByCustomFiledIdAndIsActiveTrue(customFieldId))
+            .thenReturn(java.util.Optional.of(customFieldEntity));
+        when(customFieldEntity.getIsActive()).thenReturn(true);
+        when(customFieldEntity.getCustomFieldData()).thenReturn(customFieldData);
+        when(customFieldData.get(Constants.ORGANISATION_ID)).thenReturn(orgIdNode);
+        when(orgIdNode.asText()).thenReturn("org-123");
+        when(customFieldData.get(Constants.ATTRIBUTE_NAME)).thenReturn(attrNameNode);
+        when(attrNameNode.asText()).thenReturn("employeeId");
+        when(customFieldData.get(Constants.TYPE)).thenReturn(typeNode);
+        when(typeNode.asText()).thenReturn(Constants.TEXT);
+        when(profileReaderService.getExistingContextData(USER_ID, Constants.ORG_ADDITIONAL_PROPERTIES))
+            .thenReturn(new ArrayList<>());
+        when(cassandraOperation.insertRecord(any(), any(), any())).thenReturn(mockResponse);
+        when(esUtilService.updateUserOrgCustomFields(eq(USER_ID), eq("org-123"), any())).thenReturn(true);
+
+        // Act
+        ApiResponse response = profileService.updateAdditionalFields(request, TOKEN);
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        assertEquals(Constants.SUCCESS, response.get(Constants.RESPONSE));
+        verify(cassandraOperation).insertRecord(any(), any(), any());
+        verify(esUtilService).updateUserOrgCustomFields(eq(USER_ID), eq("org-123"), any());
+    }
+
+    @Test
+    void updateAdditionalFields_WithCassandraFailure_ShouldReturnInternalServerError() throws Exception {
+        // Arrange
+        String customFieldId = "cf-123";
+        Map<String, Object> customField = new HashMap<>();
+        customField.put(Constants.CUSTOM_FIELD_ID, customFieldId);
+        customField.put(Constants.FIELD_TYPE, Constants.TEXT);
+        customField.put(Constants.ATTRIBUTE_NAME, "employeeId");
+        customField.put(Constants.VALUE, "EMP-12345");
+
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.USER_ID_RQST, USER_ID);
+        request.put(Constants.USER_ID, USER_ID);
+        request.put(Constants.ORGANISATION_ID, "org-123");
+        request.put(Constants.CUSTOM_FIELD_VALUES, List.of(customField));
+
+        CustomFieldEntity customFieldEntity = mock(CustomFieldEntity.class);
+        JsonNode customFieldData = mock(JsonNode.class);
+        JsonNode orgIdNode = mock(JsonNode.class);
+        JsonNode attrNameNode = mock(JsonNode.class);
+        JsonNode typeNode = mock(JsonNode.class);
+
+        ApiResponse mockResponse = new ApiResponse();
+        mockResponse.put(Constants.RESPONSE, "failed");
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(TOKEN), any())).thenReturn(USER_ID);
+        when(customFieldRepository.findByCustomFiledIdAndIsActiveTrue(customFieldId))
+            .thenReturn(java.util.Optional.of(customFieldEntity));
+        when(customFieldEntity.getIsActive()).thenReturn(true);
+        when(customFieldEntity.getCustomFieldData()).thenReturn(customFieldData);
+        when(customFieldData.get(Constants.ORGANISATION_ID)).thenReturn(orgIdNode);
+        when(orgIdNode.asText()).thenReturn("org-123");
+        when(customFieldData.get(Constants.ATTRIBUTE_NAME)).thenReturn(attrNameNode);
+        when(attrNameNode.asText()).thenReturn("employeeId");
+        when(customFieldData.get(Constants.TYPE)).thenReturn(typeNode);
+        when(typeNode.asText()).thenReturn(Constants.TEXT);
+        when(profileReaderService.getExistingContextData(USER_ID, Constants.ORG_ADDITIONAL_PROPERTIES))
+            .thenReturn(new ArrayList<>());
+        when(cassandraOperation.insertRecord(any(), any(), any())).thenReturn(mockResponse);
+
+        // Act
+        ApiResponse response = profileService.updateAdditionalFields(request, TOKEN);
+
+        // Assert
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
+    }
+
+    @Test
+    void updateAdditionalFields_WithException_ShouldReturnInternalServerError() {
+        // Arrange
+        String customFieldId = "cf-123";
+        Map<String, Object> customField = new HashMap<>();
+        customField.put(Constants.CUSTOM_FIELD_ID, customFieldId);
+        customField.put(Constants.FIELD_TYPE, Constants.TEXT);
+        customField.put(Constants.ATTRIBUTE_NAME, "employeeId");
+        customField.put(Constants.VALUE, "EMP-12345");
+
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.USER_ID_RQST, USER_ID);
+        request.put(Constants.ORGANISATION_ID, "org-123");
+        request.put(Constants.CUSTOM_FIELD_VALUES, List.of(customField));
+
+        CustomFieldEntity customFieldEntity = mock(CustomFieldEntity.class);
+        JsonNode customFieldData = mock(JsonNode.class);
+        JsonNode orgIdNode = mock(JsonNode.class);
+        JsonNode attrNameNode = mock(JsonNode.class);
+        JsonNode typeNode = mock(JsonNode.class);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(TOKEN), any())).thenReturn(USER_ID);
+        when(customFieldRepository.findByCustomFiledIdAndIsActiveTrue(customFieldId))
+            .thenReturn(java.util.Optional.of(customFieldEntity));
+        when(customFieldEntity.getIsActive()).thenReturn(true);
+        when(customFieldEntity.getCustomFieldData()).thenReturn(customFieldData);
+        when(customFieldData.get(Constants.ORGANISATION_ID)).thenReturn(orgIdNode);
+        when(orgIdNode.asText()).thenReturn("org-123");
+        when(customFieldData.get(Constants.ATTRIBUTE_NAME)).thenReturn(attrNameNode);
+        when(attrNameNode.asText()).thenReturn("employeeId");
+        when(customFieldData.get(Constants.TYPE)).thenReturn(typeNode);
+        when(typeNode.asText()).thenReturn(Constants.TEXT);
+        when(profileReaderService.getExistingContextData(any(), any())).thenThrow(new RuntimeException("Database error"));
+
+        // Act
+        ApiResponse response = profileService.updateAdditionalFields(request, TOKEN);
+
+        // Assert
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
+    }
+
+    // ==================== getAdditionalFieldsByOrg Tests ====================
+
+    @Test
+    void getAdditionalFieldsByOrg_WithValidData_ShouldReturnOrgData() {
+        // Arrange
+        Map<String, Object> orgData1 = new HashMap<>();
+        orgData1.put(Constants.ORGANISATION_ID, "org-123");
+        orgData1.put(Constants.CUSTOM_FIELD_VALUES, List.of(Map.of("field", "value1")));
+
+        Map<String, Object> orgData2 = new HashMap<>();
+        orgData2.put(Constants.ORGANISATION_ID, "org-456");
+        orgData2.put(Constants.CUSTOM_FIELD_VALUES, List.of(Map.of("field", "value2")));
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(TOKEN), any())).thenReturn(USER_ID);
+        when(profileReaderService.getExistingContextData(USER_ID, Constants.ORG_ADDITIONAL_PROPERTIES))
+            .thenReturn(List.of(orgData1, orgData2));
+
+        // Act
+        ApiResponse response = profileService.getAdditionalFieldsByOrg(USER_ID, "org-123", TOKEN);
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        Map<String, Object> result = (Map<String, Object>) response.get(Constants.RESPONSE);
+        assertEquals("org-123", result.get(Constants.ORGANISATION_ID));
+    }
+
+    @Test
+    void getAdditionalFieldsByOrg_WithInvalidToken_ShouldReturnError() {
+        // Arrange
+        doAnswer(invocation -> {
+            ApiResponse resp = invocation.getArgument(1);
+            resp.setResponseCode(HttpStatus.UNAUTHORIZED);
+            return "";
+        }).when(accessTokenValidator).fetchUserIdFromAccessToken(eq(TOKEN), any());
+
+        // Act
+        ApiResponse response = profileService.getAdditionalFieldsByOrg(USER_ID, "org-123", TOKEN);
+
+        // Assert
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getResponseCode());
+    }
+
+    @Test
+    void getAdditionalFieldsByOrg_WithUserIdMismatch_ShouldReturnUnauthorized() {
+        // Arrange
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(TOKEN), any())).thenReturn("different-user");
+
+        // Act
+        ApiResponse response = profileService.getAdditionalFieldsByOrg(USER_ID, "org-123", TOKEN);
+
+        // Assert
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getResponseCode());
+    }
+
+    @Test
+    void getAdditionalFieldsByOrg_WithNoDataForOrg_ShouldReturnEmptyMap() {
+        // Arrange
+        Map<String, Object> orgData = new HashMap<>();
+        orgData.put(Constants.ORGANISATION_ID, "org-456");
+        orgData.put(Constants.CUSTOM_FIELD_VALUES, List.of());
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(TOKEN), any())).thenReturn(USER_ID);
+        when(profileReaderService.getExistingContextData(USER_ID, Constants.ORG_ADDITIONAL_PROPERTIES))
+            .thenReturn(List.of(orgData));
+
+        // Act
+        ApiResponse response = profileService.getAdditionalFieldsByOrg(USER_ID, "org-123", TOKEN);
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        Map<String, Object> result = (Map<String, Object>) response.get(Constants.RESPONSE);
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void getAdditionalFieldsByOrg_WithException_ShouldReturnInternalServerError() {
+        // Arrange
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(TOKEN), any())).thenReturn(USER_ID);
+        when(profileReaderService.getExistingContextData(any(), any())).thenThrow(new RuntimeException("Database error"));
+
+        // Act
+        ApiResponse response = profileService.getAdditionalFieldsByOrg(USER_ID, "org-123", TOKEN);
+
+        // Assert
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
     }
 }

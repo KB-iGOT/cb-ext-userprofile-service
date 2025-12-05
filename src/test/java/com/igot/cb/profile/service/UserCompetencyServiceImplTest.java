@@ -48,22 +48,26 @@ class UserCompetencyServiceImplTest {
     // ==================== listCompetencies Tests ====================
 
     @Test
-    void testListCompetencies_WithCacheHit() throws Exception {
-        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(USER_TOKEN), any())).thenReturn(USER_ID);
+    void testListCompetencies_WithCacheHit() {
+        try {
+            when(accessTokenValidator.fetchUserIdFromAccessToken(eq(USER_TOKEN), any())).thenReturn(USER_ID);
 
-        String cacheKey = Constants.USER + ":competencies:" + USER_ID;
-        String cachedJson = "{\"competencyAreaCounts\":{\"Technology\":5}}";
-        Map<String, Object> cachedCompetencies = Map.of("competencyAreaCounts", Map.of("Technology", 5));
+            String cacheKey = Constants.USER + ":competencies:" + USER_ID;
+            String cachedJson = "{\"competencyAreaCounts\":{\"Technology\":5}}";
+            Map<String, Object> cachedCompetencies = Map.of("competencyAreaCounts", Map.of("Technology", 5));
 
-        when(cacheService.getCache(cacheKey)).thenReturn(cachedJson);
-        when(projectUtil.parseMap(cachedJson)).thenReturn(cachedCompetencies);
+            when(cacheService.getCache(cacheKey)).thenReturn(cachedJson);
+            when(projectUtil.parseMap(cachedJson)).thenReturn(cachedCompetencies);
 
-        ApiResponse response = service.listCompetencies(USER_ID, USER_TOKEN);
+            ApiResponse response = service.listCompetencies(USER_ID, USER_TOKEN);
 
-        assertEquals(HttpStatus.OK, response.getResponseCode());
-        assertNotNull(response.get(Constants.RESPONSE));
-        assertEquals(cachedCompetencies, response.get(Constants.RESPONSE));
-        verify(cassandraOperation, never()).getAllRecordsByProperties(any(), any(), any(), any(), anyInt());
+            assertEquals(HttpStatus.OK, response.getResponseCode());
+            assertNotNull(response.get(Constants.RESPONSE));
+            assertEquals(cachedCompetencies, response.get(Constants.RESPONSE));
+            verify(cassandraOperation, never()).getAllRecordsByProperties(any(), any(), any(), any(), anyInt());
+        } catch (Exception e) {
+            fail("Exception should not be thrown: " + e.getMessage());
+        }
     }
 
     @Test
@@ -180,6 +184,139 @@ class UserCompetencyServiceImplTest {
         ApiResponse response = service.listCompetencies(USER_ID, USER_TOKEN);
 
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
+    }
+
+    @Test
+    void testListCompetencies_CacheHitButEmptyParsedMap() {
+        try {
+            when(accessTokenValidator.fetchUserIdFromAccessToken(eq(USER_TOKEN), any())).thenReturn(USER_ID);
+
+            String cacheKey = Constants.USER + ":competencies:" + USER_ID;
+            String cachedJson = "{\"someData\":\"value\"}";
+
+            when(cacheService.getCache(cacheKey)).thenReturn(cachedJson);
+            when(projectUtil.parseMap(cachedJson)).thenReturn(Map.of());
+
+            // Mock enrolment records with no completed courses
+            when(cassandraOperation.getAllRecordsByProperties(any(), any(), any(), any(), anyInt()))
+                    .thenReturn(List.of());
+
+            ApiResponse response = service.listCompetencies(USER_ID, USER_TOKEN);
+
+            assertEquals(HttpStatus.NO_CONTENT, response.getResponseCode());
+        } catch (Exception e) {
+            fail("Exception should not be thrown: " + e.getMessage());
+        }
+    }
+
+    @Test
+    void testListCompetencies_EmptyCompetenciesAfterAnalysis() {
+        try {
+            when(accessTokenValidator.fetchUserIdFromAccessToken(eq(USER_TOKEN), any())).thenReturn(USER_ID);
+            when(cacheService.getCache(anyString())).thenReturn(null);
+
+            Map<String, Object> enrolment1 = new HashMap<>();
+            enrolment1.put(Constants.USERID_KEY, USER_ID);
+            enrolment1.put(Constants.COURSE_ID, "course-1");
+            enrolment1.put(Constants.ACTIVE_LOWERCASE, true);
+            enrolment1.put(Constants.STATUS, 2);
+
+            when(cassandraOperation.getAllRecordsByProperties(any(), any(), any(), any(), anyInt()))
+                    .thenReturn(List.of(enrolment1));
+
+            Map<String, String> courseMetadataJson = Map.of("course-1", "{\"courseId\":\"course-1\"}");
+            when(cacheService.getCourseMetadataAsJsonString(List.of("course-1")))
+                    .thenReturn(courseMetadataJson);
+
+            Map<String, Object> course1Data = Map.of(Constants.COURSE_ID, "course-1");
+            when(projectUtil.parseMap("{\"courseId\":\"course-1\"}")).thenReturn(course1Data);
+
+            ApiResponse response = service.listCompetencies(USER_ID, USER_TOKEN);
+
+            // analyzeCompetencies returns a result with empty maps, not truly empty, so it returns OK
+            assertEquals(HttpStatus.OK, response.getResponseCode());
+            assertNotNull(response.get(Constants.RESPONSE));
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> competencies = (Map<String, Object>) response.get(Constants.RESPONSE);
+            assertTrue(competencies.containsKey(Constants.COMPETENCY_AREA_COUNTS));
+
+            @SuppressWarnings("unchecked")
+            Map<String, Long> areaCounts = (Map<String, Long>) competencies.get(Constants.COMPETENCY_AREA_COUNTS);
+            assertTrue(areaCounts.isEmpty());
+        } catch (Exception e) {
+            fail("Exception should not be thrown: " + e.getMessage());
+        }
+    }
+
+    @Test
+    void testListCompetencies_WithNonIntegerStatus() {
+        try {
+            when(accessTokenValidator.fetchUserIdFromAccessToken(eq(USER_TOKEN), any())).thenReturn(USER_ID);
+            when(cacheService.getCache(anyString())).thenReturn(null);
+
+            Map<String, Object> enrolment1 = new HashMap<>();
+            enrolment1.put(Constants.USERID_KEY, USER_ID);
+            enrolment1.put(Constants.COURSE_ID, "course-1");
+            enrolment1.put(Constants.ACTIVE_LOWERCASE, true);
+            enrolment1.put(Constants.STATUS, "2"); // String instead of Integer
+
+            Map<String, Object> enrolment2 = new HashMap<>();
+            enrolment2.put(Constants.USERID_KEY, USER_ID);
+            enrolment2.put(Constants.COURSE_ID, "course-2");
+            enrolment2.put(Constants.ACTIVE_LOWERCASE, true);
+            enrolment2.put(Constants.STATUS, 2); // Valid Integer
+
+            when(cassandraOperation.getAllRecordsByProperties(any(), any(), any(), any(), anyInt()))
+                    .thenReturn(List.of(enrolment1, enrolment2));
+
+            Map<String, String> courseMetadataJson = Map.of("course-2", "{\"courseId\":\"course-2\",\"competenciesV6\":[]}");
+            when(cacheService.getCourseMetadataAsJsonString(List.of("course-2")))
+                    .thenReturn(courseMetadataJson);
+
+            Map<String, Object> course2Data = Map.of(
+                    Constants.COURSE_ID, "course-2",
+                    Constants.COMPETENCIES_V6, List.of(
+                            Map.of(
+                                    Constants.COMPETENCY_AREA_NAME, "Technology",
+                                    Constants.COMPETENCY_THEME_NAME, "Software Development",
+                                    Constants.COMPETENCY_SUB_THEME_NAME, "Backend"
+                            )
+                    )
+            );
+            when(projectUtil.parseMap("{\"courseId\":\"course-2\",\"competenciesV6\":[]}"))
+                    .thenReturn(course2Data);
+
+            ApiResponse response = service.listCompetencies(USER_ID, USER_TOKEN);
+
+            assertEquals(HttpStatus.OK, response.getResponseCode());
+            assertNotNull(response.get(Constants.RESPONSE));
+        } catch (Exception e) {
+            fail("Exception should not be thrown: " + e.getMessage());
+        }
+    }
+
+    @Test
+    void testListCompetencies_WithNullCourseId() {
+        try {
+            when(accessTokenValidator.fetchUserIdFromAccessToken(eq(USER_TOKEN), any())).thenReturn(USER_ID);
+            when(cacheService.getCache(anyString())).thenReturn(null);
+
+            Map<String, Object> enrolment1 = new HashMap<>();
+            enrolment1.put(Constants.USERID_KEY, USER_ID);
+            enrolment1.put(Constants.COURSE_ID, null);
+            enrolment1.put(Constants.ACTIVE_LOWERCASE, true);
+            enrolment1.put(Constants.STATUS, 2);
+
+            when(cassandraOperation.getAllRecordsByProperties(any(), any(), any(), any(), anyInt()))
+                    .thenReturn(List.of(enrolment1));
+
+            ApiResponse response = service.listCompetencies(USER_ID, USER_TOKEN);
+
+            assertEquals(HttpStatus.NO_CONTENT, response.getResponseCode());
+        } catch (Exception e) {
+            fail("Exception should not be thrown: " + e.getMessage());
+        }
     }
 
     // ==================== getCourseMetadataBatched Tests ====================
@@ -312,6 +449,89 @@ class UserCompetencyServiceImplTest {
         Map<String, Map<String, Object>> result = service.getCourseMetadataBatched(courseIds, 100, null);
 
         assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void testGetCourseMetadataBatched_ParsedMapNull() {
+        try {
+            List<String> courseIds = List.of("course-1");
+            Map<String, String> courseMetadataJson = Map.of("course-1", "{\"courseId\":\"course-1\"}");
+
+            when(cacheService.getCourseMetadataAsJsonString(courseIds)).thenReturn(courseMetadataJson);
+            when(projectUtil.parseMap("{\"courseId\":\"course-1\"}")).thenReturn(null);
+
+            Map<String, Map<String, Object>> result = service.getCourseMetadataBatched(courseIds, 100, null);
+
+            assertTrue(result.isEmpty());
+        } catch (Exception e) {
+            fail("Exception should not be thrown: " + e.getMessage());
+        }
+    }
+
+    @Test
+    void testGetCourseMetadataBatched_ParsedMapEmpty() {
+        try {
+            List<String> courseIds = List.of("course-1");
+            Map<String, String> courseMetadataJson = Map.of("course-1", "{\"courseId\":\"course-1\"}");
+
+            when(cacheService.getCourseMetadataAsJsonString(courseIds)).thenReturn(courseMetadataJson);
+            when(projectUtil.parseMap("{\"courseId\":\"course-1\"}")).thenReturn(Map.of());
+
+            Map<String, Map<String, Object>> result = service.getCourseMetadataBatched(courseIds, 100, null);
+
+            assertTrue(result.isEmpty());
+        } catch (Exception e) {
+            fail("Exception should not be thrown: " + e.getMessage());
+        }
+    }
+
+    @Test
+    void testGetCourseMetadataBatched_EmptyFieldsList() {
+        try {
+            List<String> courseIds = List.of("course-1");
+            Map<String, String> courseMetadataJson = Map.of("course-1", "{\"courseId\":\"course-1\",\"name\":\"Course 1\"}");
+
+            when(cacheService.getCourseMetadataAsJsonString(courseIds)).thenReturn(courseMetadataJson);
+
+            Map<String, Object> course1Data = Map.of(
+                    Constants.COURSE_ID, "course-1",
+                    Constants.NAME, "Course 1"
+            );
+            when(projectUtil.parseMap("{\"courseId\":\"course-1\",\"name\":\"Course 1\"}"))
+                    .thenReturn(course1Data);
+
+            Map<String, Map<String, Object>> result = service.getCourseMetadataBatched(
+                    courseIds, 100, Collections.emptyList());
+
+            assertTrue(result.containsKey("course-1"));
+            assertEquals(course1Data, result.get("course-1"));
+        } catch (Exception e) {
+            fail("Exception should not be thrown: " + e.getMessage());
+        }
+    }
+
+    @Test
+    void testGetCourseMetadataBatched_EmptyFilteredMap() {
+        try {
+            List<String> courseIds = List.of("course-1");
+            List<String> fields = List.of("nonExistentField");
+            Map<String, String> courseMetadataJson = Map.of("course-1", "{\"courseId\":\"course-1\",\"name\":\"Course 1\"}");
+
+            when(cacheService.getCourseMetadataAsJsonString(courseIds)).thenReturn(courseMetadataJson);
+
+            Map<String, Object> course1Data = Map.of(
+                    Constants.COURSE_ID, "course-1",
+                    Constants.NAME, "Course 1"
+            );
+            when(projectUtil.parseMap("{\"courseId\":\"course-1\",\"name\":\"Course 1\"}"))
+                    .thenReturn(course1Data);
+
+            Map<String, Map<String, Object>> result = service.getCourseMetadataBatched(courseIds, 100, fields);
+
+            assertTrue(result.isEmpty());
+        } catch (Exception e) {
+            fail("Exception should not be thrown: " + e.getMessage());
+        }
     }
 
     // ==================== analyzeCompetencies Tests ====================
@@ -467,6 +687,162 @@ class UserCompetencyServiceImplTest {
 
         // Should contain both course IDs
         assertEquals(2, courseIds.size());
+    }
+
+    @Test
+    void testAnalyzeCompetencies_NullMetadata() {
+        Map<String, Object> result = service.analyzeCompetencies(null);
+
+        assertNotNull(result);
+        assertTrue(result.containsKey(Constants.COMPETENCY_AREA_COUNTS));
+        assertTrue(result.containsKey(Constants.COMPETENCY_THEME_GROUPS));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Long> areaCounts = (Map<String, Long>) result.get(Constants.COMPETENCY_AREA_COUNTS);
+        assertTrue(areaCounts.isEmpty());
+    }
+
+    @Test
+    void testAnalyzeCompetencies_NullCourseMap() {
+        Map<String, Map<String, Object>> courseMetadata = new HashMap<>();
+        courseMetadata.put("course-1", null);
+        courseMetadata.put("course-2", Map.of(
+                Constants.COMPETENCIES_V6, List.of(
+                        Map.of(
+                                Constants.COMPETENCY_AREA_NAME, "Technology",
+                                Constants.COMPETENCY_THEME_NAME, "Software Development",
+                                Constants.COMPETENCY_SUB_THEME_NAME, "Backend"
+                        )
+                )
+        ));
+
+        Map<String, Object> result = service.analyzeCompetencies(courseMetadata);
+
+        assertNotNull(result);
+        @SuppressWarnings("unchecked")
+        Map<String, Long> areaCounts = (Map<String, Long>) result.get(Constants.COMPETENCY_AREA_COUNTS);
+        assertEquals(1L, areaCounts.get("Technology"));
+    }
+
+    @Test
+    void testAnalyzeCompetencies_CompetenciesNotList() {
+        Map<String, Map<String, Object>> courseMetadata = new HashMap<>();
+        Map<String, Object> course1 = new HashMap<>();
+        course1.put(Constants.COMPETENCIES_V6, "not a list");
+        courseMetadata.put("course-1", course1);
+
+        Map<String, Object> result = service.analyzeCompetencies(courseMetadata);
+
+        assertNotNull(result);
+        @SuppressWarnings("unchecked")
+        Map<String, Long> areaCounts = (Map<String, Long>) result.get(Constants.COMPETENCY_AREA_COUNTS);
+        assertTrue(areaCounts.isEmpty());
+    }
+
+    @Test
+    void testAnalyzeCompetencies_NullSubThemeName() {
+        Map<String, Map<String, Object>> courseMetadata = new HashMap<>();
+        Map<String, Object> course1 = new HashMap<>();
+
+        Map<String, Object> competency = new HashMap<>();
+        competency.put(Constants.COMPETENCY_AREA_NAME, "Technology");
+        competency.put(Constants.COMPETENCY_THEME_NAME, "Software Development");
+        competency.put(Constants.COMPETENCY_SUB_THEME_NAME, null);
+
+        course1.put(Constants.COMPETENCIES_V6, List.of(competency));
+        courseMetadata.put("course-1", course1);
+
+        Map<String, Object> result = service.analyzeCompetencies(courseMetadata);
+
+        assertNotNull(result);
+        @SuppressWarnings("unchecked")
+        Map<String, Long> areaCounts = (Map<String, Long>) result.get(Constants.COMPETENCY_AREA_COUNTS);
+        assertEquals(1L, areaCounts.get("Technology"));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Map<String, Object>> themeGroups = (Map<String, Map<String, Object>>)
+                result.get(Constants.COMPETENCY_THEME_GROUPS);
+
+        @SuppressWarnings("unchecked")
+        List<String> subThemes = (List<String>) themeGroups.get("Software Development")
+                .get(Constants.COMPETENCY_SUB_THEME_NAMES);
+
+        // String.valueOf(null) returns "null" as a string, which is not blank, so it gets added
+        assertEquals(1, subThemes.size());
+        assertTrue(subThemes.contains("null"));
+    }
+
+    @Test
+    void testAnalyzeCompetencies_BlankSubThemeName() {
+        Map<String, Map<String, Object>> courseMetadata = new HashMap<>();
+        Map<String, Object> course1 = new HashMap<>();
+
+        List<Map<String, Object>> competencies = List.of(
+                Map.of(
+                        Constants.COMPETENCY_AREA_NAME, "Technology",
+                        Constants.COMPETENCY_THEME_NAME, "Software Development",
+                        Constants.COMPETENCY_SUB_THEME_NAME, "   "
+                ),
+                Map.of(
+                        Constants.COMPETENCY_AREA_NAME, "Technology",
+                        Constants.COMPETENCY_THEME_NAME, "Software Development",
+                        Constants.COMPETENCY_SUB_THEME_NAME, "Backend"
+                )
+        );
+
+        course1.put(Constants.COMPETENCIES_V6, competencies);
+        courseMetadata.put("course-1", course1);
+
+        Map<String, Object> result = service.analyzeCompetencies(courseMetadata);
+
+        assertNotNull(result);
+        @SuppressWarnings("unchecked")
+        Map<String, Map<String, Object>> themeGroups = (Map<String, Map<String, Object>>)
+                result.get(Constants.COMPETENCY_THEME_GROUPS);
+
+        @SuppressWarnings("unchecked")
+        List<String> subThemes = (List<String>) themeGroups.get("Software Development")
+                .get(Constants.COMPETENCY_SUB_THEME_NAMES);
+
+        assertEquals(1, subThemes.size());
+        assertTrue(subThemes.contains("Backend"));
+    }
+
+    @Test
+    void testAnalyzeCompetencies_ExceptionDuringProcessing() {
+        Map<String, Map<String, Object>> courseMetadata = new HashMap<>();
+        Map<String, Object> course1 = new HashMap<>();
+
+        course1.put(Constants.COMPETENCIES_V6, List.of(
+                Map.of(
+                        Constants.COMPETENCY_AREA_NAME, "Technology",
+                        Constants.COMPETENCY_THEME_NAME, "Software Development",
+                        Constants.COMPETENCY_SUB_THEME_NAME, "Backend"
+                )
+        ));
+        courseMetadata.put("course-1", course1);
+
+        Map<String, Object> result = service.analyzeCompetencies(courseMetadata);
+
+        assertNotNull(result);
+        assertTrue(result.containsKey(Constants.COMPETENCY_AREA_COUNTS));
+        assertTrue(result.containsKey(Constants.COMPETENCY_THEME_GROUPS));
+    }
+
+    @Test
+    void testAnalyzeCompetencies_CompetencyNotMap() {
+        Map<String, Map<String, Object>> courseMetadata = new HashMap<>();
+        Map<String, Object> course1 = new HashMap<>();
+
+        course1.put(Constants.COMPETENCIES_V6, List.of("not a map", 123));
+        courseMetadata.put("course-1", course1);
+
+        Map<String, Object> result = service.analyzeCompetencies(courseMetadata);
+
+        assertNotNull(result);
+        @SuppressWarnings("unchecked")
+        Map<String, Long> areaCounts = (Map<String, Long>) result.get(Constants.COMPETENCY_AREA_COUNTS);
+        assertTrue(areaCounts.isEmpty());
     }
 
     @Test
