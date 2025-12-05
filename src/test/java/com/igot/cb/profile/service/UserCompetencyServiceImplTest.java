@@ -67,77 +67,81 @@ class UserCompetencyServiceImplTest {
     }
 
     @Test
-    void testListCompetencies_WithCacheMiss_Success() throws Exception {
-        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(USER_TOKEN), any())).thenReturn(USER_ID);
+    void testListCompetencies_WithCacheMiss_Success() {
+        try {
+            when(accessTokenValidator.fetchUserIdFromAccessToken(eq(USER_TOKEN), any())).thenReturn(USER_ID);
 
-        String cacheKey = Constants.USER + ":competencies:" + USER_ID;
-        when(cacheService.getCache(cacheKey)).thenReturn(null);
+            String cacheKey = Constants.USER + ":competencies:" + USER_ID;
+            when(cacheService.getCache(cacheKey)).thenReturn(null);
 
-        // Mock enrolment records
-        Map<String, Object> enrolment1 = new HashMap<>();
-        enrolment1.put(Constants.USERID_KEY, USER_ID);
-        enrolment1.put(Constants.COURSE_ID, "course-1");
-        enrolment1.put(Constants.BATCH_ID, "batch-1");
-        enrolment1.put(Constants.ACTIVE_LOWERCASE, true);
-        enrolment1.put(Constants.STATUS, 2);
+            // Mock enrolment records
+            Map<String, Object> enrolment1 = new HashMap<>();
+            enrolment1.put(Constants.USERID_KEY, USER_ID);
+            enrolment1.put(Constants.COURSE_ID, "course-1");
+            enrolment1.put(Constants.BATCH_ID, "batch-1");
+            enrolment1.put(Constants.ACTIVE_LOWERCASE, true);
+            enrolment1.put(Constants.STATUS, 2);
 
-        Map<String, Object> enrolment2 = new HashMap<>();
-        enrolment2.put(Constants.USERID_KEY, USER_ID);
-        enrolment2.put(Constants.COURSE_ID, "course-2");
-        enrolment2.put(Constants.BATCH_ID, "batch-2");
-        enrolment2.put(Constants.ACTIVE_LOWERCASE, true);
-        enrolment2.put(Constants.STATUS, 2);
+            Map<String, Object> enrolment2 = new HashMap<>();
+            enrolment2.put(Constants.USERID_KEY, USER_ID);
+            enrolment2.put(Constants.COURSE_ID, "course-2");
+            enrolment2.put(Constants.BATCH_ID, "batch-2");
+            enrolment2.put(Constants.ACTIVE_LOWERCASE, true);
+            enrolment2.put(Constants.STATUS, 2);
 
-        List<Map<String, Object>> enrolments = List.of(enrolment1, enrolment2);
+            List<Map<String, Object>> enrolments = List.of(enrolment1, enrolment2);
 
-        when(cassandraOperation.getAllRecordsByProperties(
-                eq(Constants.KEYSPACE_SUNBIRD_COURSES),
-                eq(Constants.TABLE_USER_ENROLMENTS),
-                eq(Map.of(Constants.USERID_KEY, USER_ID)),
-                any(),
-                eq(100)
-        )).thenReturn(enrolments);
+            when(cassandraOperation.getAllRecordsByProperties(
+                    eq(Constants.KEYSPACE_SUNBIRD_COURSES),
+                    eq(Constants.TABLE_USER_ENROLMENTS),
+                    eq(Map.of(Constants.USERID_KEY, USER_ID)),
+                    any(),
+                    eq(100)
+            )).thenReturn(enrolments);
 
-        // Mock course metadata
-        Map<String, String> courseMetadataJson = new HashMap<>();
-        courseMetadataJson.put("course-1", "{\"courseId\":\"course-1\",\"competenciesV6\":[]}");
-        courseMetadataJson.put("course-2", "{\"courseId\":\"course-2\",\"competenciesV6\":[]}");
+            // Mock course metadata
+            Map<String, String> courseMetadataJson = new HashMap<>();
+            courseMetadataJson.put("course-1", "{\"courseId\":\"course-1\",\"competenciesV6\":[]}");
+            courseMetadataJson.put("course-2", "{\"courseId\":\"course-2\",\"competenciesV6\":[]}");
 
-        when(cacheService.getCourseMetadataAsJsonString(List.of("course-1", "course-2")))
-                .thenReturn(courseMetadataJson);
+            when(cacheService.getCourseMetadataAsJsonString(List.of("course-1", "course-2")))
+                    .thenReturn(courseMetadataJson);
 
-        Map<String, Object> course1Data = Map.of(
-                Constants.COURSE_ID, "course-1",
-                Constants.COMPETENCIES_V6, List.of(
-                        Map.of(
-                                Constants.COMPETENCY_AREA_NAME, "Technology",
-                                Constants.COMPETENCY_THEME_NAME, "Software Development",
-                                Constants.COMPETENCY_SUB_THEME_NAME, "Backend"
-                        )
-                )
-        );
+            Map<String, Object> course1Data = Map.of(
+                    Constants.COURSE_ID, "course-1",
+                    Constants.COMPETENCIES_V6, List.of(
+                            Map.of(
+                                    Constants.COMPETENCY_AREA_NAME, "Technology",
+                                    Constants.COMPETENCY_THEME_NAME, "Software Development",
+                                    Constants.COMPETENCY_SUB_THEME_NAME, "Backend"
+                            )
+                    )
+            );
 
-        Map<String, Object> course2Data = Map.of(
-                Constants.COURSE_ID, "course-2",
-                Constants.COMPETENCIES_V6, List.of(
-                        Map.of(
-                                Constants.COMPETENCY_AREA_NAME, "Technology",
-                                Constants.COMPETENCY_THEME_NAME, "Software Development",
-                                Constants.COMPETENCY_SUB_THEME_NAME, "Frontend"
-                        )
-                )
-        );
+            Map<String, Object> course2Data = Map.of(
+                    Constants.COURSE_ID, "course-2",
+                    Constants.COMPETENCIES_V6, List.of(
+                            Map.of(
+                                    Constants.COMPETENCY_AREA_NAME, "Technology",
+                                    Constants.COMPETENCY_THEME_NAME, "Software Development",
+                                    Constants.COMPETENCY_SUB_THEME_NAME, "Frontend"
+                            )
+                    )
+            );
 
-        when(projectUtil.parseMap("{\"courseId\":\"course-1\",\"competenciesV6\":[]}"))
-                .thenReturn(course1Data);
-        when(projectUtil.parseMap("{\"courseId\":\"course-2\",\"competenciesV6\":[]}"))
-                .thenReturn(course2Data);
+            when(projectUtil.parseMap("{\"courseId\":\"course-1\",\"competenciesV6\":[]}"))
+                    .thenReturn(course1Data);
+            when(projectUtil.parseMap("{\"courseId\":\"course-2\",\"competenciesV6\":[]}"))
+                    .thenReturn(course2Data);
 
-        ApiResponse response = service.listCompetencies(USER_ID, USER_TOKEN);
+            ApiResponse response = service.listCompetencies(USER_ID, USER_TOKEN);
 
-        assertEquals(HttpStatus.OK, response.getResponseCode());
-        assertNotNull(response.get(Constants.RESPONSE));
-        verify(cacheService).putCache(eq(cacheKey), any());
+            assertEquals(HttpStatus.OK, response.getResponseCode());
+            assertNotNull(response.get(Constants.RESPONSE));
+            verify(cacheService).putCache(eq(cacheKey), any());
+        } catch (Exception e) {
+            fail("Exception should not be thrown: " + e.getMessage());
+        }
     }
 
     @Test

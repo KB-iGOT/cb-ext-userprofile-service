@@ -9,6 +9,7 @@ import org.igot.common.service.OutboundRequestHandlerServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -86,6 +87,24 @@ class UserInfoHelperServiceImplTest {
 
         assertEquals(250, result);
         verify(cacheService).putCache(redisKey, 250);
+    }
+
+    @Test
+    void testGetUserKarmaPoints_WithCacheMiss_NoRecords() {
+        String redisKey = "user:karmaPoints:" + USER_ID;
+        when(cacheService.getCache(redisKey)).thenReturn(null);
+        when(cassandraOperation.getRecordsByProperties(
+                eq(Constants.KEYSPACE_SUNBIRD),
+                eq(Constants.USER_KARMA_POINTS_SUMMARY_TABLE),
+                eq(Map.of(Constants.USERID_KEY, USER_ID)),
+                eq(List.of(Constants.TOTAL_POINTS)),
+                isNull()
+        )).thenReturn(Collections.emptyList());
+
+        int result = service.getUserKarmaPoints(USER_ID);
+
+        assertEquals(0, result);
+        verify(cacheService).putCache(redisKey, 0);
     }
 
     @Test
@@ -230,6 +249,24 @@ class UserInfoHelperServiceImplTest {
         assertEquals(0, result);
     }
 
+    @Test
+    void testGetUserPostCount_WithCacheMiss_ApiMissingData() {
+        String redisKey = "user:postCount_" + USER_ID;
+        String baseUrl = "http://community.example.com";
+        String apiUrl = "/api/posts/count/";
+
+        when(cacheService.getCache(redisKey)).thenReturn(null);
+        when(serverConfig.getCommunityBaseUrl()).thenReturn(baseUrl);
+        when(serverConfig.getCommunityPostCountApiUrl()).thenReturn(apiUrl);
+        when(outboundRequestHandlerService.fetchUsingGetWithHeadersProfile(eq(baseUrl + apiUrl + USER_ID), isNull()))
+                .thenReturn(Collections.emptyMap());
+
+        int result = service.getUserPostCount(USER_ID);
+
+        assertEquals(0, result);
+        verify(cacheService).putCache(redisKey, 0);
+    }
+
     // ==================== getUserRoles Tests ====================
 
     @Test
@@ -275,6 +312,27 @@ class UserInfoHelperServiceImplTest {
 
         assertEquals(1, result.size());
         assertEquals("VIEWER", result.get(0));
+    }
+
+    @Test
+    void testGetUserRoles_WithInvalidScopeJson() {
+        Map<String, Object> role1 = new HashMap<>();
+        role1.put(Constants.ROLE, "VIEWER");
+        String scopeJson = "[{\"organisationId\":\"" + ROOT_ORG_ID + "\"}]";
+        role1.put(Constants.SCOPE, scopeJson);
+
+        when(cassandraOperation.getRecordsByProperties(any(), any(), any(), any(), any()))
+                .thenReturn(List.of(role1));
+        try {
+            when(mapper.readValue(eq(scopeJson), any(com.fasterxml.jackson.core.type.TypeReference.class)))
+                    .thenThrow(new RuntimeException("Parsing error"));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+        List<String> result = service.getUserRoles(USER_ID, ROOT_ORG_ID);
+
+        assertTrue(result.isEmpty());
     }
 
     @Test
@@ -777,6 +835,56 @@ class UserInfoHelperServiceImplTest {
         assertTrue(details.containsKey("name"));
     }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    void testSanitizeProfile_PrivateConnections_NotApproved() {
+        Map<String, Object> profileDetails = new HashMap<>();
+        profileDetails.put(Constants.PROFILE_PREFERENCE, 10);  // PRIVATE_CONNECTIONS
+        profileDetails.put("name", "John Doe");
+        profileDetails.put("email", "john@example.com");
+        profileDetails.put("phone", "123-456");
+
+        Map<String, Object> profile = new HashMap<>();
+        profile.put(Constants.PROFILE_DETAILS, profileDetails);
+        profile.put(Constants.ID, USER_ID);
+        profile.put(Constants.AUTH_TOKEN, "auth-token");
+        profile.put("phone", "123-456");
+
+        when(outboundRequestHandlerService.fetchUsingGetWithHeadersProfile(any(), any()))
+                .thenReturn(Map.of(
+                        Constants.RESULT, Map.of(
+                                Constants.RESPONSE, Map.of(Constants.STATUS, "Pending")
+                        )
+                ));
+        when(serverConfig.getProfileVisibleAllowedFields()).thenReturn("name,email");
+        when(serverConfig.getBasicDetailsFilteredKeys()).thenReturn("phone");
+
+        service.sanitizeProfile(profile, USER_TOKEN);
+
+        Map<String, Object> details = (Map<String, Object>) profile.get(Constants.PROFILE_DETAILS);
+        assertEquals(2, details.size());
+        assertFalse(details.containsKey("phone"));
+        assertFalse(profile.containsKey("phone"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void testSanitizeProfile_UnrecognizedPreference() {
+        Map<String, Object> profileDetails = new HashMap<>();
+        profileDetails.put(Constants.PROFILE_PREFERENCE, 99);
+        profileDetails.put(Constants.PERSONAL_DETAILS, Map.of("aadhar", "1234"));
+        profileDetails.put("name", "John Doe");
+
+        Map<String, Object> profile = new HashMap<>();
+        profile.put(Constants.PROFILE_DETAILS, profileDetails);
+
+        service.sanitizeProfile(profile, USER_TOKEN);
+
+        Map<String, Object> details = (Map<String, Object>) profile.get(Constants.PROFILE_DETAILS);
+        assertFalse(details.containsKey(Constants.PERSONAL_DETAILS));
+        assertEquals("John Doe", details.get("name"));
+    }
+
     // ==================== checkConnected Tests ====================
 
     @Test
@@ -798,6 +906,20 @@ class UserInfoHelperServiceImplTest {
         assertNotNull(result);
         assertEquals("Approved", result.get(Constants.STATUS));
         assertEquals("conn-123", result.get("connectionId"));
+    }
+
+    @Test
+    void testCheckConnected_HeaderPopulation() {
+        ArgumentCaptor<Map<String, String>> headerCaptor = ArgumentCaptor.forClass(Map.class);
+        when(outboundRequestHandlerService.fetchUsingGetWithHeadersProfile(anyString(), headerCaptor.capture()))
+                .thenReturn(null);
+
+        service.checkConnected(USER_ID, "auth-token", "");
+
+        Map<String, String> headers = headerCaptor.getValue();
+        assertEquals(1, headers.size());
+        assertEquals("auth-token", headers.get(Constants.AUTH_TOKEN));
+        assertFalse(headers.containsKey(Constants.X_AUTH_TOKEN));
     }
 
     @Test
