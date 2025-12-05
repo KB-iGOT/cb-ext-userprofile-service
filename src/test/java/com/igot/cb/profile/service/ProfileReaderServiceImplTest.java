@@ -384,7 +384,7 @@ class ProfileReaderServiceImplTest {
         Map<String, Object> experienceBlock = (Map<String, Object>) result.get("experience");
         assertEquals(1, experienceBlock.get(Constants.COUNT));
 
-        verify(cacheService).putCache(eq(redisKey), eq(result));
+        verify(cacheService).putCache(redisKey, result);
     }
 
     @Test
