@@ -71,9 +71,9 @@ class UserInfoHelperServiceImplTest {
         String redisKey = "user:karmaPoints:" + USER_ID;
         when(cacheService.getCache(redisKey)).thenReturn(null);
 
-        Map<String, Object> record = new HashMap<>();
-        record.put(Constants.TOTAL_POINTS, 250);
-        List<Map<String, Object>> records = List.of(record);
+        Map<String, Object> kpRecord = new HashMap<>();
+        kpRecord.put(Constants.TOTAL_POINTS, 250);
+        List<Map<String, Object>> records = List.of(kpRecord);
 
         when(cassandraOperation.getRecordsByProperties(
                 eq(Constants.KEYSPACE_SUNBIRD),

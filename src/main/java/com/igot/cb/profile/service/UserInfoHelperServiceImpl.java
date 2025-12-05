@@ -89,7 +89,7 @@ public class UserInfoHelperServiceImpl {
             int totalIssuedCertificates = 0;
             totalIssuedCertificates += (int) courseRecords.stream()
                     .filter(MapUtils::isNotEmpty)
-                    .map(record -> record.get(Constants.ISSUED_CERTIFICATES_KEY))
+                    .map(courseRecord -> courseRecord.get(Constants.ISSUED_CERTIFICATES_KEY))
                     .filter(certObj -> certObj instanceof List<?>)
                     .map(certObj -> (List<?>) certObj)
                     .filter(CollectionUtils::isNotEmpty)
