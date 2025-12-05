@@ -1023,7 +1023,7 @@ class ProfileServiceImplTest {
     }
 
     @Test
-    void updateAdditionalFields_WithValidTextFields_ShouldSucceed() throws Exception {
+    void updateAdditionalFields_WithValidTextFields_ShouldSucceed() {
         // Arrange
         String customFieldId = "cf-123";
         Map<String, Object> customField = new HashMap<>();
@@ -1073,7 +1073,7 @@ class ProfileServiceImplTest {
     }
 
     @Test
-    void updateAdditionalFields_WithCassandraFailure_ShouldReturnInternalServerError() throws Exception {
+    void updateAdditionalFields_WithCassandraFailure_ShouldReturnInternalServerError() {
         // Arrange
         String customFieldId = "cf-123";
         Map<String, Object> customField = new HashMap<>();
