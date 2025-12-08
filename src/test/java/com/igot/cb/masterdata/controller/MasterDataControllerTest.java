@@ -1,10 +1,7 @@
 package com.igot.cb.masterdata.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.igot.cb.masterdata.model.Degree;
 import com.igot.cb.masterdata.model.Institute;
-import com.igot.cb.masterdata.model.SearchCriteria;
-import com.igot.cb.masterdata.model.StatusUpdateRequest;
 import com.igot.cb.masterdata.service.MasterDataService;
 import com.igot.cb.util.ApiResponse;
 import com.igot.cb.util.Constants;

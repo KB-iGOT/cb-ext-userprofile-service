@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.authentication.util.AccessTokenValidator;
 import com.igot.cb.masterdata.model.Degree;
 import com.igot.cb.masterdata.model.Institute;
-import com.igot.cb.masterdata.model.SearchCriteria;
 import com.igot.cb.masterdata.repository.DegreeRepository;
 import com.igot.cb.masterdata.repository.InstituteRepository;
 import com.igot.cb.transactional.cassandrautils.CassandraOperation;

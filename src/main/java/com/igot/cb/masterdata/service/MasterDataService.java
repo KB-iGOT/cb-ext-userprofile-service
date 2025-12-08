@@ -1,8 +1,5 @@
 package com.igot.cb.masterdata.service;
 
-import com.igot.cb.masterdata.model.Degree;
-import com.igot.cb.masterdata.model.Institute;
-import com.igot.cb.masterdata.model.SearchCriteria;
 import com.igot.cb.util.ApiResponse;
 
 import java.util.Map;
