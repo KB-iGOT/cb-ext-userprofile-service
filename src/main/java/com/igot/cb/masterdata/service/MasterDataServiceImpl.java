@@ -555,21 +555,15 @@ public class MasterDataServiceImpl implements MasterDataService {
         return false;
     }
 
-    public ApiResponse searchDegree(SearchCriteria searchCriteria) {
+    public ApiResponse searchDegree(Map<String, Object> requestBody) {
         ApiResponse apiResponse = ProjectUtil.createDefaultResponse(Constants.API_SEARCH_DEGREE);
-
         try {
-            logger.info("Searching degrees with criteria: {}", searchCriteria);
-            // ------------------ Validation ------------------
-            if (searchCriteria.getPage() < 0 || searchCriteria.getSize() <= 0) {
-                ProjectUtil.errorResponse(apiResponse, "Invalid pagination parameters", HttpStatus.BAD_REQUEST);
+            logger.info("Searching degrees with criteria: {}", requestBody);
+            if (!validationService.validateSearchRequest(apiResponse, requestBody)) {
                 return apiResponse;
             }
-            String keyword = searchCriteria.getSearchString();
-            if (!validationService.validateSearchString(keyword, apiResponse)) {
-                return apiResponse;
-            }
-            EsResponse esResponse = searchMasterDataInIgotES(serverProperties.getEsDegreeIndexName(), serverProperties.getEsMasterDataIndexDocType(), searchCriteria);
+            Map<String, Object> searchRequest = (Map<String, Object>) requestBody.get(Constants.REQUEST);
+            EsResponse esResponse = searchMasterDataInIgotES(serverProperties.getEsDegreeIndexName(), serverProperties.getEsMasterDataIndexDocType(), searchRequest);
 
             if (!esResponse.isSuccess()) {
                 ProjectUtil.errorResponse(apiResponse, esResponse.getMessage(), HttpStatus.BAD_REQUEST);
@@ -581,31 +575,27 @@ public class MasterDataServiceImpl implements MasterDataService {
         } catch (IllegalArgumentException e) {
             logger.error("Invalid pagination or sorting parameters: {}", e.getMessage(), e);
             ProjectUtil.errorResponse(apiResponse, "Invalid pagination or sorting parameters", HttpStatus.BAD_REQUEST);
+            return apiResponse;
 
         } catch (Exception e) {
             logger.error("Unexpected error during degree search: {}", e.getMessage(), e);
-            ProjectUtil.errorResponse(apiResponse, "Unexpected error during degree search", HttpStatus.BAD_REQUEST);
+            ProjectUtil.errorResponse(apiResponse, "Unexpected error during degree search", HttpStatus.INTERNAL_SERVER_ERROR);
+            return apiResponse;
         }
 
         return apiResponse;
     }
 
-    public ApiResponse searchInstitute(SearchCriteria searchCriteria) {
+    public ApiResponse searchInstitute(Map<String, Object> requestBody) {
         ApiResponse apiResponse = ProjectUtil.createDefaultResponse(Constants.API_SEARCH_INSTITUTE);
 
         try {
-            logger.info("Searching institutes with criteria: {}", searchCriteria);
-
-            // ------------------ Validation ------------------
-            if (searchCriteria.getPage() < 0 || searchCriteria.getSize() <= 0) {
-                ProjectUtil.errorResponse(apiResponse, "Invalid pagination parameters", HttpStatus.BAD_REQUEST);
+            logger.info("Searching institutes with criteria: {}", requestBody);
+            if (!validationService.validateSearchRequest(apiResponse, requestBody)) {
                 return apiResponse;
             }
-            String keyword = searchCriteria.getSearchString();
-            if (!validationService.validateSearchString(keyword, apiResponse)) {
-                return apiResponse;
-            }
-            EsResponse esResponse = searchMasterDataInIgotES(serverProperties.getEsInstituteIndexName(), serverProperties.getEsMasterDataIndexDocType(), searchCriteria);
+            Map<String, Object> searchRequest = (Map<String, Object>) requestBody.get(Constants.REQUEST);
+            EsResponse esResponse = searchMasterDataInIgotES(serverProperties.getEsInstituteIndexName(), serverProperties.getEsMasterDataIndexDocType(), searchRequest);
 
             if (!esResponse.isSuccess()) {
                 ProjectUtil.errorResponse(apiResponse, esResponse.getMessage(), HttpStatus.BAD_REQUEST);
@@ -616,27 +606,24 @@ public class MasterDataServiceImpl implements MasterDataService {
         } catch (IllegalArgumentException e) {
             logger.error("Invalid pagination or sorting parameters: {}", e.getMessage(), e);
             ProjectUtil.errorResponse(apiResponse, "Invalid pagination or sorting parameters", HttpStatus.BAD_REQUEST);
+            return apiResponse;
 
         } catch (Exception e) {
             logger.error("Unexpected error during institute search: {}", e.getMessage(), e);
             ProjectUtil.errorResponse(apiResponse, "Unexpected error during institute search", HttpStatus.INTERNAL_SERVER_ERROR);
+            return apiResponse;
         }
         return apiResponse;
     }
 
-    public ApiResponse addDegree(Degree degree) {
+    public ApiResponse addDegree(Map<String, Object> requestBody) {
         ApiResponse apiResponse = ProjectUtil.createDefaultResponse(Constants.API_ADD_DEGREE);
 
         try {
-            // ------------------ Basic Validation ------------------
-            if (StringUtils.isEmpty(degree.getName())) {
-                ProjectUtil.errorResponse(apiResponse, "Degree name cannot be empty", HttpStatus.BAD_REQUEST);
-                return apiResponse;
-            }
-            if (StringUtils.isNotEmpty(degree.getDescription()) && degree.getDescription().length() > 255) {
-                ProjectUtil.errorResponse(apiResponse, "Degree description cannot exceed 255 characters", HttpStatus.BAD_REQUEST);
-                return apiResponse;
-            }
+           if(!validationService.addDegreeValidation(apiResponse, requestBody)){
+               return apiResponse;
+           }
+           Degree degree = mapRequestToDegree(requestBody);
             // ------------------ Check Existing ------------------
             Optional<Degree> existingDegreeOpt = degreeRepository.findByNameIgnoreCase(degree.getName());
             if (existingDegreeOpt.isPresent()) {
@@ -685,18 +672,21 @@ public class MasterDataServiceImpl implements MasterDataService {
         }
     }
 
-    public ApiResponse addInstitute(Institute institute) {
+    private Degree mapRequestToDegree(Map<String, Object> requestBody){
+        Map<String, Object> request = (Map<String, Object>) requestBody.get(Constants.REQUEST);
+        Degree degree = new Degree();
+        degree.setName((String) request.get(Constants.NAME));
+        degree.setDescription((String) request.get(Constants.DESCRIPTION));
+        return degree;
+    }
+
+    public ApiResponse addInstitute(Map<String, Object> requestBody) {
         ApiResponse apiResponse = ProjectUtil.createDefaultResponse(Constants.API_ADD_INSTITUTE);
         try {
-            if (StringUtils.isEmpty(institute.getName())) {
-                ProjectUtil.errorResponse(apiResponse, "Institute name cannot be empty", HttpStatus.BAD_REQUEST);
+            if(!validationService.addInstituteValidation(apiResponse, requestBody)){
                 return apiResponse;
             }
-            if (StringUtils.isNotEmpty(institute.getDescription()) &&
-                    institute.getDescription().length() > 255) {
-                ProjectUtil.errorResponse(apiResponse, "Institute description cannot exceed 255 characters", HttpStatus.BAD_REQUEST);
-                return apiResponse;
-            }
+            Institute institute = mapRequestToInstitute(requestBody);
             Optional<Institute> existingOpt = instituteRepository.findByNameIgnoreCase(institute.getName());
             if (existingOpt.isPresent()) {
                 Institute existing = existingOpt.get();
@@ -752,15 +742,23 @@ public class MasterDataServiceImpl implements MasterDataService {
         }
     }
 
-    public ApiResponse toggleDegreeStatusByName(String degreeName, int status) {
+    private Institute mapRequestToInstitute(Map<String, Object> requestBody){
+        Map<String, Object> request = (Map<String, Object>) requestBody.get(Constants.REQUEST);
+        Institute institute = new Institute();
+        institute.setName((String) request.get(Constants.NAME));
+        institute.setDescription((String) request.get(Constants.DESCRIPTION));
+        return institute;
+    }
+
+    public ApiResponse toggleDegreeStatus(Map<String, Object> requestBody) {
         ApiResponse apiResponse = ProjectUtil.createDefaultResponse(Constants.API_UPDATE_DEGREE_STATUS);
         try {
-            logger.info("{} degree with name: {}", status == 1 ? "Activating" : "Deactivating", degreeName);
-            // Validate input
-            if (StringUtils.isEmpty(degreeName)) {
-                ProjectUtil.errorResponse(apiResponse, "Degree name cannot be empty", HttpStatus.BAD_REQUEST);
+            if (!validationService.validateUpdateStatusRequest(apiResponse, requestBody)) {
                 return apiResponse;
             }
+            Map<String, Object> statusUpdateRequest = (Map<String, Object>) requestBody.get(Constants.REQUEST);
+            String degreeName = (String) statusUpdateRequest.get(Constants.NAME);
+            int status = (statusUpdateRequest.get(Constants.STATUS) instanceof Number n) ? n.intValue() : Integer.parseInt(statusUpdateRequest.get(Constants.STATUS).toString());
             // Find degree by name
             Optional<Degree> optionalDegree = degreeRepository.findByNameIgnoreCase(degreeName);
             if (optionalDegree.isEmpty()) {
@@ -794,23 +792,22 @@ public class MasterDataServiceImpl implements MasterDataService {
             logger.info("Degree '{}' {} successfully", degreeName, status == 1 ? "activated" : "deactivated");
             apiResponse.getResult().put(Constants.RESULT, updatedDegree);
         } catch (Exception e) {
-            logger.error("Unexpected error while {} degree '{}': {}", status == 1 ? "activating" : "deactivating", degreeName, e.getMessage(), e);
+            logger.error("Unexpected error while updating degree status : {}", e);
             ProjectUtil.errorResponse(apiResponse, "Unexpected error while updating degree status", HttpStatus.INTERNAL_SERVER_ERROR);
         }
         return apiResponse;
     }
 
-    public ApiResponse toggleInstituteStatusByName(String instituteName, int status) {
+    public ApiResponse toggleInstituteStatus(Map<String, Object> requestBody) {
         ApiResponse apiResponse = ProjectUtil.createDefaultResponse(Constants.API_UPDATE_INSTITUTE_STATUS);
         try {
-            logger.info("{} institute with name: {}", status == 1 ? "Activating" : "Deactivating", instituteName);
-
-            // Validate input
-            if (StringUtils.isEmpty(instituteName)) {
-                ProjectUtil.errorResponse(apiResponse, "Institute name cannot be empty", HttpStatus.BAD_REQUEST);
+            if (!validationService.validateUpdateStatusRequest(apiResponse, requestBody)) {
                 return apiResponse;
             }
+            Map<String, Object> statusUpdateRequest = (Map<String, Object>) requestBody.get(Constants.REQUEST);
             // Find institute by name
+            String instituteName = statusUpdateRequest.get(Constants.NAME).toString();
+            int status = (statusUpdateRequest.get(Constants.STATUS) instanceof Number n) ? n.intValue() : Integer.parseInt(statusUpdateRequest.get(Constants.STATUS).toString());
             Optional<Institute> optionalInstitute = instituteRepository.findByNameIgnoreCase(instituteName);
             if (optionalInstitute.isEmpty()) {
                 ProjectUtil.errorResponse(apiResponse, "Institute not found", HttpStatus.NOT_FOUND);
@@ -843,39 +840,45 @@ public class MasterDataServiceImpl implements MasterDataService {
             apiResponse.getResult().put(Constants.RESULT, updatedInstitute);
 
         } catch (Exception e) {
-            logger.error("Unexpected error while {} institute '{}': {}", status == 1 ? "activating" : "deactivating", instituteName, e.getMessage(), e);
+            logger.error("Unexpected error while updating institute status", e);
             ProjectUtil.errorResponse(apiResponse, "Unexpected error while updating institute status", HttpStatus.INTERNAL_SERVER_ERROR);
         }
         return apiResponse;
     }
 
-    public EsResponse searchMasterDataInIgotES(String indexName, String docType, SearchCriteria searchCriteria) {
+    public EsResponse searchMasterDataInIgotES(String indexName, String docType, Map<String, Object> searchRequest) {
         try {
-            int from = searchCriteria.getPage() * searchCriteria.getSize();
-            // Default sort field
-            String sortBy = searchCriteria.getSortBy();
-            if (StringUtils.isEmpty(sortBy)) {
-                sortBy = "id";  // default
+            Object pageObj = searchRequest.get(Constants.PAGE_NUMBER);
+            Object sizeObj = searchRequest.get(Constants.PAGE_SIZE);
+            int page = (pageObj instanceof Number n) ? n.intValue() : 0;      // default = 0
+            int size = (sizeObj instanceof Number n) ? n.intValue() : 20;     // default = 20
+            int from = page * size;
+            Object sortByObj = searchRequest.get(Constants.SORT_BY);
+            String sortBy = (sortByObj != null) ? sortByObj.toString() : "id";
+            if (sortBy.isEmpty()) sortBy = "id";
+            if ("name".equals(sortBy)) {
+                sortBy = "name.keyword";
+            } else if ("description".equals(sortBy)) {
+                sortBy = "description.keyword";
             }
-            sortBy = switch (sortBy) {
-                case "name" -> "name.keyword";
-                case "description" -> "description.keyword";
-                default -> sortBy;
-            };
-            // Default order
-            boolean isDesc = "DESC".equalsIgnoreCase(searchCriteria.getOrderBy());
+
+            Object orderObj = searchRequest.get(Constants.ORDER_BY);
+            String orderBy = (orderObj != null) ? orderObj.toString() : "ASC";
+            boolean isDesc = "DESC".equalsIgnoreCase(orderBy);
             SortOrder sortOrder = isDesc ? SortOrder.DESC : SortOrder.ASC;
 
-            SearchRequest searchRequest = new SearchRequest(indexName).types(docType);
+            SearchRequest esSearchRequest = new SearchRequest(indexName).types(docType);
             SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
                     .from(from)
-                    .size(searchCriteria.getSize())
+                    .size(size)
                     .sort(sortBy, sortOrder);
 
             BoolQueryBuilder boolQuery = QueryBuilders.boolQuery();
 
-            if (StringUtils.isNotEmpty(searchCriteria.getSearchString())) {
-                MultiMatchQueryBuilder multiMatch = QueryBuilders.multiMatchQuery(searchCriteria.getSearchString())
+            Object keywordObj = searchRequest.get(Constants.SEARCH_STRING);
+            String keyword = (keywordObj != null) ? keywordObj.toString() : null;
+            if (keyword != null && !keyword.isBlank()) {
+                MultiMatchQueryBuilder multiMatch = QueryBuilders.multiMatchQuery(keyword)
                         .field("name")
                         .field("name.ngram")
                         .field("description")
@@ -886,15 +889,24 @@ public class MasterDataServiceImpl implements MasterDataService {
                 boolQuery.must(QueryBuilders.matchAllQuery());
             }
 
-            int status = searchCriteria.getStatus() != null ? searchCriteria.getStatus() : 1;
-            boolQuery.filter(QueryBuilders.termQuery("status", status)); // only active
+            Object statusObj = searchRequest.get(Constants.STATUS);
+            Integer status = null;
+            if (statusObj != null) {
+                status = (statusObj instanceof Number n3) ? n3.intValue() : Integer.parseInt(statusObj.toString());
+            }
+            if (status == null) status = 1; // default active
+
+            boolQuery.filter(QueryBuilders.termQuery("status", status));
+
             sourceBuilder.query(boolQuery);
-            searchRequest.source(sourceBuilder);
-            SearchResponse response = igotESClient.search(searchRequest, RequestOptions.DEFAULT);
+            esSearchRequest.source(sourceBuilder);
+
+            SearchResponse response = igotESClient.search(esSearchRequest, RequestOptions.DEFAULT);
             List<Map<String, Object>> results = new ArrayList<>();
             for (SearchHit hit : response.getHits().getHits()) {
                 results.add(hit.getSourceAsMap());
             }
+
             return EsResponse.builder()
                     .success(true)
                     .message("Search successful")

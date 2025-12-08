@@ -1,15 +1,14 @@
 package com.igot.cb.masterdata.service;
 
-import co.elastic.clients.elasticsearch.core.search.TotalHits;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.authentication.util.AccessTokenValidator;
 import com.igot.cb.masterdata.model.Degree;
 import com.igot.cb.masterdata.model.Institute;
-import com.igot.cb.masterdata.model.SearchCriteria;
 import com.igot.cb.masterdata.repository.DegreeRepository;
 import com.igot.cb.masterdata.repository.InstituteRepository;
 import com.igot.cb.transactional.cassandrautils.CassandraOperation;
+import com.igot.cb.transactional.elasticsearch.model.EsResponse;
 import com.igot.cb.transactional.elasticsearch.service.EsUtilService;
 import com.igot.cb.transactional.redis.cache.CacheService;
 import com.igot.cb.util.ApiResponse;
@@ -24,11 +23,6 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 
 import java.lang.reflect.Method;
@@ -1501,144 +1495,225 @@ public class MasterDataServiceImplTest {
 
     @Test
     public void searchDegree_InvalidKeyword() {
-        SearchCriteria criteria = new SearchCriteria();
-        criteria.setSearchString("??");
-        when(validationService.validateSearchString(anyString(), any(ApiResponse.class))).thenAnswer(invocation -> {
-            String keyword = invocation.getArgument(0);
-            ApiResponse resp = invocation.getArgument(1);
-            resp.setResponseCode(HttpStatus.BAD_REQUEST);
-            resp.getParams().setStatus(Constants.FAILED);
-            return false;
-        });
-        // Call the service method
-        ApiResponse response = masterDataService.searchDegree(criteria);
-        // Verify the response
-        assertNotNull(response);
+
+        Map<String, Object> requestBody = Map.of(
+                "request", Map.of("searchString", "??")
+        );
+        when(validationService.validateSearchRequest(any(ApiResponse.class), any(Map.class)))
+                .thenAnswer(invocation -> {
+                    ApiResponse resp = invocation.getArgument(0); // ApiResponse argument
+                    resp.setResponseCode(HttpStatus.BAD_REQUEST);
+                    resp.getParams().setStatus(Constants.FAILED);
+                    return false; // validation fails
+                });
+        ApiResponse response = masterDataService.searchDegree(requestBody);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
         assertEquals(Constants.FAILED, response.getParams().getStatus());
     }
 
     @Test
     public void searchDegree_WithKeyword() {
-        SearchCriteria criteria = new SearchCriteria();
-        criteria.setSearchString("MBA");
-        ApiResponse apiResponse = ProjectUtil.createDefaultResponse("TEST_API");
-        Page<Degree> mockPage = new PageImpl<>(List.of(new Degree()));
-        lenient().when(validationService.validateSearchString("MBA", apiResponse)).thenReturn(true);
-        lenient().when(degreeRepository.findByNameContainingIgnoreCaseAndStatus(eq("MBA"), eq(1), any(Pageable.class)))
-                .thenReturn(mockPage);
-        ApiResponse response = masterDataService.searchDegree(criteria);
-        assertNotNull(response);
+
+        Map<String, Object> requestBody = Map.of(
+                "request", Map.of("searchString", "MBA")
+        );
+        lenient().when(validationService.validateSearchString(eq("MBA"), any(ApiResponse.class)))
+                .thenReturn(true);
+        ApiResponse response = masterDataService.searchDegree(requestBody);
+
         assertEquals(HttpStatus.OK, response.getResponseCode());
     }
+
 
     @Test
     public void searchDegree_InvalidPagination() {
-        SearchCriteria criteria = new SearchCriteria();
-        criteria.setPage(-1);  // invalid
-        // Validation passes (keyword = null)
-        lenient().when(validationService.validateSearchString(isNull(), any(ApiResponse.class)))
+
+        Map<String, Object> requestBody = Map.of(
+                "request", Map.of(
+                        "page", -1,
+                        "size", 10
+                )
+        );
+
+        // Create a spy of the real service
+        MasterDataServiceImpl spyService = spy(masterDataService);
+
+        // Mock validation to pass
+        when(validationService.validateSearchRequest(any(ApiResponse.class), any(Map.class)))
                 .thenReturn(true);
-        // Repository throws pagination exception
-        lenient().when(degreeRepository.findByStatus(eq(1), any(Pageable.class)))
-                .thenThrow(new IllegalArgumentException("Invalid Page"));
-        ApiResponse response = masterDataService.searchDegree(criteria);
+
+        // Mock the ES search method to throw IllegalArgumentException
+        lenient().doThrow(new IllegalArgumentException("Invalid Page"))
+                .when(spyService)
+                .searchMasterDataInIgotES(anyString(), anyString(), anyMap());
+
+        // Call the service using the spy
+        ApiResponse response = spyService.searchDegree(requestBody);
+
+        // Assertions
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
+        assertEquals(Constants.FAILED, response.getParams().getStatus());
     }
+
 
     @Test
     public void searchDegree_ExceptionHandling() {
-        SearchCriteria criteria = new SearchCriteria();
-        // No need to create apiResponse, service does that
-        when(validationService.validateSearchString(any(), any(ApiResponse.class))).thenReturn(true);
-        // Mock repository to throw exception
-        lenient().when(degreeRepository.findByStatus(eq(1), any(Pageable.class)))
-                .thenThrow(new RuntimeException("DB Error"));
-        ApiResponse response = masterDataService.searchDegree(criteria);
-        assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
+        Map<String, Object> requestBody = Map.of(
+                "request", Map.of(
+                        "page", 0,
+                        "size", 10
+                )
+        );
+        MasterDataServiceImpl spyService = spy(masterDataService);
+        when(validationService.validateSearchRequest(any(ApiResponse.class), any(Map.class)))
+                .thenReturn(true);
+        lenient().doThrow(new RuntimeException("ES failure"))
+                .when(spyService)
+                .searchMasterDataInIgotES(anyString(), anyString(), anyMap());
+        ApiResponse response = spyService.searchDegree(requestBody);
+        assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode()); // service sets BAD_REQUEST on exception
+        assertEquals(Constants.FAILED, response.getParams().getStatus());
+    }
+
+    private Map<String, Object> validRequest() {
+        Map<String, Object> req = new HashMap<>();
+        Map<String, Object> body = new HashMap<>();
+        body.put("name", "MBA");
+        body.put("description", "Master of Business Administration");
+        req.put(Constants.REQUEST, body);
+        return req;
+    }
+
+    @Test
+    public void testAddDegree_ValidationFails() {
+        when(validationService.addDegreeValidation(any(), any())).thenAnswer(invocation -> {
+            ApiResponse resp = invocation.getArgument(0);
+            ProjectUtil.errorResponse(resp, "Degree validation failed", HttpStatus.BAD_REQUEST);
+            return false;
+        });
+        ApiResponse response = masterDataService.addDegree(validRequest());
+
         assertEquals(Constants.FAILED, response.getParams().getStatus());
     }
 
     @Test
-    public void addDegree_NameEmpty() {
-        Degree degree = new Degree();
-        degree.setName("");
-        ApiResponse response = masterDataService.addDegree(degree);
-        assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
-        assertEquals(Constants.FAILED, response.getParams().getStatus());
-    }
-
-    @Test
-    public void addDegree_DescriptionTooLong() {
-        Degree degree = new Degree();
-        degree.setName("MBA");
-        degree.setDescription("A".repeat(300));
-        ApiResponse response = masterDataService.addDegree(degree);
-        assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
-    }
-
-    @Test
-    public void addDegree_ReactivateInactive() {
-        Degree existing = new Degree();
-        existing.setName("MBA");
-        existing.setStatus(0);
-        Degree input = new Degree();
-        input.setName("MBA");
-        when(degreeRepository.findByNameIgnoreCase("MBA"))
-                .thenReturn(Optional.of(existing));
-        when(degreeRepository.save(existing)).thenReturn(existing);
-        ApiResponse response = masterDataService.addDegree(input);
-        assertEquals(HttpStatus.OK, response.getResponseCode());
-        assertEquals(existing, response.getResult().get(Constants.RESULT));
-    }
-
-    @Test
-    public void addDegree_AlreadyActive() {
+    public void testAddDegree_ExistingActiveDegree() {
         Degree existing = new Degree();
         existing.setName("MBA");
         existing.setStatus(1);
-        when(degreeRepository.findByNameIgnoreCase("MBA"))
-                .thenReturn(Optional.of(existing));
-        ApiResponse response = masterDataService.addDegree(existing);
+
+        when(validationService.addDegreeValidation(any(), any())).thenReturn(true);
+        when(degreeRepository.findByNameIgnoreCase("MBA")).thenReturn(Optional.of(existing));
+
+        ApiResponse response = masterDataService.addDegree(validRequest());
+
+        assertEquals(Constants.FAILED, response.getParams().getStatus());
         assertEquals(HttpStatus.CONFLICT, response.getResponseCode());
     }
 
     @Test
-    public void addDegree_DataIntegrityViolation() {
-        Degree degree = new Degree();
-        degree.setName("MBA");
-        when(degreeRepository.findByNameIgnoreCase("MBA"))
-                .thenReturn(Optional.empty());
-        when(degreeRepository.save(any()))
-                .thenThrow(new DataIntegrityViolationException("Duplicate"));
-        ApiResponse response = masterDataService.addDegree(degree);
-        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
+    public void testAddDegree_ExistingInactiveDegree_Reactivated() {
+        Degree existing = new Degree();
+        existing.setId(10L);
+        existing.setName("MBA");
+        existing.setStatus(0);
+
+        when(validationService.addDegreeValidation(any(), any())).thenReturn(true);
+        when(degreeRepository.findByNameIgnoreCase("MBA")).thenReturn(Optional.of(existing));
+
+        when(degreeRepository.save(any())).thenReturn(existing);
+        when(esUtilService.saveObjectInIgotES(any(), any(), any(), any()))
+                .thenReturn(EsResponse.builder()
+                        .success(true)
+                        .message("ok")
+                        .build());
+
+        ApiResponse res = masterDataService.addDegree(validRequest());
+
+        assertEquals(1, ((Degree) res.getResult().get(Constants.RESULT)).getStatus());
     }
 
     @Test
-    public void addDegree_UnexpectedException() {
-        Degree degree = new Degree();
-        degree.setName("MBA");
-        when(degreeRepository.findByNameIgnoreCase("MBA"))
-                .thenReturn(Optional.empty());
-        when(degreeRepository.save(any()))
-                .thenThrow(new RuntimeException("DB Failure"));
-        ApiResponse response = masterDataService.addDegree(degree);
-        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
+    public void testAddDegree_NewDegreeSavedSuccessfully() {
+        Degree newDegree = new Degree();
+        newDegree.setId(1L);
+        newDegree.setName("MBA");
+
+        when(validationService.addDegreeValidation(any(), any())).thenReturn(true);
+        when(degreeRepository.findByNameIgnoreCase("MBA")).thenReturn(Optional.empty());
+        when(degreeRepository.save(any())).thenReturn(newDegree);
+        when(esUtilService.saveObjectInIgotES(any(), any(), any(), any()))
+                .thenReturn(EsResponse.builder()
+                        .success(true)
+                        .message("ok")
+                        .build());
+
+        ApiResponse response = masterDataService.addDegree(validRequest());
+
+        assertEquals(newDegree, response.getResult().get(Constants.RESULT));
     }
 
     @Test
-    public void toggleDegree_EmptyName() {
-        ApiResponse response = masterDataService.toggleDegreeStatusByName("", 1);
+    public void testAddDegree_EsFails_RollbackHappens() {
+        Degree saved = new Degree();
+        saved.setId(1L);
+        saved.setName("MBA");
+
+        when(validationService.addDegreeValidation(any(), any())).thenReturn(true);
+        when(degreeRepository.findByNameIgnoreCase("MBA")).thenReturn(Optional.empty());
+        when(degreeRepository.save(any())).thenReturn(saved);
+
+        when(esUtilService.saveObjectInIgotES(any(), any(), any(), any()))
+                .thenReturn(EsResponse.builder()
+                        .success(false)
+                        .message("failed")
+                        .build());
+
+        ApiResponse response = masterDataService.addDegree(validRequest());
+
+        verify(degreeRepository).delete(saved);
+        assertEquals(Constants.FAILED, response.getParams().getStatus());
+    }
+
+    @Test
+    public void testAddDegree_ExceptionHandledProperly() {
+        when(validationService.addDegreeValidation(any(), any())).thenReturn(true);
+        when(degreeRepository.findByNameIgnoreCase(any())).thenThrow(new RuntimeException());
+
+        ApiResponse response = masterDataService.addDegree(validRequest());
+
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
+    }
+
+
+    @Test
+    public void toggleDegree_ValidationFails() {
+        Map<String, Object> requestBody = Map.of("request", Map.of("name", "MBA", "status", 1));
+
+        when(validationService.validateUpdateStatusRequest(any(), any())).thenAnswer(invocation -> {
+            ApiResponse resp = invocation.getArgument(0);
+            ProjectUtil.errorResponse(resp, "Validation failed", HttpStatus.BAD_REQUEST);
+            return false;
+        });
+
+        ApiResponse response = masterDataService.toggleDegreeStatus(requestBody);
+
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
+        assertEquals(Constants.FAILED, response.getParams().getStatus());
     }
 
     @Test
     public void toggleDegree_NotFound() {
-        when(degreeRepository.findByNameIgnoreCase("MBA"))
-                .thenReturn(Optional.empty());
-        ApiResponse response = masterDataService.toggleDegreeStatusByName("MBA", 1);
+        Map<String, Object> requestBody = Map.of("request", Map.of("name", "MBA", "status", 1));
+
+        when(validationService.validateUpdateStatusRequest(any(), any())).thenReturn(true);
+        when(degreeRepository.findByNameIgnoreCase("MBA")).thenReturn(Optional.empty());
+
+        ApiResponse response = masterDataService.toggleDegreeStatus(requestBody);
+
         assertEquals(HttpStatus.NOT_FOUND, response.getResponseCode());
+        assertEquals("Degree not found", response.getParams().getErrMsg());
+        assertEquals("Failed", response.getParams().getStatus());
     }
 
     @Test
@@ -1646,149 +1721,303 @@ public class MasterDataServiceImplTest {
         Degree degree = new Degree();
         degree.setName("MBA");
         degree.setStatus(1);
-        when(degreeRepository.findByNameIgnoreCase("MBA"))
-                .thenReturn(Optional.of(degree));
-        ApiResponse response = masterDataService.toggleDegreeStatusByName("MBA", 1);
+
+        Map<String, Object> requestBody = Map.of("request", Map.of("name", "MBA", "status", 1));
+
+        when(validationService.validateUpdateStatusRequest(any(), any())).thenReturn(true);
+        when(degreeRepository.findByNameIgnoreCase("MBA")).thenReturn(Optional.of(degree));
+
+        ApiResponse response = masterDataService.toggleDegreeStatus(requestBody);
+
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
+        assertEquals("Degree is already active", response.getParams().getErrMsg());
+        assertEquals("Failed", response.getParams().getStatus());
+    }
+
+    @Test
+    public void toggleDegree_AlreadyInactive() {
+        Degree degree = new Degree();
+        degree.setName("MBA");
+        degree.setStatus(0);
+
+        Map<String, Object> requestBody = Map.of("request", Map.of("name", "MBA", "status", 0));
+
+        when(validationService.validateUpdateStatusRequest(any(), any())).thenReturn(true);
+        when(degreeRepository.findByNameIgnoreCase("MBA")).thenReturn(Optional.of(degree));
+
+        ApiResponse response = masterDataService.toggleDegreeStatus(requestBody);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
+        assertEquals("Degree is already inactive", response.getParams().getErrMsg());
+        assertEquals("Failed", response.getParams().getStatus());
+    }
+
+    @Test
+    public void toggleDegree_Success_Activate() {
+        Degree degree = new Degree();
+        degree.setId(1L);
+        degree.setName("MBA");
+        degree.setStatus(0);
+
+        Map<String, Object> requestBody = Map.of("request", Map.of("name", "MBA", "status", 1));
+
+        when(validationService.validateUpdateStatusRequest(any(), any())).thenReturn(true);
+        when(degreeRepository.findByNameIgnoreCase("MBA")).thenReturn(Optional.of(degree));
+        when(degreeRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(esUtilService.saveObjectInIgotES(any(), any(), any(), any()))
+                .thenReturn(EsResponse.builder()
+                        .success(true)
+                        .message("success")
+                        .build());
+
+        ApiResponse response = masterDataService.toggleDegreeStatus(requestBody);
+
+        Degree result = (Degree) response.getResult().get(Constants.RESULT);
+        assertEquals(1, result.getStatus());
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+    }
+
+    @Test
+    public void toggleDegree_Success_Deactivate() {
+        Degree degree = new Degree();
+        degree.setId(1L);
+        degree.setName("MBA");
+        degree.setStatus(1); // currently active
+
+        Map<String, Object> requestBody = Map.of("request", Map.of("name", "MBA", "status", 0));
+
+        when(validationService.validateUpdateStatusRequest(any(), any())).thenReturn(true);
+        when(degreeRepository.findByNameIgnoreCase("MBA")).thenReturn(Optional.of(degree));
+        when(degreeRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(esUtilService.saveObjectInIgotES(any(), any(), any(), any()))
+                .thenReturn(EsResponse.builder()
+                        .success(true)
+                        .message("success")
+                        .build());
+
+        ApiResponse response = masterDataService.toggleDegreeStatus(requestBody);
+
+        Degree result = (Degree) response.getResult().get(Constants.RESULT);
+        assertEquals(0, result.getStatus());
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+    }
+
+    @Test
+    public void toggleDegree_ESFailure() {
+        Degree degree = new Degree();
+        degree.setId(1L);
+        degree.setName("MBA");
+        degree.setStatus(0);
+
+        Map<String, Object> requestBody = Map.of("request", Map.of("name", "MBA", "status", 1));
+
+        when(validationService.validateUpdateStatusRequest(any(), any())).thenReturn(true);
+        when(degreeRepository.findByNameIgnoreCase("MBA")).thenReturn(Optional.of(degree));
+        when(degreeRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(esUtilService.saveObjectInIgotES(any(), any(), any(), any()))
+                .thenReturn(EsResponse.builder()
+                        .success(false)
+                        .message("failed")
+                        .build());
+
+        ApiResponse response = masterDataService.toggleDegreeStatus(requestBody);
+
+        Degree result = (Degree) response.getResult().get(Constants.RESULT);
+        assertEquals(1, result.getStatus());
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
+        assertEquals("Degree status updated in DB but failed to sync with ES", response.getParams().getErrMsg());
+        assertEquals("Failed", response.getParams().getStatus());
     }
 
     @Test
     public void toggleDegree_Exception() {
-        when(degreeRepository.findByNameIgnoreCase("MBA"))
-                .thenThrow(new RuntimeException("DB Crash"));
-        ApiResponse response = masterDataService.toggleDegreeStatusByName("MBA", 1);
+        Map<String, Object> requestBody = Map.of("request", Map.of("name", "MBA", "status", 1));
+
+        when(validationService.validateUpdateStatusRequest(any(), any())).thenReturn(true);
+        when(degreeRepository.findByNameIgnoreCase(anyString()))
+                .thenThrow(new RuntimeException("DB error"));
+        ApiResponse response = masterDataService.toggleDegreeStatus(requestBody);
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
+        assertEquals("Unexpected error while updating degree status", response.getParams().getErrMsg());
+        assertEquals("Failed", response.getParams().getStatus());
     }
 
     @Test
     public void searchInstitute_InvalidKeyword() {
-        SearchCriteria criteria = new SearchCriteria();
-        criteria.setSearchString("??");
-        when(validationService.validateSearchString(eq("??"), any(ApiResponse.class)))
+
+        Map<String, Object> req = Map.of(
+                "request", Map.of("searchString", "??")
+        );
+        when(validationService.validateSearchRequest(any(ApiResponse.class), any(Map.class)))
                 .thenAnswer(inv -> {
-                    ApiResponse res = inv.getArgument(1);
+                    ApiResponse res = inv.getArgument(0); // first argument is ApiResponse
                     ProjectUtil.errorResponse(res, "Invalid keyword", HttpStatus.BAD_REQUEST);
-                    return false;
+                    return false; // validation fails
                 });
-        ApiResponse response = masterDataService.searchInstitute(criteria);
-        assertNotNull(response);
+        ApiResponse response = masterDataService.searchInstitute(req);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
         assertEquals(Constants.FAILED, response.getParams().getStatus());
     }
 
     @Test
     public void searchInstitute_InvalidPagination() {
-        SearchCriteria criteria = new SearchCriteria();
-        criteria.setPage(-1);
-        criteria.setSize(10);
-        lenient().when(validationService.validateSearchString(isNull(), any(ApiResponse.class)))
+        Map<String, Object> requestBody = Map.of(
+                "request", Map.of(
+                        "page", -1,
+                        "size", 10
+                )
+        );
+
+        when(validationService.validateSearchRequest(any(ApiResponse.class), any(Map.class)))
                 .thenReturn(true);
-        lenient().when(instituteRepository.findByStatus(eq(1), any(Pageable.class)))
-                .thenThrow(new IllegalArgumentException("Invalid page"));
-        ApiResponse response = masterDataService.searchInstitute(criteria);
+        MasterDataServiceImpl spyService = spy(masterDataService);
+        lenient().doThrow(new IllegalArgumentException("Invalid page"))
+                .when(spyService).searchMasterDataInIgotES(anyString(), anyString(), anyMap());
+        ApiResponse response = spyService.searchInstitute(requestBody);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
         assertEquals(Constants.FAILED, response.getParams().getStatus());
     }
 
-    @Test
-    public void addInstitute_NameEmpty() {
-        Institute institute = new Institute();
-        institute.setName("");
-        ApiResponse response = masterDataService.addInstitute(institute);
-        assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
-        assertEquals(Constants.FAILED, response.getParams().getStatus());
+    private Map<String, Object> validRequestInstitute() {
+        Map<String, Object> req = new HashMap<>();
+        Map<String, Object> inner = new HashMap<>();
+        inner.put("name", "IIT Delhi");
+        inner.put("description", "Top engineering institute");
+        req.put("request", inner);
+        return req;
     }
 
     @Test
-    public void addInstitute_DescriptionTooLong() {
-        Institute institute = new Institute();
-        institute.setName("IIT");
-        institute.setDescription("A".repeat(300));
-        ApiResponse response = masterDataService.addInstitute(institute);
-        assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
-    }
+    public void testAddInstitute_ExistingInactive_Reactivated() {
 
-    @Test
-    public void addInstitute_ReactivateInactive() {
         Institute existing = new Institute();
-        existing.setName("IIT");
+        existing.setId(5L);
+        existing.setName("IIT Delhi");
         existing.setStatus(0);
-        Institute input = new Institute();
-        input.setName("IIT");
-        when(instituteRepository.findByNameIgnoreCase("IIT"))
+
+        when(validationService.addInstituteValidation(any(), any())).thenReturn(true);
+        when(instituteRepository.findByNameIgnoreCase("IIT Delhi"))
                 .thenReturn(Optional.of(existing));
-        when(instituteRepository.save(existing)).thenReturn(existing);
-        ApiResponse response = masterDataService.addInstitute(input);
-        assertEquals(HttpStatus.OK, response.getResponseCode());
-        assertEquals(existing, response.getResult().get(Constants.RESULT));
+        when(instituteRepository.save(any())).thenReturn(existing);
+        when(esUtilService.saveObjectInIgotES(any(), any(), any(), any()))
+                .thenReturn(EsResponse.builder().success(true).message("ok").build());
+        ApiResponse res = masterDataService.addInstitute(validRequestInstitute());
+        Institute result = (Institute) res.getResult().get(Constants.RESULT);
+        assertEquals(1, result.getStatus());
     }
 
     @Test
-    public void addInstitute_AlreadyActive() {
+    public void testAddInstitute_ValidationFails() {
+        ApiResponse response = ProjectUtil.createDefaultResponse(Constants.API_ADD_INSTITUTE);
+        when(validationService.addInstituteValidation(any(), any()))
+                .thenReturn(false);
+        ApiResponse res = masterDataService.addInstitute(validRequestInstitute());
+        assertEquals(response.getResponseCode(), res.getResponseCode());
+    }
+
+    @Test
+    public void testAddInstitute_ExistingActive_Conflict() {
+
         Institute existing = new Institute();
-        existing.setName("IIT");
+        existing.setId(7L);
+        existing.setName("IIT Delhi");
         existing.setStatus(1);
-        when(instituteRepository.findByNameIgnoreCase("IIT"))
+
+        when(validationService.addInstituteValidation(any(), any())).thenReturn(true);
+        when(instituteRepository.findByNameIgnoreCase("IIT Delhi"))
                 .thenReturn(Optional.of(existing));
-        ApiResponse response = masterDataService.addInstitute(existing);
-        assertEquals(HttpStatus.CONFLICT, response.getResponseCode());
+        ApiResponse res = masterDataService.addInstitute(validRequestInstitute());
+        assertEquals(HttpStatus.CONFLICT, res.getResponseCode());
     }
 
     @Test
-    public void addInstitute_DataIntegrityViolation() {
-        Institute institute = new Institute();
-        institute.setName("IIT");
-        when(instituteRepository.findByNameIgnoreCase("IIT"))
+    public void testAddInstitute_New_Success() {
+
+        Institute saved = new Institute();
+        saved.setId(20L);
+        saved.setName("IIT Delhi");
+        saved.setStatus(1);
+        when(validationService.addInstituteValidation(any(), any())).thenReturn(true);
+        when(instituteRepository.findByNameIgnoreCase("IIT Delhi"))
                 .thenReturn(Optional.empty());
-        when(instituteRepository.save(any()))
-                .thenThrow(new DataIntegrityViolationException("Duplicate"));
-        ApiResponse response = masterDataService.addInstitute(institute);
-        assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
+        when(instituteRepository.save(any())).thenReturn(saved);
+        when(esUtilService.saveObjectInIgotES(any(), any(), any(), any()))
+                .thenReturn(EsResponse.builder().success(true).message("ok").build());
+        ApiResponse res = masterDataService.addInstitute(validRequestInstitute());
+        Institute result = (Institute) res.getResult().get(Constants.RESULT);
+        assertEquals(Long.valueOf(20L), result.getId()); // fixes ambiguity
+        assertEquals("IIT Delhi", result.getName());
+        assertEquals(1, result.getStatus());
     }
 
     @Test
-    public void addInstitute_UnexpectedException() {
-        Institute institute = new Institute();
-        institute.setName("IIT");
-        when(instituteRepository.findByNameIgnoreCase("IIT"))
+    public void testAddInstitute_ESFailure_DBRollback() {
+
+        Institute saved = new Institute();
+        saved.setId(22L);
+        saved.setName("IIT Delhi");
+        saved.setStatus(1);
+
+        when(validationService.addInstituteValidation(any(), any())).thenReturn(true);
+        when(instituteRepository.findByNameIgnoreCase("IIT Delhi"))
                 .thenReturn(Optional.empty());
-        when(instituteRepository.save(any()))
-                .thenThrow(new RuntimeException("DB Crash"));
-        ApiResponse response = masterDataService.addInstitute(institute);
-        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
-    }
-
-    @Test
-    public void toggleInstitute_EmptyName() {
-        ApiResponse response = masterDataService.toggleInstituteStatusByName("", 1);
-        assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
+        when(instituteRepository.save(any())).thenReturn(saved);
+        when(esUtilService.saveObjectInIgotES(any(), any(), any(), any()))
+                .thenReturn(EsResponse.builder().success(false).message("Fail").build());
+        ApiResponse res = masterDataService.addInstitute(validRequestInstitute());
+        verify(instituteRepository, times(1)).delete(saved);
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, res.getResponseCode());
     }
 
     @Test
     public void toggleInstitute_NotFound() {
+        Map<String, Object> requestBody = Map.of(
+                "request", Map.of("name", "IIT", "status", 1)
+        );
+        when(validationService.validateUpdateStatusRequest(any(), any())).thenAnswer(invocation -> {
+            ApiResponse resp = invocation.getArgument(0);
+            return true;
+        });
         when(instituteRepository.findByNameIgnoreCase("IIT"))
                 .thenReturn(Optional.empty());
-        ApiResponse response = masterDataService.toggleInstituteStatusByName("IIT", 1);
+        ApiResponse response = masterDataService.toggleInstituteStatus(requestBody);
         assertEquals(HttpStatus.NOT_FOUND, response.getResponseCode());
+        assertEquals(Constants.FAILED, response.getParams().getStatus());
     }
 
     @Test
     public void toggleInstitute_AlreadyActive() {
+        Map<String, Object> requestBody = Map.of(
+                "request", Map.of("name", "IIT", "status", 1)
+        );
         Institute institute = new Institute();
         institute.setName("IIT");
         institute.setStatus(1);
         when(instituteRepository.findByNameIgnoreCase("IIT"))
                 .thenReturn(Optional.of(institute));
-        ApiResponse response = masterDataService.toggleInstituteStatusByName("IIT", 1);
+        when(validationService.validateUpdateStatusRequest(any(), any())).thenAnswer(invocation -> {
+            ApiResponse resp = invocation.getArgument(0);
+            return true;
+        });
+
+        ApiResponse response = masterDataService.toggleInstituteStatus(requestBody);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
+        assertEquals(Constants.FAILED, response.getParams().getStatus());
     }
 
     @Test
     public void toggleInstitute_Exception() {
+        Map<String, Object> requestBody = Map.of(
+                "request", Map.of("name", "IIT", "status", 1)
+        );
+        when(validationService.validateUpdateStatusRequest(any(), any())).thenAnswer(invocation -> {
+            ApiResponse resp = invocation.getArgument(0);
+            return true;
+        });
         when(instituteRepository.findByNameIgnoreCase("IIT"))
                 .thenThrow(new RuntimeException("DB Error"));
-        ApiResponse response = masterDataService.toggleInstituteStatusByName("IIT", 1);
+        ApiResponse response = masterDataService.toggleInstituteStatus(requestBody);
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
+        assertEquals(Constants.FAILED, response.getParams().getStatus());
     }
-
 }

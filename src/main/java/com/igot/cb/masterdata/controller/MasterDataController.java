@@ -1,9 +1,5 @@
 package com.igot.cb.masterdata.controller;
 
-import com.igot.cb.masterdata.model.Degree;
-import com.igot.cb.masterdata.model.Institute;
-import com.igot.cb.masterdata.model.SearchCriteria;
-import com.igot.cb.masterdata.model.StatusUpdateRequest;
 import com.igot.cb.masterdata.service.MasterDataService;
 import com.igot.cb.util.ApiResponse;
 import com.igot.cb.util.Constants;
@@ -49,36 +45,39 @@ public class MasterDataController {
     }
 
     @PostMapping(value = "/degree/search")
-    public ResponseEntity<ApiResponse> searchDegree(@RequestBody SearchCriteria searchCriteria) {
-        return new ResponseEntity<>(masterDataService.searchDegree(searchCriteria), HttpStatus.OK);
+    public ResponseEntity<ApiResponse> searchDegree(@RequestBody Map<String, Object> requestBody) {
+        ApiResponse apiResponse = masterDataService.searchDegree(requestBody);
+        return new ResponseEntity<>(apiResponse, apiResponse.getResponseCode());
     }
 
     @PostMapping(value = "/institute/search")
-    public ResponseEntity<ApiResponse> searchInstitute(@RequestBody SearchCriteria searchCriteria) {
-        return new ResponseEntity<>(masterDataService.searchInstitute(searchCriteria), HttpStatus.OK);
+    public ResponseEntity<ApiResponse> searchInstitute(@RequestBody Map<String, Object> requestBody) {
+        ApiResponse apiResponse = masterDataService.searchInstitute(requestBody);
+        return new ResponseEntity<>(apiResponse, apiResponse.getResponseCode());
     }
 
     @PostMapping(value = "/add/degree")
-    public ResponseEntity<ApiResponse> addDegree(@RequestBody Degree degree) {
-        return new ResponseEntity<>(masterDataService.addDegree(degree), HttpStatus.CREATED);
+    public ResponseEntity<ApiResponse> addDegree(@RequestBody Map<String, Object> requestBody) {
+        ApiResponse apiResponse = masterDataService.addDegree(requestBody);
+        return new ResponseEntity<>(apiResponse, apiResponse.getResponseCode());
     }
 
     @PostMapping(value = "/add/institute")
-    public ResponseEntity<ApiResponse> addInstitute(@RequestBody Institute institute) {
-        return new ResponseEntity<>(masterDataService.addInstitute(institute), HttpStatus.CREATED);
+    public ResponseEntity<ApiResponse> addInstitute(@RequestBody Map<String, Object> requestBody) {
+        ApiResponse apiResponse = masterDataService.addInstitute(requestBody);
+        return new ResponseEntity<>(apiResponse, apiResponse.getResponseCode());
     }
 
     @PutMapping("/degree/update/status")
-    public ResponseEntity<ApiResponse> updateDegreeStatus(@RequestBody StatusUpdateRequest request) {
-        ApiResponse response = masterDataService.toggleDegreeStatusByName(request.getName(), request.getStatus());
-        return ResponseEntity.status(response.getParams().getStatus().equalsIgnoreCase(Constants.SUCCESS) ? HttpStatus.OK : HttpStatus.BAD_REQUEST).body(response);
+    public ResponseEntity<ApiResponse> updateDegreeStatus(@RequestBody Map<String, Object> requestBody) {
+        ApiResponse apiResponse = masterDataService.toggleDegreeStatus(requestBody);
+        return new ResponseEntity<>(apiResponse, apiResponse.getResponseCode());
     }
 
     @PutMapping("/institute/update/status")
-    public ResponseEntity<ApiResponse> instituteUpdateStatus(@RequestBody StatusUpdateRequest request) {
-        ApiResponse response = masterDataService.toggleInstituteStatusByName(request.getName(), request.getStatus());
-        return ResponseEntity.status(response.getParams().getStatus().equalsIgnoreCase(Constants.SUCCESS) ? HttpStatus.OK : HttpStatus.BAD_REQUEST).body(response);
+    public ResponseEntity<ApiResponse> instituteUpdateStatus(@RequestBody Map<String, Object> requestBody) {
+        ApiResponse apiResponse = masterDataService.toggleInstituteStatus(requestBody);
+        return new ResponseEntity<>(apiResponse, apiResponse.getResponseCode());
     }
-
 
 }

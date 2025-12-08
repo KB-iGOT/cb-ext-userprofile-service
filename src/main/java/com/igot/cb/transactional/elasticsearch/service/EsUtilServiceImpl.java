@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.transactional.elasticsearch.model.EsResponse;
 import com.igot.cb.util.CbServerProperties;
 import com.igot.cb.util.Constants;
+import org.apache.commons.lang3.ObjectUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -61,20 +63,28 @@ public class EsUtilServiceImpl implements EsUtilService {
     }
 
     public EsResponse saveObjectInIgotES(Object doc, String indexName, String docType, String docId) {
-        if (doc == null)
+        if (ObjectUtils.isEmpty(doc)) {
             return EsResponse.builder().success(false).message("Document object is null").build();
-        if (docId == null || docId.trim().isEmpty())
+        }
+        if (StringUtils.isEmpty(docId)) {
             return EsResponse.builder().success(false).message("Document ID must not be null or empty").build();
-
+        }
         try {
             Map<String, Object> docMap = objectMapper.convertValue(doc, Map.class);
-            IndexRequest request = new IndexRequest(indexName, docType).id(docId).source(docMap);
-            igotESClient.index(request, RequestOptions.DEFAULT);
-            log.info("Document indexed successfully in IGOT ES, index [{}], type [{}], id [{}]", indexName, docType, docId);
-            return EsResponse.builder().success(true).message("Document indexed successfully").documentId(docId).build();
+            UpdateRequest updateRequest = new UpdateRequest(indexName, docType, docId).doc(docMap).docAsUpsert(true);
+            igotESClient.update(updateRequest, RequestOptions.DEFAULT);
+            log.info("Document upserted successfully in IGOT ES, index [{}], type [{}], id [{}]", indexName, docType, docId);
+            return EsResponse.builder()
+                    .success(true)
+                    .message("Document upserted successfully")
+                    .documentId(docId)
+                    .build();
         } catch (Exception e) {
-            log.error("Error indexing document in IGOT ES, index [{}]: {}", indexName, e.getMessage(), e);
-            return EsResponse.builder().success(false).message("Error indexing document: " + e.getMessage()).build();
+            log.error("Error upserting document in IGOT ES, index [{}]: {}", indexName, e.getMessage(), e);
+            return EsResponse.builder()
+                    .success(false)
+                    .message("Error upserting document: " + e.getMessage())
+                    .build();
         }
     }
 }

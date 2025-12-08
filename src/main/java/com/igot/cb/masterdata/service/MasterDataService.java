@@ -50,10 +50,10 @@ public interface MasterDataService {
      */
     ApiResponse updateDegreesList(String authToken, Map<String, Object> requestBody);
 
-    ApiResponse searchDegree(SearchCriteria searchCriteria);
-    ApiResponse searchInstitute(SearchCriteria searchCriteria);
-    ApiResponse addDegree(Degree degree);
-    ApiResponse addInstitute(Institute institute);
-    ApiResponse toggleDegreeStatusByName(String degreeName, int status);
-    ApiResponse toggleInstituteStatusByName(String instituteName, int status);
+    ApiResponse searchDegree(Map<String, Object> request);
+    ApiResponse searchInstitute(Map<String, Object> request);
+    ApiResponse addDegree(Map<String, Object> requestBody);
+    ApiResponse addInstitute(Map<String, Object> requestBody);
+    ApiResponse toggleDegreeStatus(Map<String, Object> requestBody);
+    ApiResponse toggleInstituteStatus(Map<String, Object> requestBody);
 }

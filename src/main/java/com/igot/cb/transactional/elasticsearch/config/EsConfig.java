@@ -12,11 +12,12 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 @Configuration
 @Slf4j
-public class EsConfig  {
+public class EsConfig {
     @Value("${elasticsearch.sbESClient.host}")
     private String sbESClientHost;
 
@@ -44,55 +45,23 @@ public class EsConfig  {
     @Bean(name = "sbESClient")
     @Primary
     public RestHighLevelClient sbESClient() {
-        List<String> hosts = new ArrayList<>();
-        List<Integer> ports = new ArrayList<>();
-        String[] splitedHost = sbESClientHost.split(",");
-        String[] splitedPort = sbESClientPort.split(",");
-
-        for (String val : splitedHost) {
-            hosts.add(val);
-        }
-
-        for (String val : splitedPort) {
-            ports.add(Integer.parseInt(val));
-        }
-
-        HttpHost[] httpHosts = new HttpHost[hosts.size()];
-        for (int i = 0; i < hosts.size(); i++) {
-            httpHosts[i] = new HttpHost(hosts.get(i), ports.get(i));
-        }
-
-        RestClientBuilder builder = RestClient.builder(httpHosts)
-                .setRequestConfigCallback(requestConfigBuilder -> requestConfigBuilder
-                        .setConnectTimeout(5000) // 5 seconds connect timeout
-                        .setSocketTimeout(60000) // 60 seconds socket timeout
-                )
-                .setHttpClientConfigCallback(httpClientBuilder -> httpClientBuilder
-                        .setDefaultRequestConfig(RequestConfig.custom()
-                                .setConnectionRequestTimeout(60000) // 60 seconds max retry timeout
-                                .build())
-                ); // 60 seconds max retry timeout
-
-        RestHighLevelClient restClient = new RestHighLevelClient(builder);
-        log.info("ElasticsearchConfig:: RestHighLevelClient initialisation done.");
-        return restClient;
+        return createRestHighLevelClient(sbESClientHost, sbESClientPort);
     }
 
     @Bean(name = "igotESClient")
     public RestHighLevelClient igotESClient() {
-        List<String> hosts = new ArrayList<>();
+        return createRestHighLevelClient(igotESClientHost, igotESClientPort);
+    }
+
+    private RestHighLevelClient createRestHighLevelClient(String hostsStr, String portsStr) {
+
         List<Integer> ports = new ArrayList<>();
-        String[] splitedHost = igotESClientHost.split(",");
-        String[] splitedPort = igotESClientPort.split(",");
-
-        for (String val : splitedHost) {
-            hosts.add(val);
-        }
-
-        for (String val : splitedPort) {
+        String[] hostArr = hostsStr.split(",");
+        String[] portArr = portsStr.split(",");
+        List<String> hosts = new ArrayList<>(Arrays.asList(hostArr));
+        for (String val : portArr) {
             ports.add(Integer.parseInt(val));
         }
-
         HttpHost[] httpHosts = new HttpHost[hosts.size()];
         for (int i = 0; i < hosts.size(); i++) {
             httpHosts[i] = new HttpHost(hosts.get(i), ports.get(i));

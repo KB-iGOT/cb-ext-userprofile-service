@@ -460,8 +460,12 @@ public class Constants {
     public static final String API_SEARCH_INSTITUTE = "api.search.institute";
     public static final String API_ADD_DEGREE = "api.add.degree";
     public static final String API_ADD_INSTITUTE = "api.add.institute";
-    public static final String API_UPDATE_DEGREE_STATUS = "api.delete.degree";
-    public static final String API_UPDATE_INSTITUTE_STATUS = "api.delete.institute";
+    public static final String API_UPDATE_DEGREE_STATUS = "api.update.degree.status";
+    public static final String API_UPDATE_INSTITUTE_STATUS = "api.update.institute.status";
+    public static final String PAGE = "page";
+    public static final String SEARCH_STRING = "searchString";
+    public static final String SORT_BY = "sortBy";
+    public static final String ORDER_BY= "orderBy";
     private Constants() {
     }
 }
