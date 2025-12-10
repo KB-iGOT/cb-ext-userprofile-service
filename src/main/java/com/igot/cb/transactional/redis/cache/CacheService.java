@@ -38,9 +38,12 @@ public class CacheService {
         try (Jedis jedis = jedisDataPopulationPool.getResource()) {
             jedis.select(index);
             List<String> result = jedis.hmget(key, field);
-            if (result != null && !result.isEmpty()) {
-                jedis.expire(key, ttlInSeconds); // Reset TTL on access
-                return result.get(0);
+            String value = (result == null || result.isEmpty()) ? null : result.get(0);
+            if (value != null) { // only reset TTL when a real value exists
+                if (ttlInSeconds > 0) {
+                    jedis.expire(key, ttlInSeconds);
+                }
+                return value;
             }
             return null;
         } catch (Exception e) {
