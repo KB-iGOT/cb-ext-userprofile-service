@@ -1,6 +1,7 @@
 package com.igot.cb.masterdata.controller;
 
 import com.igot.cb.masterdata.service.MasterDataService;
+import com.igot.cb.masterdata.service.MasterDataServiceV2;
 import com.igot.cb.util.ApiResponse;
 import com.igot.cb.util.Constants;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +20,9 @@ public class MasterDataController {
 
     @Autowired
     MasterDataService masterDataService;
+
+    @Autowired
+    MasterDataServiceV2 masterDataServiceV2;
 
     @GetMapping(value = "/list/institutions")
     public ResponseEntity<ApiResponse> getInstitutionsList(@RequestHeader(Constants.X_AUTH_TOKEN) String authToken) {
@@ -44,39 +48,21 @@ public class MasterDataController {
         return new ResponseEntity<>(masterDataService.updateDegreesList(authToken, requestBody), HttpStatus.OK);
     }
 
-    @PostMapping(value = "/degree/search")
-    public ResponseEntity<ApiResponse> searchDegree(@RequestBody Map<String, Object> requestBody) {
-        ApiResponse apiResponse = masterDataService.searchDegree(requestBody);
+    @PostMapping(value = "/search")
+    public ResponseEntity<ApiResponse> searchMasterData(@RequestBody Map<String, Object> requestBody) {
+        ApiResponse apiResponse = masterDataServiceV2.searchMasterData(requestBody);
         return new ResponseEntity<>(apiResponse, apiResponse.getResponseCode());
     }
 
-    @PostMapping(value = "/institute/search")
-    public ResponseEntity<ApiResponse> searchInstitute(@RequestBody Map<String, Object> requestBody) {
-        ApiResponse apiResponse = masterDataService.searchInstitute(requestBody);
+    @PostMapping(value = "/upsert/degree")
+    public ResponseEntity<ApiResponse> upsertDegree(@RequestBody Map<String, Object> requestBody) {
+        ApiResponse apiResponse = masterDataServiceV2.upsertDegree(requestBody);
         return new ResponseEntity<>(apiResponse, apiResponse.getResponseCode());
     }
 
-    @PostMapping(value = "/add/degree")
-    public ResponseEntity<ApiResponse> addDegree(@RequestBody Map<String, Object> requestBody) {
-        ApiResponse apiResponse = masterDataService.addDegree(requestBody);
-        return new ResponseEntity<>(apiResponse, apiResponse.getResponseCode());
-    }
-
-    @PostMapping(value = "/add/institute")
-    public ResponseEntity<ApiResponse> addInstitute(@RequestBody Map<String, Object> requestBody) {
-        ApiResponse apiResponse = masterDataService.addInstitute(requestBody);
-        return new ResponseEntity<>(apiResponse, apiResponse.getResponseCode());
-    }
-
-    @PutMapping("/degree/update/status")
-    public ResponseEntity<ApiResponse> updateDegreeStatus(@RequestBody Map<String, Object> requestBody) {
-        ApiResponse apiResponse = masterDataService.toggleDegreeStatus(requestBody);
-        return new ResponseEntity<>(apiResponse, apiResponse.getResponseCode());
-    }
-
-    @PutMapping("/institute/update/status")
-    public ResponseEntity<ApiResponse> instituteUpdateStatus(@RequestBody Map<String, Object> requestBody) {
-        ApiResponse apiResponse = masterDataService.toggleInstituteStatus(requestBody);
+    @PostMapping(value = "/upsert/institute")
+    public ResponseEntity<ApiResponse> upsertInstitute(@RequestBody Map<String, Object> requestBody) {
+        ApiResponse apiResponse = masterDataServiceV2.upsertInstitute(requestBody);
         return new ResponseEntity<>(apiResponse, apiResponse.getResponseCode());
     }
 

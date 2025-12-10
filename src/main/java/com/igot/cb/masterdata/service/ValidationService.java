@@ -89,44 +89,7 @@ public class ValidationService {
         return true;
     }
 
-    public boolean validateUpdateStatusRequest(ApiResponse apiResponse, Map<String, Object> requestBody) {
-
-        if (MapUtils.isEmpty(requestBody)) {
-            ProjectUtil.errorResponse(apiResponse, "Invalid request", HttpStatus.BAD_REQUEST);
-            return false;
-        }
-        Map<String, Object> statusUpdateRequest = (Map<String, Object>) requestBody.get(Constants.REQUEST);
-        if (MapUtils.isEmpty(statusUpdateRequest)) {
-            ProjectUtil.errorResponse(apiResponse, "Invalid request", HttpStatus.BAD_REQUEST);
-            return false;
-        }
-        Object nameObj = statusUpdateRequest.get(Constants.NAME);
-        String name = (nameObj != null) ? nameObj.toString().trim() : "";
-
-        if (StringUtils.isBlank(name)) {
-            ProjectUtil.errorResponse(apiResponse, "Institute name cannot be empty", HttpStatus.BAD_REQUEST);
-            return false;
-        }
-        Object statusObj = statusUpdateRequest.get(Constants.STATUS);
-        if (statusObj == null) {
-            ProjectUtil.errorResponse(apiResponse, "Status is required", HttpStatus.BAD_REQUEST);
-            return false;
-        }
-        int status;
-        try {
-            status = (statusObj instanceof Number n) ? n.intValue() : Integer.parseInt(statusObj.toString());
-        } catch (NumberFormatException ex) {
-            ProjectUtil.errorResponse(apiResponse, "Status must be a valid number", HttpStatus.BAD_REQUEST);
-            return false;
-        }
-        if (status != 0 && status != 1) {
-            ProjectUtil.errorResponse(apiResponse, "Status must be 0 or 1", HttpStatus.BAD_REQUEST);
-            return false;
-        }
-        return true;
-    }
-
-    public boolean addDegreeValidation(ApiResponse apiResponse, Map<String, Object> requestBody) {
+    public boolean upsertDegreeValidation(ApiResponse apiResponse, Map<String, Object> requestBody) {
 
         // -------- Validate requestBody --------
         if (MapUtils.isEmpty(requestBody)) {
@@ -138,28 +101,49 @@ public class ValidationService {
             ProjectUtil.errorResponse(apiResponse, "Invalid request", HttpStatus.BAD_REQUEST);
             return false;
         }
-        Map<String, Object> addDegreeRequest = (Map<String, Object>) reqObj;
-        // -------- Validate degree name --------
-        Object nameObj = addDegreeRequest.get(Constants.NAME);
-        String name = nameObj == null ? "" : String.valueOf(nameObj).trim();
-
-        if (StringUtils.isEmpty(name)) {
-            ProjectUtil.errorResponse(apiResponse, "Degree name cannot be empty", HttpStatus.BAD_REQUEST);
-            return false;
-        }
-        // -------- Validate degree description (optional) --------
-        Object descObj = addDegreeRequest.get(Constants.DESCRIPTION);
-        if (ObjectUtils.isNotEmpty(descObj)) {
-            String description = String.valueOf(descObj);
-            if (description.length() > 255) {
-                ProjectUtil.errorResponse(apiResponse, "Degree description cannot exceed 255 characters", HttpStatus.BAD_REQUEST);
+        Map<String, Object> requestMap = (Map<String, Object>) reqObj;
+        Object id = requestMap.get(Constants.ID);
+        if (ObjectUtils.isNotEmpty(id)) {
+            if (!(id instanceof Number)) {
+                ProjectUtil.errorResponse(apiResponse, "ID must be a numeric value", HttpStatus.BAD_REQUEST);
                 return false;
+            }
+            Object statusObj = requestMap.get(Constants.STATUS);
+            if (ObjectUtils.isNotEmpty(statusObj)) {
+                int status;
+                try {
+                    status = (statusObj instanceof Number n) ? n.intValue() : Integer.parseInt(statusObj.toString());
+                } catch (NumberFormatException ex) {
+                    ProjectUtil.errorResponse(apiResponse, "Status must be a valid number", HttpStatus.BAD_REQUEST);
+                    return false;
+                }
+                if (status != 0 && status != 1) {
+                    ProjectUtil.errorResponse(apiResponse, "Status must be 0 or 1", HttpStatus.BAD_REQUEST);
+                    return false;
+                }
+            }
+        } else {
+            // -------- Validate degree name --------
+            Object nameObj = requestMap.get(Constants.NAME);
+            String name = nameObj == null ? "" : String.valueOf(nameObj).trim();
+            if (StringUtils.isEmpty(name)) {
+                ProjectUtil.errorResponse(apiResponse, "Degree name cannot be empty", HttpStatus.BAD_REQUEST);
+                return false;
+            }
+            // -------- Validate degree description (optional) --------
+            Object descObj = requestMap.get(Constants.DESCRIPTION);
+            if (ObjectUtils.isNotEmpty(descObj)) {
+                String description = String.valueOf(descObj);
+                if (description.length() > 255) {
+                    ProjectUtil.errorResponse(apiResponse, "Degree description cannot exceed 255 characters", HttpStatus.BAD_REQUEST);
+                    return false;
+                }
             }
         }
         return true;
     }
 
-    public boolean addInstituteValidation(ApiResponse apiResponse, Map<String, Object> requestBody) {
+    public boolean upsertInstituteValidation(ApiResponse apiResponse, Map<String, Object> requestBody) {
 
         // -------- Validate requestBody --------
         if (MapUtils.isEmpty(requestBody)) {
@@ -171,24 +155,45 @@ public class ValidationService {
             ProjectUtil.errorResponse(apiResponse, "Invalid request", HttpStatus.BAD_REQUEST);
             return false;
         }
-        Map<String, Object> addInstituteRequest = (Map<String, Object>) reqObj;
-        // -------- Validate institute name --------
-        Object nameObj = addInstituteRequest.get(Constants.NAME);
-        String name = nameObj == null ? "" : String.valueOf(nameObj).trim();
-        if (StringUtils.isEmpty(name)) {
-            ProjectUtil.errorResponse(apiResponse, "Institute name cannot be empty", HttpStatus.BAD_REQUEST);
-            return false;
-        }
-        // -------- Validate institute description (optional) --------
-        Object descObj = addInstituteRequest.get(Constants.DESCRIPTION);
-        if (ObjectUtils.isNotEmpty(descObj)) {
-            String description = String.valueOf(descObj);
-            if (description.length() > 255) {
-                ProjectUtil.errorResponse(apiResponse, "Institute description cannot exceed 255 characters", HttpStatus.BAD_REQUEST);
+        Map<String, Object> requestMap = (Map<String, Object>) reqObj;
+        Object id = requestMap.get(Constants.ID);
+        if (ObjectUtils.isNotEmpty(id)) {
+            if (!(id instanceof Number)) {
+                ProjectUtil.errorResponse(apiResponse, "ID must be a numeric value", HttpStatus.BAD_REQUEST);
                 return false;
+            }
+            Object statusObj = requestMap.get(Constants.STATUS);
+            if (ObjectUtils.isNotEmpty(statusObj)) {
+                int status;
+                try {
+                    status = (statusObj instanceof Number n) ? n.intValue() : Integer.parseInt(statusObj.toString());
+                } catch (NumberFormatException ex) {
+                    ProjectUtil.errorResponse(apiResponse, "Status must be a valid number", HttpStatus.BAD_REQUEST);
+                    return false;
+                }
+                if (status != 0 && status != 1) {
+                    ProjectUtil.errorResponse(apiResponse, "Status must be 0 or 1", HttpStatus.BAD_REQUEST);
+                    return false;
+                }
+            }
+        } else {
+            // -------- Validate institute name --------
+            Object nameObj = requestMap.get(Constants.NAME);
+            String name = nameObj == null ? "" : String.valueOf(nameObj).trim();
+            if (StringUtils.isEmpty(name)) {
+                ProjectUtil.errorResponse(apiResponse, "Institute name cannot be empty", HttpStatus.BAD_REQUEST);
+                return false;
+            }
+            // -------- Validate institute description (optional) --------
+            Object descObj = requestMap.get(Constants.DESCRIPTION);
+            if (ObjectUtils.isNotEmpty(descObj)) {
+                String description = String.valueOf(descObj);
+                if (description.length() > 255) {
+                    ProjectUtil.errorResponse(apiResponse, "Institute description cannot exceed 255 characters", HttpStatus.BAD_REQUEST);
+                    return false;
+                }
             }
         }
         return true;
     }
-
 }

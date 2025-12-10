@@ -46,11 +46,4 @@ public interface MasterDataService {
      *         or an error response if the operation fails
      */
     ApiResponse updateDegreesList(String authToken, Map<String, Object> requestBody);
-
-    ApiResponse searchDegree(Map<String, Object> request);
-    ApiResponse searchInstitute(Map<String, Object> request);
-    ApiResponse addDegree(Map<String, Object> requestBody);
-    ApiResponse addInstitute(Map<String, Object> requestBody);
-    ApiResponse toggleDegreeStatus(Map<String, Object> requestBody);
-    ApiResponse toggleInstituteStatus(Map<String, Object> requestBody);
 }

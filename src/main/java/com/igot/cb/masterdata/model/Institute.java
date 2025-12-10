@@ -22,7 +22,7 @@ public class Institute {
     @Column(name = "description")
     private String description;
     @Column(name = "status")
-    private int status;
+    private Integer status;
     @Column(name = "added_on")
     private LocalDateTime addedOn;
     @Column(name = "updated_on")

@@ -1,19 +1,22 @@
 package com.igot.cb.masterdata.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.igot.cb.masterdata.model.Institute;
 import com.igot.cb.masterdata.service.MasterDataService;
+import com.igot.cb.masterdata.service.MasterDataServiceV2;
 import com.igot.cb.util.ApiResponse;
 import com.igot.cb.util.Constants;
 import com.igot.cb.util.ProjectUtil;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -21,13 +24,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
-import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -43,9 +46,13 @@ class MasterDataControllerTest {
     @InjectMocks
     private MasterDataController masterDataController;
 
+    @Mock
+    private MasterDataServiceV2 masterDataServiceV2;
+
     @BeforeEach
     void setup() {
         mockMvc = MockMvcBuilders.standaloneSetup(masterDataController).build();
+        MockitoAnnotations.openMocks(this);
     }
 
     @Test
@@ -116,220 +123,137 @@ class MasterDataControllerTest {
     }
 
     @Test
-    void testSearchDegree() throws Exception {
-        Map<String, Object> requestBody = Map.of("request", Map.of("searchString", "B.Tech"));
-        ApiResponse mockResponse = ProjectUtil.createDefaultResponse("search-degree");
+    void testSearchMasterData_degree() {
+        Map<String, Object> requestBody = Map.of(
+                Constants.TYPE, "degree",
+                Constants.REQUEST, Map.of("filters", Map.of("name", "MBA"))
+        );
+
+        ApiResponse mockResponse = new ApiResponse();
         mockResponse.setResponseCode(HttpStatus.OK);
-        mockResponse.getResult().put("degrees", List.of("B.Tech"));
+        mockResponse.getResult().put(Constants.RESULT, List.of(Map.of("name", "MBA")));
+        mockResponse.getResult().put(Constants.COUNT, 1L);
+        when(masterDataServiceV2.searchMasterData(requestBody)).thenReturn(mockResponse);
+        ResponseEntity<ApiResponse> response = masterDataController.searchMasterData(requestBody);
 
-        when(masterDataService.searchDegree(any(Map.class))).thenReturn(mockResponse);
-
-        mockMvc.perform(post("/v1/masterdata/degree/search")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(new ObjectMapper().writeValueAsString(requestBody)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.responseCode").value(HttpStatus.OK.name()))
-                .andExpect(jsonPath("$.result.degrees[0]").value("B.Tech"));
-
-        verify(masterDataService, times(1)).searchDegree(any(Map.class));
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(1L, response.getBody().getResult().get(Constants.COUNT));
+        assertNotNull(response.getBody().getResult().get(Constants.RESULT));
+        verify(masterDataServiceV2).searchMasterData(requestBody);
     }
 
     @Test
-    void testSearchInstitute() throws Exception {
-        Map<String, Object> requestBody = Map.of("request", Map.of("searchString", "IIT"));
-        ApiResponse mockResponse = ProjectUtil.createDefaultResponse("search-institute");
+    void testSearchMasterData_institute() {
+        Map<String, Object> requestBody = Map.of(
+                Constants.TYPE, "institute",
+                Constants.REQUEST, Map.of("filters", Map.of("name", "IIT"))
+        );
+
+        ApiResponse mockResponse = new ApiResponse();
         mockResponse.setResponseCode(HttpStatus.OK);
-        mockResponse.getResult().put("institutes", List.of("IIT"));
-        when(masterDataService.searchInstitute(any(Map.class))).thenReturn(mockResponse);
-        mockMvc.perform(post("/v1/masterdata/institute/search")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(new ObjectMapper().writeValueAsString(requestBody)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.responseCode").value(HttpStatus.OK.name()))
-                .andExpect(jsonPath("$.result.institutes[0]").value("IIT"));
-        verify(masterDataService, times(1)).searchInstitute(any(Map.class));
+        mockResponse.put(Constants.RESULT, List.of(Map.of("name", "IIT")));
+        mockResponse.put(Constants.COUNT, 1L);
+
+        when(masterDataServiceV2.searchMasterData(requestBody)).thenReturn(mockResponse);
+
+        ResponseEntity<ApiResponse> response = masterDataController.searchMasterData(requestBody);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(1L, response.getBody().get(Constants.COUNT));
+        assertNotNull(response.getBody().get(Constants.RESULT));
+        verify(masterDataServiceV2).searchMasterData(requestBody);
     }
 
     @Test
-    void testAddDegree_Success() throws Exception {
-        ApiResponse apiResponse = ProjectUtil.createDefaultResponse(Constants.API_ADD_DEGREE);
-        apiResponse.getParams().setStatus(Constants.SUCCESS);
+    void testSearchMasterData_invalidType() {
+        Map<String, Object> requestBody = Map.of(
+                Constants.TYPE, "invalid",
+                Constants.REQUEST, Map.of("filters", Map.of("name", "XYZ"))
+        );
 
-        when(masterDataService.addDegree(any())).thenReturn(apiResponse);
-
-        mockMvc.perform(post("/v1/masterdata/add/degree")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"request\": {\"name\": \"MBA\", \"description\": \"Master\"}}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.params.status").value(Constants.SUCCESS));
-    }
-
-    @Test
-    void testAddDegree_Failure() throws Exception {
-        ApiResponse apiResponse = ProjectUtil.createDefaultResponse(Constants.API_ADD_DEGREE);
-        apiResponse.getParams().setStatus(Constants.FAILED);
-
-        when(masterDataService.addDegree(any())).thenReturn(apiResponse);
-
-        mockMvc.perform(post("/v1/masterdata/add/degree")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"request\": {\"name\": \"MBA\"}}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.params.status").value(Constants.FAILED));
-    }
-
-    private String requestJson() {
-        return "{ \"request\": { \"name\": \"IIT Delhi\", \"description\": \"Engineering\" } }";
-    }
-
-    @Test
-    void testAddInstitute_NewInstitute_Success() throws Exception {
-
-        ApiResponse apiResponse = ProjectUtil.createDefaultResponse(Constants.API_ADD_INSTITUTE);
-        Institute result = new Institute();
-        result.setId(10L);
-        result.setName("IIT Delhi");
-        result.setStatus(1);
-
-        apiResponse.getResult().put(Constants.RESULT, result);
-
-        when(masterDataService.addInstitute(any())).thenReturn(apiResponse);
-
-        mockMvc.perform(post("/v1/masterdata/add/institute")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(requestJson()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.result.result.id").value(10))
-                .andExpect(jsonPath("$.result.result.name").value("IIT Delhi"))
-                .andExpect(jsonPath("$.result.result.status").value(1));
-    }
-
-    @Test
-    void testAddInstitute_ValidationFails() throws Exception {
-
-        ApiResponse resp = ProjectUtil.createDefaultResponse(Constants.API_ADD_INSTITUTE);
-        ProjectUtil.errorResponse(resp, "Invalid request", HttpStatus.BAD_REQUEST);
-
-        when(masterDataService.addInstitute(any())).thenReturn(resp);
-
-        mockMvc.perform(post("/v1/masterdata/add/institute")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(requestJson()))
-                .andDo(print())
-                .andExpect(status().isBadRequest())
-                // Fix JSON path to match actual field name: "errMsg"
-                .andExpect(jsonPath("$.params.errMsg").value("Invalid request"));
-    }
-
-
-    @Test
-    void testAddInstitute_ExistingActive_Conflict() throws Exception {
-
-        ApiResponse resp = ProjectUtil.createDefaultResponse(Constants.API_ADD_INSTITUTE);
-        ProjectUtil.errorResponse(resp, "Institute already exists and is active", HttpStatus.CONFLICT);
-
-        when(masterDataService.addInstitute(any())).thenReturn(resp);
-
-        mockMvc.perform(post("/v1/masterdata/add/institute")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(requestJson()))
-                .andDo(print())
-                .andExpect(status().isConflict())
-                // Fix JSON path to match actual field name: "errMsg"
-                .andExpect(jsonPath("$.params.errMsg")
-                        .value("Institute already exists and is active"));
-    }
-
-    @Test
-    void testAddInstitute_ExistingInactive_Reactivated() throws Exception {
-        ApiResponse apiResponse = ProjectUtil.createDefaultResponse(Constants.API_ADD_INSTITUTE);
-        Institute result = new Institute();
-        result.setId(5L);
-        result.setName("IIT Delhi");
-        result.setStatus(1); // reactivated
-
-        apiResponse.getResult().put(Constants.RESULT, result);
-
-        when(masterDataService.addInstitute(any())).thenReturn(apiResponse);
-
-        mockMvc.perform(post("/v1/masterdata/add/institute")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(requestJson()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.result.result.id").value(5))
-                .andExpect(jsonPath("$.result.result.status").value(1));
-    }
-
-    @Test
-    void testAddInstitute_ESFailure_500() throws Exception {
-        ApiResponse resp = ProjectUtil.createDefaultResponse(Constants.API_ADD_INSTITUTE);
-        ProjectUtil.errorResponse(resp,
-                "Failed to add the institute (ES indexing failed)",
-                HttpStatus.INTERNAL_SERVER_ERROR);
-
-        when(masterDataService.addInstitute(any())).thenReturn(resp);
-
-        mockMvc.perform(post("/v1/masterdata/add/institute")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(requestJson()))
-                .andDo(print())
-                .andExpect(status().isInternalServerError())
-                // Fix JSON path to match actual field name: "errMsg"
-                .andExpect(jsonPath("$.params.errMsg")
-                        .value("Failed to add the institute (ES indexing failed)"));
-    }
-
-    @Test
-    void testUpdateDegreeStatus_Success() throws Exception {
-        Map<String, Object> requestBody = Map.of("request", Map.of("name", "MBA", "status", 1));
-        ApiResponse mockResponse = ProjectUtil.createDefaultResponse("update-degree-status");
-        mockResponse.getParams().setStatus("success");
-        mockResponse.setResponseCode(HttpStatus.OK);
-        when(masterDataService.toggleDegreeStatus(requestBody))
-                .thenReturn(mockResponse);
-        mockMvc.perform(put("/v1/masterdata/degree/update/status")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(new ObjectMapper().writeValueAsString(requestBody)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.params.status").value("success"));
-        verify(masterDataService).toggleDegreeStatus(requestBody);
-    }
-
-    @Test
-    void testUpdateDegreeStatus_Failure() throws Exception {
-        Map<String, Object> requestBody = Map.of("request", Map.of("name", "MBA", "status", 1));
-        ApiResponse mockResponse = ProjectUtil.createDefaultResponse("update-degree-status");
-        mockResponse.getParams().setStatus("failure");
+        ApiResponse mockResponse = new ApiResponse();
         mockResponse.setResponseCode(HttpStatus.BAD_REQUEST);
-        // Correct stubbing for method that accepts a Map
-        when(masterDataService.toggleDegreeStatus(anyMap())).thenReturn(mockResponse);
-        mockMvc.perform(put("/v1/masterdata/degree/update/status")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(new ObjectMapper().writeValueAsString(requestBody)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.params.status").value("failure"));
-        // Correct verification for method that takes a Map
-        verify(masterDataService).toggleDegreeStatus(anyMap());
+        mockResponse.getResult().put(Constants.RESULT, null);
+        when(masterDataServiceV2.searchMasterData(requestBody)).thenReturn(mockResponse);
+        ResponseEntity<ApiResponse> response = masterDataController.searchMasterData(requestBody);
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        verify(masterDataServiceV2).searchMasterData(requestBody);
     }
 
     @Test
-    void testInstituteUpdateStatus_Success() throws Exception {
-        Map<String, Object> requestBody = Map.of("request", Map.of("name", "IIT Delhi", "status", 1));
-        ApiResponse mockResponse = ProjectUtil.createDefaultResponse("update-institute-status");
-        mockResponse.getParams().setStatus("success");
+    void testUpsertDegree_success() {
+        Map<String, Object> requestBody = Map.of(
+                Constants.REQUEST, Map.of(Constants.NAME, "MBA")
+        );
+
+        ApiResponse mockResponse = new ApiResponse();
         mockResponse.setResponseCode(HttpStatus.OK);
-        // Correct mocking for Map-based method
-        when(masterDataService.toggleInstituteStatus(requestBody))
-                .thenReturn(mockResponse);
+        mockResponse.getResult().put(Constants.RESULT, Map.of("name", "MBA"));
 
-        mockMvc.perform(put("/v1/masterdata/institute/update/status")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(new ObjectMapper().writeValueAsString(requestBody)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.params.status").value("success"));
+        when(masterDataServiceV2.upsertDegree(requestBody)).thenReturn(mockResponse);
 
-        // Verify correct service call
-        verify(masterDataService).toggleInstituteStatus(requestBody);
+        ResponseEntity<ApiResponse> response = masterDataController.upsertDegree(requestBody);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals("MBA", ((Map) response.getBody().getResult().get(Constants.RESULT)).get("name"));
+        verify(masterDataServiceV2).upsertDegree(requestBody);
     }
 
+    @Test
+    void testUpsertDegree_conflict() {
+        Map<String, Object> requestBody = Map.of(
+                Constants.REQUEST, Map.of(Constants.NAME, "MBA")
+        );
+
+        ApiResponse mockResponse = new ApiResponse();
+        mockResponse.setResponseCode(HttpStatus.CONFLICT);
+        mockResponse.getResult().put(Constants.RESULT, null);
+
+        when(masterDataServiceV2.upsertDegree(requestBody)).thenReturn(mockResponse);
+
+        ResponseEntity<ApiResponse> response = masterDataController.upsertDegree(requestBody);
+
+        assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
+        verify(masterDataServiceV2).upsertDegree(requestBody);
+    }
+
+    @Test
+    void testUpsertInstitute_success() {
+        Map<String, Object> requestBody = Map.of(
+                Constants.REQUEST, Map.of(Constants.NAME, "IIT")
+        );
+
+        ApiResponse mockResponse = new ApiResponse();
+        mockResponse.setResponseCode(HttpStatus.OK);
+        mockResponse.getResult().put(Constants.RESULT, Map.of("name", "IIT"));
+
+        when(masterDataServiceV2.upsertInstitute(requestBody)).thenReturn(mockResponse);
+
+        ResponseEntity<ApiResponse> response = masterDataController.upsertInstitute(requestBody);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals("IIT", ((Map) response.getBody().getResult().get(Constants.RESULT)).get("name"));
+        verify(masterDataServiceV2).upsertInstitute(requestBody);
+    }
+
+    @Test
+    void testUpsertInstitute_conflict() {
+        Map<String, Object> requestBody = Map.of(
+                Constants.REQUEST, Map.of(Constants.NAME, "IIT")
+        );
+
+        ApiResponse mockResponse = new ApiResponse();
+        mockResponse.setResponseCode(HttpStatus.CONFLICT);
+        mockResponse.getResult().put(Constants.RESULT, null);
+
+        when(masterDataServiceV2.upsertInstitute(requestBody)).thenReturn(mockResponse);
+
+        ResponseEntity<ApiResponse> response = masterDataController.upsertInstitute(requestBody);
+
+        assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
+        verify(masterDataServiceV2).upsertInstitute(requestBody);
+    }
 }

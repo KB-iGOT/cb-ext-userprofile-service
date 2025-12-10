@@ -161,4 +161,11 @@ public class CbServerProperties {
 
     @Value("${es.masterdata.index.doc.type}")
     private String esMasterDataIndexDocType;
+
+    @Value("${master.data.allowed.type}")
+    private String masterDataAllowedType;
+
+    public List<String> getMasterDataAllowedType() {
+        return Arrays.asList(masterDataAllowedType.split(","));
+    }
 }
