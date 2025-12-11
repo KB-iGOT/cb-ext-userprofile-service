@@ -1590,7 +1590,7 @@ class ProfileServiceImplTest {
 
         int count = ReflectionTestUtils.invokeMethod(locaService, "getIssuedCertificateCount", "user-2");
         assertEquals(4, count);
-        verify(localCacheService).hset("cert:count", 12, "user-2", "4");
+        verify(localCacheService).hset("cert:count", 12, "user-2", "4",0);
     }
 
     @Test
@@ -1615,7 +1615,7 @@ class ProfileServiceImplTest {
         int count = ReflectionTestUtils.invokeMethod(localService, "getIssuedCertificateCount", "user-3");
         assertEquals(0, count);
         //verify(localCacheService).hset("cert:count", 12, "user-3", "0");
-        verify(localCacheService, never()).hset(anyString(), anyInt(), anyString(), anyString());
+        verify(localCacheService, never()).hset(anyString(), anyInt(), anyString(), anyString(),0);
     }
 
     @Test
@@ -1670,7 +1670,7 @@ class ProfileServiceImplTest {
 
         int count = ReflectionTestUtils.invokeMethod(locaService, "getIssuedCertificateCount", "user-5");
         assertEquals(0, count);
-        verify(localCacheService, never()).hset(anyString(), anyInt(), anyString(), anyString());
+        verify(localCacheService, never()).hset(anyString(), anyInt(), anyString(), anyString(),0);
     }
 
     @Test

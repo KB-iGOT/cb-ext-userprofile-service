@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 
@@ -38,7 +39,7 @@ public class CacheService {
         try (Jedis jedis = jedisDataPopulationPool.getResource()) {
             jedis.select(index);
             List<String> result = jedis.hmget(key, field);
-            String value = (result == null || result.isEmpty()) ? null : result.get(0);
+            String value = CollectionUtils.isEmpty(result) ? null : result.get(0);
             if (value != null) { // only reset TTL when a real value exists
                 if (ttlInSeconds > 0) {
                     jedis.expire(key, ttlInSeconds);
@@ -52,12 +53,12 @@ public class CacheService {
         }
     }
 
-    public void hset(String key, int index, String field, String value) {
-        try (Jedis jedis = jedisDataPopulationPool.getResource()) {
+    public void hset(String key, int index, String field, String value, int ttlInSeconds) {
+        try (Jedis jedis = jedisPool.getResource()) { // use same pool for consistency
             jedis.select(index);
             jedis.hset(key, field, value);
-            jedis.expire(key, cache_ttl);
-
+            int expiry = (ttlInSeconds > 0) ? ttlInSeconds : cache_ttl;
+            jedis.expire(key, expiry);
         } catch (Exception e) {
             logger.error("Error in hset: ", e);
         }
