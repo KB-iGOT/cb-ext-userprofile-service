@@ -130,6 +130,17 @@ public class CbServerProperties {
     @Value("${cb.certificate.count.redis.key}")
     private String certificateCountRedisKey;
 
+    @Value("${cb.certificate.count.redis.ttl}")
+    private int certificateCountRedisTtl;
+
+    public int getCertificateCountRedisTtl() {
+        return certificateCountRedisTtl;
+    }
+
+    public void setCertificateCountRedisTtl(int certificateCountRedisTtl) {
+        this.certificateCountRedisTtl = certificateCountRedisTtl;
+    }
+
     public List<String> getBasicProfileFields() {
         return Arrays.asList(basicProfileFields.split(","));
     }

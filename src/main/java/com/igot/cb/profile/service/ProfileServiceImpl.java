@@ -951,7 +951,7 @@ public class ProfileServiceImpl implements ProfileService {
         String redisKey = serverConfig.getCertificateCountRedisKey();
 
         try {
-            String cachedValue = cacheService.hget(redisKey,serverConfig.getDataIndex(),userId,serverConfig.getCacheTtl());
+            String cachedValue = cacheService.hget(redisKey,serverConfig.getDataIndex(),userId,serverConfig.getCertificateCountRedisTtl());
             if (cachedValue != null) {
                 return Integer.parseInt(cachedValue);
             }
@@ -1008,7 +1008,7 @@ public class ProfileServiceImpl implements ProfileService {
                     .filter(CollectionUtils::isNotEmpty)
                     .count();
             totalIssuedCertificates += certificatesFromEvents + certificatesFromExternalCourses;
-            cacheService.hset(redisKey,serverConfig.getDataIndex(),userId, String.valueOf(totalIssuedCertificates));
+            cacheService.hset(redisKey,serverConfig.getDataIndex(),userId, String.valueOf(totalIssuedCertificates),serverConfig.getCertificateCountRedisTtl());
             return totalIssuedCertificates;
 
         } catch (Exception e) {
