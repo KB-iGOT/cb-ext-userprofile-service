@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringUtils;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 
@@ -39,7 +40,7 @@ public class CacheService {
         try (Jedis jedis = jedisDataPopulationPool.getResource()) {
             jedis.select(index);
             List<String> result = jedis.hmget(key, field);
-            String value = CollectionUtils.isEmpty(result) ? null : result.get(0);
+            String value = StringUtils.isEmpty(result) ? null : result.get(0);
             if (value != null) { // only reset TTL when a real value exists
                 if (ttlInSeconds > 0) {
                     jedis.expire(key, ttlInSeconds);
