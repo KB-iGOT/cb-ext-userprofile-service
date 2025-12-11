@@ -54,7 +54,7 @@ public class CacheService {
     }
 
     public void hset(String key, int index, String field, String value, int ttlInSeconds) {
-        try (Jedis jedis = jedisPool.getResource()) { // use same pool for consistency
+        try (Jedis jedis = jedisDataPopulationPool.getResource()) {
             jedis.select(index);
             jedis.hset(key, field, value);
             int expiry = (ttlInSeconds > 0) ? ttlInSeconds : cache_ttl;
