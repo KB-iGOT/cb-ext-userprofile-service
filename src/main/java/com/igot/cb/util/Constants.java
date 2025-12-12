@@ -456,6 +456,12 @@ public class Constants {
     public static final String AUTH_TOKEN = "Authorization";
     public static final String APPROVED = "Approved";
     public static final String USER_EXTERNAL_COURSE_ENROLMENTS = "user_external_enrolments";
+    public static final String API_UPSERT_DEGREE = "api.upsert.degree";
+    public static final String API_UPSERT_INSTITUTE = "api.upsert.institute";
+    public static final String SEARCH_STRING = "searchString";
+    public static final String SORT_BY = "sortBy";
+    public static final String ORDER_BY= "orderBy";
+    public static final String API_SEARCH_MASTER_DATA = "api.search.masterdata";
     private Constants() {
     }
 }

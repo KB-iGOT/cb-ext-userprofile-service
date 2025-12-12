@@ -149,4 +149,23 @@ public class CbServerProperties {
 
     @Value("${db.table.user-enrolments}")
     private String userEnrolmentsTable;
+
+    @Value("${master.data.search.string.regex}")
+    private String masterDataSearchStringRegex;
+
+    @Value("${es.degree.index.name}")
+    private String esDegreeIndexName;
+
+    @Value("${es.institute.index.name}")
+    private String esInstituteIndexName;
+
+    @Value("${es.masterdata.index.doc.type}")
+    private String esMasterDataIndexDocType;
+
+    @Value("${master.data.allowed.type}")
+    private String masterDataAllowedType;
+
+    public List<String> getMasterDataAllowedType() {
+        return Arrays.asList(masterDataAllowedType.split(","));
+    }
 }
