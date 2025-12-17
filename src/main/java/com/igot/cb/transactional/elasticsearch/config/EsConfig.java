@@ -9,14 +9,16 @@ import org.elasticsearch.client.RestHighLevelClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Configuration
 @Slf4j
-public class EsConfig  {
+public class EsConfig {
     @Value("${elasticsearch.sbESClient.host}")
     private String sbESClientHost;
 
@@ -29,16 +31,38 @@ public class EsConfig  {
     @Value("${elasticsearch.sbESClient.password}")
     private String sbESClientPassword;
 
+    @Value("${elasticsearch.igotESClient.host}")
+    private String igotESClientHost;
+
+    @Value("${elasticsearch.igotESClient.port}")
+    private String igotESClientPort;
+
+    @Value("${elasticsearch.igotESClient.username}")
+    private String igotESClientUsername;
+
+    @Value("${elasticsearch.igotESClient.password}")
+    private String igotESClientPassword;
+
     @Bean(name = "sbESClient")
+    @Primary
     public RestHighLevelClient sbESClient() {
-        String[] splitedHost = sbESClientHost.split(",");
-        String[] splitedPort = sbESClientPort.split(",");
+        return createRestHighLevelClient(sbESClientHost, sbESClientPort);
+    }
 
-        List<String> hosts = Arrays.asList(splitedHost);
-        List<Integer> ports = Arrays.stream(splitedPort)
-                .map(Integer::parseInt)
-                .collect(Collectors.toList());
+    @Bean(name = "igotESClient")
+    public RestHighLevelClient igotESClient() {
+        return createRestHighLevelClient(igotESClientHost, igotESClientPort);
+    }
 
+    private RestHighLevelClient createRestHighLevelClient(String hostsStr, String portsStr) {
+
+        List<Integer> ports = new ArrayList<>();
+        String[] hostArr = hostsStr.split(",");
+        String[] portArr = portsStr.split(",");
+        List<String> hosts = new ArrayList<>(Arrays.asList(hostArr));
+        for (String val : portArr) {
+            ports.add(Integer.parseInt(val));
+        }
         HttpHost[] httpHosts = new HttpHost[hosts.size()];
         for (int i = 0; i < hosts.size(); i++) {
             httpHosts[i] = new HttpHost(hosts.get(i), ports.get(i));
