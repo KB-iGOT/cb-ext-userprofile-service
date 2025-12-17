@@ -8,6 +8,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringUtils;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 
@@ -34,9 +36,12 @@ public class CacheService {
         try (Jedis jedis = jedisDataPopulationPool.getResource()) {
             jedis.select(index);
             List<String> result = jedis.hmget(key, field);
-            if (result != null && !result.isEmpty()) {
-                jedis.expire(key, ttlInSeconds); // Reset TTL on access
-                return result.get(0);
+            String value = StringUtils.isEmpty(result) ? null : result.get(0);
+            if (value != null) { // only reset TTL when a real value exists
+                if (ttlInSeconds > 0) {
+                    jedis.expire(key, ttlInSeconds);
+                }
+                return value;
             }
             return null;
         } catch (Exception e) {
@@ -45,12 +50,12 @@ public class CacheService {
         }
     }
 
-    public void hset(String key, int index, String field, String value) {
+    public void hset(String key, int index, String field, String value, int ttlInSeconds) {
         try (Jedis jedis = jedisDataPopulationPool.getResource()) {
             jedis.select(index);
             jedis.hset(key, field, value);
-            jedis.expire(key, cacheTtl);
-
+            int expiry = (ttlInSeconds > 0) ? ttlInSeconds : cache_ttl;
+            jedis.expire(key, expiry);
         } catch (Exception e) {
             logger.error("Error in hset: ", e);
         }

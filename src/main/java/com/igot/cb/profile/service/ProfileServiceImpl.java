@@ -473,6 +473,513 @@ public class ProfileServiceImpl implements ProfileService {
                 .orElse(null);
     }
 
+    public Map<String, Object> readUserDataFromDB(String userId, List<String> keyList) {
+        if (CollectionUtils.isEmpty(keyList)) {
+            keyList = serverConfig.getBasicProfileFields();
+        }
+        String cacheKey = Constants.USER + ":basicProfile:" + userId;
+        Map<String, Object> queryParams = Map.of(Constants.ID, userId);
+        List<Map<String, Object>> userList = cassandraOperation.getRecordsByPropertiesByKey(
+                Constants.KEYSPACE_SUNBIRD, Constants.USER, queryParams, keyList, null);
+
+        if (CollectionUtils.isEmpty(userList)) { 
+            return Map.of();
+        }
+        Map<String, Object> userObj = userList.get(0);
+        String profileDetailsJson = (String) userObj.get(Constants.PROFILE_DETAILS);
+
+        try {
+            if (StringUtils.isNotBlank(profileDetailsJson)) {
+                Map<String, Object> profileDetailsMap = mapper.readValue(profileDetailsJson, new TypeReference<Map<String, Object>>() {
+                });
+                userObj.put(Constants.PROFILE_DETAILS, profileDetailsMap);
+            } else {
+                userObj.put(Constants.PROFILE_DETAILS, Map.of());
+            }
+            cacheService.putCache(cacheKey, userObj);
+        } catch (IOException e) {
+            log.error("Invalid profileDetails JSON for userId: {}", userId, e);
+            userObj.put(Constants.PROFILE_DETAILS, Map.of());
+        }
+
+        return userObj;
+    }
+
+    private void sanitizeProfile(Map<String, Object> profile, String userToken) {
+        Object detailsObj = profile.get(Constants.PROFILE_DETAILS);
+
+        if (detailsObj instanceof Map<?, ?> detailsMap) {
+            if (detailsMap.containsKey(Constants.PERSONAL_DETAILS)) {
+                detailsMap.remove(Constants.PERSONAL_DETAILS);
+                log.info("Removed personalDetails due to unrecognized profilePreference.");
+            }
+            ProfilePreference profilePref = ProfilePreference.PUBLIC; // default to PUBLIC
+
+            Object preferenceObj = detailsMap.get(Constants.PROFILE_PREFERENCE);
+            if (preferenceObj instanceof Integer) {
+                ProfilePreference resolvedPref = ProfilePreference.fromValue((Integer) preferenceObj);
+                if (resolvedPref != null) {
+                    profilePref = resolvedPref;
+                }
+            }
+
+            // If PUBLIC, return everything
+            if (ProfilePreference.PUBLIC.equals(profilePref)) {
+                return;
+            }
+
+            // Load keys from property
+            List<String> filteredKeys = Arrays.asList(basicDetailsFilteredKeys.split(","));
+            // Shared allowed keys from config
+            List<String> allowedKeys = Arrays.asList(profileVisibleAllowedFields.split(","));
+            Map<String, Object> filteredDetails = new HashMap<>();
+
+            // If PRIVATE_NO_ONE
+            if (ProfilePreference.PRIVATE_NO_ONE.equals(profilePref)) {
+                for (String key : allowedKeys) {
+                    if (detailsMap.containsKey(key)) {
+                        filteredDetails.put(key, detailsMap.get(key));
+                    }
+                }
+                filteredKeys.forEach(profile::remove);
+                profile.put(Constants.PROFILE_DETAILS, filteredDetails);
+                log.info("Sanitized profileDetails for PRIVATE_NO_ONE ({}). Allowed fields: {}", profilePref.getValue(), allowedKeys);
+
+            } else if (ProfilePreference.PRIVATE_CONNECTIONS.equals(profilePref)) {
+                Map<String, Object> connectionResponse = checkConnected(
+                        (String) profile.get(Constants.ID),
+                        (String) profile.get(Constants.AUTH_TOKEN),
+                        userToken);
+
+                if (connectionResponse != null) {
+                    Object statusObj = connectionResponse.get(Constants.STATUS);
+                    if (statusObj != null && Constants.APPROVED.equalsIgnoreCase(statusObj.toString())) {
+                        return; // If connection approved, allow full profile
+                    }
+                }
+                filteredKeys.forEach(profile::remove);
+                for (String key : allowedKeys) {
+                    if (detailsMap.containsKey(key)) {
+                        filteredDetails.put(key, detailsMap.get(key));
+                    }
+                }
+                profile.put(Constants.PROFILE_DETAILS, filteredDetails);
+                log.info("Sanitized profileDetails for PRIVATE_CONNECTIONS ({}). Allowed fields: {}", profilePref.getValue(), allowedKeys);
+
+            } else {
+                // Fallback case – remove personalDetails
+                if (detailsMap.containsKey(Constants.PERSONAL_DETAILS)) {
+                    detailsMap.remove(Constants.PERSONAL_DETAILS);
+                    log.info("Removed personalDetails due to unrecognized profilePreference.");
+                }
+            }
+        }
+    }
+
+    public Map<String, Object> checkConnected(String userId, String authToken, String userAuthToken) {
+        Map<String, String> header = new HashMap<>();
+        if (StringUtils.isNotEmpty(authToken)) {
+            header.put(Constants.AUTH_TOKEN, authToken);
+        }
+        if (StringUtils.isNotEmpty(userAuthToken)) {
+            header.put(Constants.X_AUTH_TOKEN, userAuthToken);
+        }
+        Map<String, Object> responseMap = new HashMap<>();
+        Map<String, Object> readData = (Map<String, Object>) outboundRequestHandlerService
+                .fetchUsingGetWithHeadersProfile(serverConfig.hubGraphService + serverConfig.connectionApi + userId,
+                        header);
+        if (readData != null) {
+            Object resultObj = readData.get(Constants.RESULT);
+            if (resultObj instanceof Map<?, ?> resultMap) {
+                Object responseObj = resultMap.get(Constants.RESPONSE);
+                if (responseObj instanceof Map<?, ?> responseData) {
+                    for (Map.Entry<?, ?> entry : responseData.entrySet()) {
+                        if (entry.getKey() instanceof String) {
+                            responseMap.put((String) entry.getKey(), entry.getValue());
+                        }
+                    }
+                }
+            }
+        }
+
+        return responseMap;
+    }
+
+    protected double calculateProfileCompletionPercentage(Map<String, Object> profileData,
+                                                          String userId, String userToken) {
+        List<String> requiredFields = serverConfig.getProfileCompletionRequiredFields();
+        if (profileData == null || requiredFields == null || requiredFields.isEmpty())
+            return 0.0;
+
+        double totalCompletion = 0.0;
+        Map<String, Object> nestedData = Optional.ofNullable(profileData.get(Constants.PROFILE_DETAILS))
+                .filter(Map.class::isInstance)
+                .map(Map.class::cast)
+                .orElse(Collections.emptyMap());
+
+        for (String field : requiredFields) {
+            boolean isFilled;
+            try {
+                if (isExtendedProfileField(field)) {
+                    isFilled = hasExtendedProfileData(userId, field, userToken)
+                            || (Constants.SERVICE_HISTORY.equalsIgnoreCase(field) &&
+                            Optional.ofNullable(profileData.get(Constants.PROFILE_DETAILS))
+                                    .filter(Map.class::isInstance)
+                                    .map(Map.class::cast)
+                                    .map(details -> details.get(Constants.PROFESSIONAL_DETAILS))
+                                    .filter(List.class::isInstance)
+                                    .map(List.class::cast)
+                                    .map(CollectionUtils::isNotEmpty)
+                                    .orElse(false));
+                } else {
+                    if (Constants.EMPLOYMENT_DETAILS.equalsIgnoreCase(field)) {
+                        isFilled = Optional.ofNullable(profileData.get(Constants.PROFILE_DETAILS))
+                                .filter(Map.class::isInstance)
+                                .map(Map.class::cast)
+                                .map(details -> details.get(Constants.EMPLOYMENT_DETAILS))
+                                .filter(Map.class::isInstance)
+                                .map(Map.class::cast)
+                                .map(empDetails -> empDetails.get(Constants.ABOUT_ME))
+                                .map(Object::toString)
+                                .filter(aboutMe -> !aboutMe.trim().isEmpty())
+                                .isPresent();
+                    }else {
+                        Object value = profileData.getOrDefault(field, nestedData.get(field));
+                        isFilled = value != null && !value.toString().trim().isEmpty();
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Exception checking field '{}' for user '{}': {}", field, userId, e.getMessage());
+                isFilled = false;
+            }
+            if (isFilled)
+                totalCompletion += serverConfig.getFieldWeight();
+        }
+
+        return Math.min(100.0, Math.round(totalCompletion * 10.0) / 10.0);
+    }
+
+    private boolean isExtendedProfileField(String field) {
+        return serverConfig.getExtendedFieldsConfig().stream()
+                .anyMatch(f -> f.equalsIgnoreCase(field));
+    }
+
+    protected boolean hasExtendedProfileData(String userId, String contextType, String userToken) {
+        try {
+            ApiResponse response = readFullExtendedProfile(userId, contextType, userToken);
+            if (response != null && response.getResponseCode() == HttpStatus.OK) {
+                Map<String, Object> result = (Map<String, Object>) response.get(Constants.RESPONSE);
+                if (Constants.LOCATION_DETAILS.equalsIgnoreCase(contextType))
+                    return Stream.of(Constants.STATE, Constants.DISTRICT).allMatch(result::containsKey);
+                Object contextData = result.get(contextType);
+                return contextData instanceof Collection && !((Collection<?>) contextData).isEmpty();
+            }
+        } catch (Exception e) {
+            log.error("Error checking extended profile data for userId {} and contextType {}: {}", userId,
+                    contextType, e.getMessage());
+        }
+        return false;
+    }
+
+    public Map<String, Map<String, Object>> getCourseMetadataBatched(List<String> courseIds, int batchSize,
+            List<String> fields) {
+        Map<String, Map<String, Object>> allResults = new LinkedHashMap<>();
+        if (courseIds == null || courseIds.isEmpty())
+            return allResults;
+
+        for (int i = 0; i < courseIds.size(); i += batchSize) {
+            int end = Math.min(i + batchSize, courseIds.size());
+            List<String> batch = courseIds.subList(i, end);
+
+            Map<String, String> courseDetailsStrMap = cacheService.getCourseMetadataAsJsonString(batch);
+
+            for (int j = 0; j < batch.size(); j++) {
+                String courseId = batch.get(j);
+                String json = courseDetailsStrMap.get(courseId);
+
+                if (json != null) {
+                    try {
+                        Map<String, Object> parsed = projectUtil.parseMap(json);
+                        if (parsed == null || parsed.isEmpty()) {
+                            log.warn("Parsed JSON for key {} is empty or null", courseId);
+                            continue;
+                        }
+
+                        if (fields == null || fields.isEmpty()) {
+                            allResults.put(courseId, parsed);
+                        } else {
+                            // Filter only requested fields
+                            Map<String, Object> filtered = parsed.entrySet().stream()
+                                    .filter(e -> fields.contains(e.getKey()))
+                                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+                            if (!filtered.isEmpty()) {
+                                allResults.put(courseId, filtered);
+                            }
+                        }
+                    } catch (Exception e) {
+                        log.error("Failed to parse JSON for key {}: {}", courseId, e.getMessage(), e);
+                    }
+                } else {
+                    log.warn("No cached data found for courseId: {}", courseId);
+                }
+            }
+        }
+        return allResults;
+    }
+
+    public Map<String, Object> analyzeCompetencies(Map<String, Map<String, Object>> courseMetadata) {
+        // Result containers
+        Map<String, Long> areaCountMap = new HashMap<>();
+        Map<String, Map<String, Object>> themeGroupMap = new HashMap<>();
+
+        for (Map.Entry<String, Map<String, Object>> entry : courseMetadata.entrySet()) {
+            String courseId = entry.getKey();
+            Map<String, Object> course = entry.getValue();
+
+            Object compObj = course.get(Constants.COMPETENCIES_V6);
+            if (!(compObj instanceof List<?> competencies))
+                continue;
+
+            for (Object comp : competencies) {
+                if (!(comp instanceof Map<?, ?> compMap))
+                    continue;
+
+                String areaName = String.valueOf(compMap.get(Constants.COMPETENCY_AREA_NAME));
+                String themeName = String.valueOf(compMap.get(Constants.COMPETENCY_THEME_NAME));
+                String subThemeName = String.valueOf(compMap.get(Constants.COMPETENCY_SUB_THEME_NAME));
+
+                // 1. Count by competencyAreaName
+                areaCountMap.merge(areaName, 1L, Long::sum);
+
+                // 2. Group by competencyThemeName
+                themeGroupMap.computeIfAbsent(themeName, k -> {
+                    Map<String, Object> m = new HashMap<>();
+                    m.put(Constants.COMPETENCY_SUB_THEME_NAMES, new HashSet<String>());
+                    m.put(Constants.COURSE_IDS, new HashSet<String>());
+                    return m;
+                });
+
+                Set<String> subThemes = (Set<String>) themeGroupMap.get(themeName).get(Constants.COMPETENCY_SUB_THEME_NAMES);
+                Set<String> courseIds = (Set<String>) themeGroupMap.get(themeName).get(Constants.COURSE_IDS);
+
+                if (subThemeName != null && !subThemeName.isBlank())
+                    subThemes.add(subThemeName);
+                courseIds.add(courseId);
+            }
+        }
+
+        // Prepare final output
+        Map<String, Object> result = new HashMap<>();
+        result.put(Constants.COMPETENCY_AREA_COUNTS, areaCountMap);
+
+        // Convert sets to lists for serialization/final response
+        Map<String, Map<String, Object>> groupedThemes = new LinkedHashMap<>();
+        for (Map.Entry<String, Map<String, Object>> entry : themeGroupMap.entrySet()) {
+            groupedThemes.put(entry.getKey(), Map.of(
+                    Constants.COMPETENCY_SUB_THEME_NAMES,
+                    new ArrayList<>((Set<?>) entry.getValue().get(Constants.COMPETENCY_SUB_THEME_NAMES)),
+                    Constants.COURSE_IDS, new ArrayList<>((Set<?>) entry.getValue().get(Constants.COURSE_IDS))));
+        }
+
+        result.put(Constants.COMPETENCY_THEME_GROUPS, groupedThemes);
+        return result;
+    }
+
+    private Map<String, Object> buildLimitedSummary(Map<String, Object> fullData) {
+        Map<String, Object> limitedData = new HashMap<>();
+
+        for (Map.Entry<String, Object> entry : fullData.entrySet()) {
+            String key = entry.getKey();
+
+            if (!(entry.getValue() instanceof Map)) {
+                limitedData.put(key, entry.getValue());
+                continue;
+            }
+
+            Map<String, Object> contextBlock = (Map<String, Object>) entry.getValue();
+            Object dataObj = contextBlock.get(Constants.DATA);
+
+            if (dataObj instanceof List) {
+                List<Map<String, Object>> dataList = (List<Map<String, Object>>) dataObj;
+                Map<String, Object> limitedBlock = new HashMap<>();
+                limitedBlock.put(Constants.COUNT, contextBlock.get(Constants.COUNT));
+                limitedBlock.put(Constants.DATA, dataList.size() > 2 ? dataList.subList(0, 2) : dataList);
+                limitedData.put(key, limitedBlock);
+            } else {
+                limitedData.put(key, contextBlock);
+            }
+        }
+
+        return limitedData;
+    }
+
+    private int getUserKarmaPoints(String userId) {
+        String redisKey = "user:karmaPoints:" + userId;
+
+        try {
+            String redisValue = cacheService.getCache(redisKey);
+            if (redisValue != null) {
+                return Integer.parseInt(redisValue);
+            }
+
+            List<Map<String, Object>> records = cassandraOperation.getRecordsByPropertiesByKey(Constants.KEYSPACE_SUNBIRD,Constants.USER_KARMA_POINTS_SUMMARY_TABLE,
+                    Map.of(Constants.USERID_KEY, userId), List.of(Constants.TOTAL_POINTS), userId);
+            int totalPoints = 0;
+            if(!CollectionUtils.isEmpty(records)){
+                totalPoints=(int) records.get(0).get(Constants.TOTAL_POINTS);
+            }
+
+            cacheService.putCache(redisKey, totalPoints);
+            return totalPoints;
+        } catch (Exception e) {
+            log.warn("Failed to fetch karma points for userId {}: {}", userId, e.getMessage());
+            return 0;
+        }
+    }
+
+
+    private int getIssuedCertificateCount(String userId) {
+        String redisKey = serverConfig.getCertificateCountRedisKey();
+
+        try {
+            String cachedValue = cacheService.hget(redisKey,serverConfig.getDataIndex(),userId,serverConfig.getCertificateCountRedisTtl());
+            if (cachedValue != null) {
+                return Integer.parseInt(cachedValue);
+            }
+            List<Map<String, Object>> courseRecords = cassandraOperation.getRecordsByPropertiesByKey(
+                    Constants.KEYSPACE_SUNBIRD_COURSES,
+                    serverConfig.getUserEnrolmentsTable(),
+                    Map.of(Constants.USERID_KEY, userId),
+                    List.of(Constants.ISSUED_CERTIFICATES),
+                    userId
+            );
+
+            int totalIssuedCertificates = 0;
+            totalIssuedCertificates += (int) courseRecords.stream()
+                    .filter(MapUtils::isNotEmpty)
+                    .map(record -> record.get(Constants.ISSUED_CERTIFICATES_KEY))
+                    .filter(certObj -> certObj instanceof List<?>)
+                    .map(certObj -> (List<?>) certObj)
+                    .filter(CollectionUtils::isNotEmpty)
+                    .count();
+
+            List<Map<String, Object>> eventRecords = cassandraOperation.getRecordsByPropertiesByKey(
+                    Constants.KEYSPACE_SUNBIRD_COURSES,
+                    Constants.USER_ENTITY_ENROLMENTS,
+                    Map.of(Constants.USERID_KEY, userId),
+                    List.of(Constants.ISSUED_CERTIFICATES,Constants.PROGRESS_KEY,Constants.STATUS),
+                    userId
+            );
+
+            int certificatesFromEvents = (int) eventRecords.stream()
+                    .filter(MapUtils::isNotEmpty)
+                    .filter(r -> r.get(Constants.STATUS) instanceof Number && ((Number)r.get(Constants.STATUS)).intValue() == 2)
+                    .filter(r -> r.get(Constants.PROGRESS_KEY) instanceof Number && ((Number)r.get(Constants.PROGRESS_KEY)).intValue() == 100)
+                    .map(r -> r.get(Constants.ISSUED_CERTIFICATES_KEY))
+                    .filter(obj -> obj instanceof List<?>)
+                    .map(obj -> (List<?>) obj)
+                    .filter(CollectionUtils::isNotEmpty)
+                    .count();
+
+            List<Map<String, Object>> externalCourseRecords = cassandraOperation.getRecordsByPropertiesByKey(
+                    Constants.KEYSPACE_SUNBIRD_COURSES,
+                    Constants.USER_EXTERNAL_COURSE_ENROLMENTS,
+                    Map.of(Constants.USERID_KEY, userId),
+                    List.of(Constants.ISSUED_CERTIFICATES,Constants.PROGRESS_KEY,Constants.STATUS),
+                    userId
+            );
+
+            int certificatesFromExternalCourses = (int) externalCourseRecords.stream()
+                    .filter(MapUtils::isNotEmpty)
+                    .filter(r -> r.get(Constants.STATUS) instanceof Number && ((Number)r.get(Constants.STATUS)).intValue() == 2)
+                    .filter(r -> r.get(Constants.PROGRESS_KEY) instanceof Number && ((Number)r.get(Constants.PROGRESS_KEY)).intValue() == 100)
+                    .map(r -> r.get(Constants.ISSUED_CERTIFICATES_KEY))
+                    .filter(obj -> obj instanceof List<?>)
+                    .map(obj -> (List<?>) obj)
+                    .filter(CollectionUtils::isNotEmpty)
+                    .count();
+            totalIssuedCertificates += certificatesFromEvents + certificatesFromExternalCourses;
+            cacheService.hset(redisKey,serverConfig.getDataIndex(),userId, String.valueOf(totalIssuedCertificates),serverConfig.getCertificateCountRedisTtl());
+            return totalIssuedCertificates;
+
+        } catch (Exception e) {
+            log.warn("Failed to fetch issued certificate count for userId {}: {}", userId, e.getMessage());
+            return 0;
+        }
+    }
+
+    private int getUserPostCount(String userId) {
+        String redisKey = "user:postCount_" + userId;
+
+        try {
+            String cachedValue = cacheService.getCache(redisKey);
+            if (cachedValue != null) {
+                return Integer.parseInt(cachedValue);
+            }
+
+            int postCount = fetchPostCountFromApi(userId);
+            cacheService.putCache(redisKey, postCount);
+            return postCount;
+
+        } catch (Exception e) {
+            log.warn("Failed to fetch post count for userId {}: {}", userId, e.getMessage());
+            return 0;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private int fetchPostCountFromApi(String userId) {
+        String uri = serverConfig.getCommunityBaseUrl() + serverConfig.getCommunityPostCountApiUrl() + userId;
+
+        try {
+            Map<String, Object> response = (Map<String, Object>) requestHandlerService.fetchUsingGetWithHeadersProfile(uri, null);
+
+            return Optional.ofNullable(response)
+                    .filter(MapUtils::isNotEmpty)
+                    .map(rd -> (Map<String, Object>) rd.get(Constants.RESULT))
+                    .filter(MapUtils::isNotEmpty)
+                    .map(result -> result.get(Constants.POSTCOUNT))
+                    .filter(pc -> pc instanceof Integer)
+                    .map(Integer.class::cast)
+                    .orElse(0);
+
+        } catch (Exception e) {
+            log.warn("Failed to fetch post count from community API for userId {}: {}", userId, e.getMessage());
+            return 0;
+        }
+    }
+
+    public List<String> getUserRoles(String userId, String rootOrgId) {
+        List<Map<String, Object>> userRoleList = cassandraOperation.getRecordsByPropertiesByKey(
+                Constants.KEYSPACE_SUNBIRD, Constants.USER_ROLES,
+                Map.of(Constants.USERID_KEY, userId), List.of(Constants.ROLE, Constants.SCOPE), userId
+        );
+        return userRoleList.stream()
+                .map(userRoleObj -> {
+                    Object userRoleScope = userRoleObj.get(Constants.SCOPE);
+                    List<Map<String, Object>> scopes = new ArrayList<>();
+                    if (userRoleScope instanceof List) {
+                        scopes = (List<Map<String, Object>>) userRoleScope;
+                    } else if (userRoleScope instanceof String scopeStr && !scopeStr.isBlank()) {
+                        try {
+                            scopes = mapper.readValue(scopeStr, new TypeReference<List<Map<String, Object>>>() {
+                            });
+                        } catch (Exception e) {
+                            log.warn("Failed to parse scope JSON for userId {}: {}", userId, e.getMessage());
+                            return null;
+                        }
+                    }
+                    if (!scopes.isEmpty() && scopes.stream().allMatch(scope -> rootOrgId.equals(scope.get(Constants.ORGANISATION_ID)))) {
+                        return (String) userRoleObj.get(Constants.ROLE);
+                    }
+                    return null;
+                })
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+    }
+
     private void mergeAndSortByIssuedDateOrTitle(List<Map<String, Object>> existingList, List<Map<String, Object>> newList) {
         List<Map<String, Object>> merged = Stream.concat(existingList.stream(), newList.stream())
                 .sorted((a, b) -> {

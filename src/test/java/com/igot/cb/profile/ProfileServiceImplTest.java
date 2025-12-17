@@ -568,6 +568,53 @@ class ProfileServiceImplTest {
 
         ApiResponse mockResponse = new ApiResponse();
         mockResponse.put(Constants.RESPONSE, "failed");
+        List<Map<String, Object>> eventRecords = List.of(
+                Map.of(Constants.STATUS, 2, Constants.PROGRESS_KEY, 100, Constants.ISSUED_CERTIFICATES_KEY, List.of("e1")),
+                Map.of(Constants.STATUS, 2, Constants.PROGRESS_KEY, 100, Constants.ISSUED_CERTIFICATES_KEY, List.of("e2", "e3")),
+                Map.of(Constants.STATUS, 1, Constants.PROGRESS_KEY, 100, Constants.ISSUED_CERTIFICATES_KEY, List.of("shouldNotCount"))
+        );
+        List<Map<String, Object>> externalCoursesRecords = List.of(
+                Map.of(Constants.STATUS, 2, Constants.PROGRESS_KEY, 100, Constants.ISSUED_CERTIFICATES_KEY, List.of("ex1")),
+                Map.of(Constants.STATUS, 1, Constants.PROGRESS_KEY, 100, Constants.ISSUED_CERTIFICATES_KEY, List.of("certificateShouldNotCount"))
+        );
+        when(localCassandraOperation.getRecordsByPropertiesByKey(
+                anyString(),
+                any(),
+                anyMap(),
+                anyList(),
+                anyString()
+        )).thenReturn(courseRecords)
+                .thenReturn(eventRecords).thenReturn(externalCoursesRecords);
+
+        int count = ReflectionTestUtils.invokeMethod(locaService, "getIssuedCertificateCount", "user-2");
+        assertEquals(5, count);
+        verify(localCacheService).hset("cert:count", 12, "user-2", "5",0);
+    }
+
+    @Test
+    void returnsZero_whenNoCertificatesAndCacheMiss() {
+        ProfileServiceImpl localService = new ProfileServiceImpl();
+        CacheService localCacheService = mock(CacheService.class);
+        CassandraOperation localCassandraOperation = mock(CassandraOperation.class);
+        CbServerProperties serverConfig = mock(CbServerProperties.class);
+        ReflectionTestUtils.setField(localService, "cacheService", localCacheService);
+        ReflectionTestUtils.setField(localService, "cassandraOperation", localCassandraOperation);
+        ReflectionTestUtils.setField(localService, "serverConfig", serverConfig);
+        when(serverConfig.getCertificateCountRedisKey()).thenReturn("cert:count");
+        when(serverConfig.getDataIndex()).thenReturn(12);
+        when(serverConfig.getCacheTtl()).thenReturn(100);
+        when(localCacheService.hget("cert:count", 12, "user-3", 100)).thenReturn(null);
+        when(localCassandraOperation.getRecordsByPropertiesByKey(
+                anyString(), eq(Constants.USER_ENROLMENTS), anyMap(), anyList(), eq("user-3")
+        )).thenReturn(Collections.emptyList());
+        when(localCassandraOperation.getRecordsByPropertiesByKey(
+                anyString(), eq(Constants.USER_ENTITY_ENROLMENTS), anyMap(), anyList(), eq("user-3")
+        )).thenReturn(Collections.emptyList());
+        int count = ReflectionTestUtils.invokeMethod(localService, "getIssuedCertificateCount", "user-3");
+        assertEquals(0, count);
+        //verify(localCacheService).hset("cert:count", 12, "user-3", "0");
+        verify(localCacheService, never()).hset(anyString(), anyInt(), anyString(), anyString(),0);
+    }
 
         when(accessTokenValidator.fetchUserIdFromAccessToken(eq(TOKEN), any())).thenReturn(USER_ID);
         when(serverProperties.getContextType()).thenReturn(new String[]{"education"});
@@ -580,6 +627,9 @@ class ProfileServiceImplTest {
 
         // Assert
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
+        int count = ReflectionTestUtils.invokeMethod(locaService, "getIssuedCertificateCount", "user-5");
+        assertEquals(0, count);
+        verify(localCacheService, never()).hset(anyString(), anyInt(), anyString(), anyString(),0);
     }
 
     @Test
