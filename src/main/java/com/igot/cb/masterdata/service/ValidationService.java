@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
 import java.util.Map;
 
 @Service
@@ -18,9 +19,6 @@ public class ValidationService {
 
     @Autowired
     private CbServerProperties cbServerProperties;
-
-    private static final int MIN_SEARCH_LENGTH = 2;
-    private static final int MAX_SEARCH_LENGTH = 50;
 
     public boolean validateSearchRequest(ApiResponse apiResponse, Map<String, Object> requestBody) {
 
@@ -31,20 +29,30 @@ public class ValidationService {
             }
             Map<String, Object> searchRequest = (Map<String, Object>) requestBody.get(Constants.REQUEST);
             if (MapUtils.isEmpty(searchRequest)) {
-                ProjectUtil.errorResponse(apiResponse, "Invalid request", HttpStatus.BAD_REQUEST);
-                return false;
+                searchRequest = new HashMap<>();
+                requestBody.put(Constants.REQUEST, searchRequest);
             }
             Object pageObj = searchRequest.get(Constants.PAGE_NUMBER);
             Object sizeObj = searchRequest.get(Constants.PAGE_SIZE);
-            if (ObjectUtils.isNotEmpty(pageObj) && ObjectUtils.isNotEmpty(sizeObj)) {
-                if (!(pageObj instanceof Number) || !(sizeObj instanceof Number)) {
-                    ProjectUtil.errorResponse(apiResponse, "Pagination parameters must be numeric", HttpStatus.BAD_REQUEST);
+            if (ObjectUtils.isNotEmpty(pageObj)) {
+                if (!(pageObj instanceof Number)) {
+                    ProjectUtil.errorResponse(apiResponse, "pageNumber must be numeric", HttpStatus.BAD_REQUEST);
                     return false;
                 }
                 int pageNumber = ((Number) pageObj).intValue();
+                if (pageNumber < 0) {
+                    ProjectUtil.errorResponse(apiResponse, "Invalid pageNumber", HttpStatus.BAD_REQUEST);
+                    return false;
+                }
+            }
+            if (ObjectUtils.isNotEmpty(sizeObj)) {
+                if (!(sizeObj instanceof Number)) {
+                    ProjectUtil.errorResponse(apiResponse, "pageSize must be numeric", HttpStatus.BAD_REQUEST);
+                    return false;
+                }
                 int pageSize = ((Number) sizeObj).intValue();
-                if (pageNumber < 0 || pageSize <= 0) {
-                    ProjectUtil.errorResponse(apiResponse, "Invalid pagination parameters", HttpStatus.BAD_REQUEST);
+                if (pageSize <= 0) {
+                    ProjectUtil.errorResponse(apiResponse, "Invalid pageSize", HttpStatus.BAD_REQUEST);
                     return false;
                 }
             }
@@ -61,7 +69,8 @@ public class ValidationService {
     }
 
     public boolean validateSearchString(String keyword, ApiResponse apiResponse) {
-
+        int MIN_SEARCH_LENGTH = Integer.parseInt(cbServerProperties.getMasterDataSearchStringMinLength());
+        int MAX_SEARCH_LENGTH = Integer.parseInt(cbServerProperties.getMasterDataSearchStringMaxLength());
         if (StringUtils.isEmpty(keyword)) {
             return true;
         }

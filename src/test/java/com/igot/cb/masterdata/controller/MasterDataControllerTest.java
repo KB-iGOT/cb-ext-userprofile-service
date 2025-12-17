@@ -7,6 +7,9 @@ import com.igot.cb.util.ApiResponse;
 import com.igot.cb.util.Constants;
 import com.igot.cb.util.ProjectUtil;
 import org.junit.jupiter.api.Assertions;
+import com.igot.cb.util.Constants;
+
+import org.igot.common.ApiResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -58,7 +61,7 @@ class MasterDataControllerTest {
     @Test
     void testGetInstitutionsList() throws Exception {
         String authToken = "test-auth-token";
-        ApiResponse mockResponse = ProjectUtil.createDefaultResponse("TEST_API");
+        ApiResponse mockResponse = ApiResponse.createDefaultResponse("TEST_API");
         mockResponse.setResponseCode(HttpStatus.OK);
         when(masterDataService.getInstitutionsList(authToken)).thenReturn(mockResponse);
         mockMvc.perform(get("/v1/masterdata/list/institutions")
@@ -72,7 +75,7 @@ class MasterDataControllerTest {
     @Test
     void testGetDegreesList() throws Exception {
         String authToken = "test-auth-token";
-        ApiResponse mockResponse = ProjectUtil.createDefaultResponse("TEST_API");
+        ApiResponse mockResponse = ApiResponse.createDefaultResponse("TEST_API");
         mockResponse.setResponseCode(HttpStatus.OK);
         when(masterDataService.getDegreesList(authToken)).thenReturn(mockResponse);
         mockMvc.perform(get("/v1/masterdata/list/degrees")
@@ -88,7 +91,7 @@ class MasterDataControllerTest {
         String authToken = "test-auth-token";
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("institutionName", "Test Institution");
-        ApiResponse mockResponse = ProjectUtil.createDefaultResponse(Constants.API_UPDATE_INSTITUTION_LIST);
+        ApiResponse mockResponse = ApiResponse.createDefaultResponse(Constants.API_UPDATE_INSTITUTION_LIST);
         mockResponse.setResponseCode(HttpStatus.CREATED);
         mockResponse.getResult().put("response", "Institution added successfully: Test Institution");
         when(masterDataService.updateInstitutionList(eq(authToken), any(Map.class))).thenReturn(mockResponse);
@@ -108,7 +111,7 @@ class MasterDataControllerTest {
         String authToken = "test-auth-token";
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("degreeName", "Test Degree");
-        ApiResponse mockResponse = ProjectUtil.createDefaultResponse(Constants.API_UPDATE_DEGREE_LIST);
+        ApiResponse mockResponse = ApiResponse.createDefaultResponse(Constants.API_UPDATE_DEGREE_LIST);
         mockResponse.setResponseCode(HttpStatus.CREATED);
         mockResponse.getResult().put("response", "Degree added successfully: Test Degree");
         when(masterDataService.updateDegreesList(eq(authToken), any(Map.class))).thenReturn(mockResponse);

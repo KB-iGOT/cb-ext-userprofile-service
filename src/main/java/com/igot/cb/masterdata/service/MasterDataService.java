@@ -1,8 +1,8 @@
 package com.igot.cb.masterdata.service;
 
-import com.igot.cb.util.ApiResponse;
-
 import java.util.Map;
+
+import org.igot.common.ApiResponse;
 
 /**
  * Author: mahesh.vakkund

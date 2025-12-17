@@ -1,8 +1,9 @@
 package com.igot.cb.profile.service;
 
-import com.igot.cb.util.ApiResponse;
 
 import java.util.Map;
+
+import org.igot.common.ApiResponse;
 
 public interface ProfileService {
 
@@ -17,8 +18,6 @@ public interface ProfileService {
     ApiResponse deleteExtendedProfile(Map<String, Object> request, String userToken);
 
     ApiResponse getBasicProfile(String userId, String userToken);
-
-    ApiResponse listCompetencies(String userId, String userToken);
 
     ApiResponse updateAdditionalFields(Map<String, Object> request, String userToken);
 
