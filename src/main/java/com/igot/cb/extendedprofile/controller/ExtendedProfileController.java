@@ -1,9 +1,9 @@
 package com.igot.cb.extendedprofile.controller;
 
 import com.igot.cb.extendedprofile.service.ExtendedProfileService;
-import com.igot.cb.util.ApiResponse;
 import com.igot.cb.util.Constants;
-import org.springframework.beans.factory.annotation.Autowired;
+
+import org.igot.common.ApiResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -18,8 +18,11 @@ import java.util.Map;
 @RequestMapping("/v1/extendedprofile")
 public class ExtendedProfileController {
 
-    @Autowired
     ExtendedProfileService extendedProfileService;
+
+    public ExtendedProfileController(ExtendedProfileService extendedProfileService) {
+        this.extendedProfileService = extendedProfileService;
+    }
 
     @GetMapping(value = "/list/states")
     public ResponseEntity<ApiResponse> getStatesList(@RequestHeader(Constants.X_AUTH_TOKEN) String authToken) {

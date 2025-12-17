@@ -1,8 +1,9 @@
 package com.igot.cb.extendedprofile.service;
 
-import com.igot.cb.util.ApiResponse;
-
 import javax.validation.Valid;
+
+import org.igot.common.ApiResponse;
+
 import java.util.Map;
 
 /**

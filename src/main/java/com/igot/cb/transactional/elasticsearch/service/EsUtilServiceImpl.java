@@ -23,6 +23,8 @@ import java.util.*;
 @Service
 @Slf4j
 public class EsUtilServiceImpl implements EsUtilService {
+    private final RestHighLevelClient sbESClient;
+    private final CbServerProperties cbProperties;
 
     @Autowired
     @Qualifier("sbESClient")
@@ -31,10 +33,9 @@ public class EsUtilServiceImpl implements EsUtilService {
     @Autowired
     public EsUtilServiceImpl(RestHighLevelClient sbESClient) {
         this.sbESClient = sbESClient;
+        this.cbProperties = cbProperties;
     }
 
-    @Autowired
-    CbServerProperties cbProperties;
 
     @Autowired
     private ObjectMapper objectMapper;

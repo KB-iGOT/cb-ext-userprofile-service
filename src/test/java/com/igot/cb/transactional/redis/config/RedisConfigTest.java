@@ -9,7 +9,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import redis.clients.jedis.JedisPool;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 class RedisConfigTest {
@@ -19,19 +19,19 @@ class RedisConfigTest {
 
     @Test
     void jedisPool_ReturnsConfiguredJedisPool() {
-        when(cbProperties.getRedisHostName()).thenReturn("localhost");
-        when(cbProperties.getRedisPort()).thenReturn("6379");
-        when(cbProperties.getRedisMaxIdle()).thenReturn(5);
-        when(cbProperties.getRedisMaxTotal()).thenReturn(10);
-        when(cbProperties.getRedisMinIdle()).thenReturn(1);
-        when(cbProperties.getRedisTestOnBorrow()).thenReturn(true);
-        when(cbProperties.getRedisTestOnReturn()).thenReturn(false);
-        when(cbProperties.getRedisTestWhileIdle()).thenReturn(true);
-        when(cbProperties.getRedisMinEvictableIdleTimeMillis()).thenReturn(60000L);
-        when(cbProperties.getRedisNumTestsPerEvictionRun()).thenReturn(3);
-        when(cbProperties.getRedisBlockWhenExhausted()).thenReturn(true);
+        lenient().when(cbProperties.getRedisHostName()).thenReturn("localhost");
+        lenient().when(cbProperties.getRedisPort()).thenReturn("6379");
+        lenient().when(cbProperties.getRedisMaxIdle()).thenReturn(5);
+        lenient().when(cbProperties.getRedisMaxTotal()).thenReturn(10);
+        lenient().when(cbProperties.getRedisMinIdle()).thenReturn(1);
+        lenient().when(cbProperties.getRedisTestOnBorrow()).thenReturn(true);
+        lenient().when(cbProperties.getRedisTestOnReturn()).thenReturn(false);
+        lenient().when(cbProperties.getRedisTestWhileIdle()).thenReturn(true);
+        lenient().when(cbProperties.getRedisMinEvictableIdleTimeMillis()).thenReturn(60000L);
+        lenient().when(cbProperties.getRedisNumTestsPerEvictionRun()).thenReturn(3);
+        lenient().when(cbProperties.getRedisBlockWhenExhausted()).thenReturn(true);
 
-        RedisConfig redisConfig = new RedisConfig();
+        RedisConfig redisConfig = new RedisConfig(cbProperties);
         ReflectionTestUtils.setField(redisConfig, "cbProperties", cbProperties);
 
         JedisPool pool = redisConfig.jedisPool();
@@ -40,19 +40,19 @@ class RedisConfigTest {
 
     @Test
     void jedisDataPopulationPool_ReturnsConfiguredJedisPool() {
-        when(cbProperties.getRedisDataHostName()).thenReturn("localhost");
-        when(cbProperties.getRedisDataPort()).thenReturn("6380");
-        when(cbProperties.getRedisMaxIdle()).thenReturn(2);
-        when(cbProperties.getRedisMaxTotal()).thenReturn(4);
-        when(cbProperties.getRedisMinIdle()).thenReturn(1);
-        when(cbProperties.getRedisTestOnBorrow()).thenReturn(false);
-        when(cbProperties.getRedisTestOnReturn()).thenReturn(true);
-        when(cbProperties.getRedisTestWhileIdle()).thenReturn(false);
-        when(cbProperties.getRedisMinEvictableIdleTimeMillis()).thenReturn(120000L);
-        when(cbProperties.getRedisNumTestsPerEvictionRun()).thenReturn(2);
-        when(cbProperties.getRedisBlockWhenExhausted()).thenReturn(false);
+        lenient().when(cbProperties.getRedisDataHostName()).thenReturn("localhost");
+        lenient().when(cbProperties.getRedisDataPort()).thenReturn("6380");
+        lenient().when(cbProperties.getRedisMaxIdle()).thenReturn(2);
+        lenient().when(cbProperties.getRedisMaxTotal()).thenReturn(4);
+        lenient().when(cbProperties.getRedisMinIdle()).thenReturn(1);
+        lenient().when(cbProperties.getRedisTestOnBorrow()).thenReturn(false);
+        lenient().when(cbProperties.getRedisTestOnReturn()).thenReturn(true);
+        lenient().when(cbProperties.getRedisTestWhileIdle()).thenReturn(false);
+        lenient().when(cbProperties.getRedisMinEvictableIdleTimeMillis()).thenReturn(120000L);
+        lenient().when(cbProperties.getRedisNumTestsPerEvictionRun()).thenReturn(2);
+        lenient().when(cbProperties.getRedisBlockWhenExhausted()).thenReturn(false);
 
-        RedisConfig redisConfig = new RedisConfig();
+        RedisConfig redisConfig = new RedisConfig(cbProperties);
         ReflectionTestUtils.setField(redisConfig, "cbProperties", cbProperties);
 
         JedisPool pool = redisConfig.jedisDataPopulationPool();
