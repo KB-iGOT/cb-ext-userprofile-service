@@ -24,24 +24,23 @@ import java.util.*;
 @Slf4j
 public class EsUtilServiceImpl implements EsUtilService {
 
-    @Autowired
-    @Qualifier("sbESClient")
-    private  final RestHighLevelClient sbESClient;
+    private final RestHighLevelClient sbESClient;
+    private final RestHighLevelClient igotESClient;
+    private final CbServerProperties cbProperties;
+    private final ObjectMapper objectMapper;
 
     @Autowired
-    public EsUtilServiceImpl(RestHighLevelClient sbESClient) {
+    public EsUtilServiceImpl(
+            @Qualifier("sbESClient") RestHighLevelClient sbESClient,
+            @Qualifier("igotESClient") RestHighLevelClient igotESClient,
+            CbServerProperties cbProperties,
+            ObjectMapper objectMapper) {
+
         this.sbESClient = sbESClient;
+        this.igotESClient = igotESClient;
+        this.cbProperties = cbProperties;
+        this.objectMapper = objectMapper;
     }
-
-    @Autowired
-    CbServerProperties cbProperties;
-
-    @Autowired
-    private ObjectMapper objectMapper;
-
-    @Autowired
-    @Qualifier("igotESClient")
-    private RestHighLevelClient igotESClient;
 
     public Boolean updateUserOrgCustomFields(String userId, String orgId, List<Map<String, Object>> orgCustomFields) {
         try {
