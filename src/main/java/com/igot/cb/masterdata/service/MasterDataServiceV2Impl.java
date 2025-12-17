@@ -78,7 +78,7 @@ public class MasterDataServiceV2Impl implements MasterDataServiceV2 {
             }
 
             // Select index dynamically
-            String indexName = type.equalsIgnoreCase("degree")
+            String indexName = type.equalsIgnoreCase(Constants.DEGREE)
                     ? serverProperties.getEsDegreeIndexName()
                     : serverProperties.getEsInstituteIndexName();
 

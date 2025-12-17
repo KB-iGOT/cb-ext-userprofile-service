@@ -165,6 +165,12 @@ public class CbServerProperties {
     @Value("${master.data.allowed.type}")
     private String masterDataAllowedType;
 
+    @Value("${master.data.search.string.min.length}")
+    private String masterDataSearchStringMinLength;
+
+    @Value("{master.data.search.string.max.length}")
+    private String masterDataSearchStringMaxLength;
+
     public List<String> getMasterDataAllowedType() {
         return Arrays.asList(masterDataAllowedType.split(","));
     }
