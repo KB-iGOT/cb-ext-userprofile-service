@@ -2,9 +2,9 @@ package com.igot.cb.extendedprofile.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.extendedprofile.service.ExtendedProfileService;
-import com.igot.cb.util.ApiResponse;
 import com.igot.cb.util.Constants;
-import com.igot.cb.util.ProjectUtil;
+
+import org.igot.common.ApiResponse;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -50,7 +50,7 @@ public class ExtendedProfileControllerTest {
     public void testGetStatesList() throws Exception {
         // Arrange
         String authToken = "test-auth-token";
-        ApiResponse expectedResponse = ProjectUtil.createDefaultResponse("GET_STATES_LIST");
+        ApiResponse expectedResponse = ApiResponse.createDefaultResponse("GET_STATES_LIST");
         expectedResponse.put("states", Map.of("Maharashtra", "MH", "Karnataka", "KA"));
 
         when(extendedProfileService.getStatesList(authToken)).thenReturn(expectedResponse);
@@ -74,7 +74,7 @@ public class ExtendedProfileControllerTest {
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("stateCode", "MH");
 
-        ApiResponse expectedResponse = ProjectUtil.createDefaultResponse("GET_DISTRICTS_LIST");
+        ApiResponse expectedResponse = ApiResponse.createDefaultResponse("GET_DISTRICTS_LIST");
         expectedResponse.put("districts", Map.of("Mumbai", "MUM", "Pune", "PUN"));
 
         when(extendedProfileService.getDistrictsList(eq(authToken), any(Map.class))).thenReturn(expectedResponse);

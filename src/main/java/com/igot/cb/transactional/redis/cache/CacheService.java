@@ -2,15 +2,11 @@ package com.igot.cb.transactional.redis.cache;
 
 import java.util.*;
 
-import com.igot.cb.util.CbServerProperties;
-
-
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -20,17 +16,17 @@ import redis.clients.jedis.JedisPool;
 @Service
 @Slf4j
 public class CacheService {
+    private int cacheTtl = 84600;
 
-    private static int cache_ttl = 84600;
+    private final JedisPool jedisPool;
+    private final JedisPool jedisDataPopulationPool;
 
-    @Autowired
-    private JedisPool jedisPool;
 
-    @Autowired
-    private JedisPool jedisDataPopulationPool;
 
-    @Autowired
-    CbServerProperties serverProperties;
+    public CacheService(JedisPool jedisPool, JedisPool jedisDataPopulationPool) {
+        this.jedisPool = jedisPool;
+        this.jedisDataPopulationPool = jedisDataPopulationPool;
+    }
 
     private static final Logger logger = LoggerFactory.getLogger(CacheService.class);
 
@@ -70,14 +66,13 @@ public class CacheService {
             String data = objectMapper.writeValueAsString(object);
             jedis.set(key, data);
             jedis.expire(key, ttl);
-            logger.debug("Cache_key_value " + key + " is saved in redis");
         } catch (Exception e) {
             logger.error("Error in putCache", e);
         }
     }
 
     public void putCache(String key, Object object) {
-        putCache(key, object, cache_ttl);
+        putCache(key, object, cacheTtl);
     }
 
     public String getCache(String key) {

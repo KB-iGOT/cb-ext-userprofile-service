@@ -1,10 +1,8 @@
 package com.igot.cb.transactional.redis.cache;
 
-import com.igot.cb.util.CbServerProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import redis.clients.jedis.Jedis;
@@ -28,15 +26,12 @@ class CacheServiceTest {
 
     @Mock
     private Jedis jedis;
-
-    @Mock
-    private CbServerProperties serverProperties;
-
-    @InjectMocks
     private CacheService cacheService;
 
     @BeforeEach
     void setUp() {
+        cacheService = new CacheService(jedisPool, jedisDataPopulationPool);
+
         lenient().when(jedisPool.getResource()).thenReturn(jedis);
         lenient().when(jedisDataPopulationPool.getResource()).thenReturn(jedis);
     }

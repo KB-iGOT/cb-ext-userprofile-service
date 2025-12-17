@@ -6,7 +6,6 @@ import org.elasticsearch.action.update.UpdateRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -16,16 +15,14 @@ import java.util.*;
 @Service
 @Slf4j
 public class EsUtilServiceImpl implements EsUtilService {
+    private final RestHighLevelClient sbESClient;
+    private final CbServerProperties cbProperties;
 
-    private  final RestHighLevelClient sbESClient;
-
-    @Autowired
-    public EsUtilServiceImpl(RestHighLevelClient sbESClient) {
+    public EsUtilServiceImpl(RestHighLevelClient sbESClient, CbServerProperties cbProperties) {
         this.sbESClient = sbESClient;
+        this.cbProperties = cbProperties;
     }
 
-    @Autowired
-    CbServerProperties cbProperties;
 
     public Boolean updateUserOrgCustomFields(String userId, String orgId, List<Map<String, Object>> orgCustomFields) {
         try {

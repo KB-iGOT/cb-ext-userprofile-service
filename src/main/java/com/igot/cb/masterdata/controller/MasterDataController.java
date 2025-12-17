@@ -1,9 +1,9 @@
 package com.igot.cb.masterdata.controller;
 
 import com.igot.cb.masterdata.service.MasterDataService;
-import com.igot.cb.util.ApiResponse;
 import com.igot.cb.util.Constants;
-import org.springframework.beans.factory.annotation.Autowired;
+
+import org.igot.common.ApiResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -16,9 +16,11 @@ import java.util.Map;
 @RestController
 @RequestMapping("/v1/masterdata")
 public class MasterDataController {
-
-    @Autowired
     MasterDataService masterDataService;
+
+    public MasterDataController(MasterDataService masterDataService) {
+        this.masterDataService = masterDataService;
+    }
 
     @GetMapping(value = "/list/institutions")
     public ResponseEntity<ApiResponse> getInstitutionsList(@RequestHeader(Constants.X_AUTH_TOKEN) String authToken) {
