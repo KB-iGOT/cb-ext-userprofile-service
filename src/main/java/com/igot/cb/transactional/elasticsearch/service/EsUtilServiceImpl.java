@@ -6,8 +6,6 @@ import com.igot.cb.util.CbServerProperties;
 import com.igot.cb.util.Constants;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.elasticsearch.client.RequestOptions;
@@ -23,25 +21,18 @@ import java.util.*;
 @Service
 @Slf4j
 public class EsUtilServiceImpl implements EsUtilService {
+    private final RestHighLevelClient sbESClient;
+    private final RestHighLevelClient igotESClient;
+    private final CbServerProperties cbProperties;
+    private final ObjectMapper objectMapper;
 
     @Autowired
-    @Qualifier("sbESClient")
-    private  final RestHighLevelClient sbESClient;
-
-    @Autowired
-    public EsUtilServiceImpl(RestHighLevelClient sbESClient) {
+    public EsUtilServiceImpl(@Qualifier("sbESClient") RestHighLevelClient sbESClient, @Qualifier("igotESClient") RestHighLevelClient igotESClient, CbServerProperties cbProperties,ObjectMapper objectMapper) {
         this.sbESClient = sbESClient;
+        this.igotESClient = igotESClient;
+        this.cbProperties = cbProperties;
+        this.objectMapper = objectMapper;
     }
-
-    @Autowired
-    CbServerProperties cbProperties;
-
-    @Autowired
-    private ObjectMapper objectMapper;
-
-    @Autowired
-    @Qualifier("igotESClient")
-    private RestHighLevelClient igotESClient;
 
     public Boolean updateUserOrgCustomFields(String userId, String orgId, List<Map<String, Object>> orgCustomFields) {
         try {
