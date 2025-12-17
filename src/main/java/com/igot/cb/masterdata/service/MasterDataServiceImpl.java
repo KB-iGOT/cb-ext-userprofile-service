@@ -3,18 +3,17 @@ package com.igot.cb.masterdata.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.igot.cb.authentication.util.AccessTokenValidator;
-import com.igot.cb.transactional.cassandrautils.CassandraOperation;
 import com.igot.cb.transactional.redis.cache.CacheService;
-import com.igot.cb.util.ApiResponse;
 import com.igot.cb.util.Constants;
-import com.igot.cb.util.ProjectUtil;
+
+import lombok.extern.slf4j.Slf4j;
+
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.igot.common.ApiResponse;
+import org.igot.common.auth.AccessTokenValidator;
+import org.igot.common.cassandra.CassandraOperation;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -25,18 +24,20 @@ import java.util.*;
  */
 @Service
 @SuppressWarnings("unchecked")
+@Slf4j
 public class MasterDataServiceImpl implements MasterDataService {
+    private final AccessTokenValidator accessTokenValidator;
+    private final CassandraOperation cassandraOperation;
+    private final CacheService redisCacheMgr;
 
-    public static final Logger logger = LoggerFactory.getLogger(MasterDataServiceImpl.class);
 
-    @Autowired
-    public AccessTokenValidator accessTokenValidator;
-
-    @Autowired
-    public CassandraOperation cassandraOperation;
-
-    @Autowired
-    public CacheService redisCacheMgr;
+    public MasterDataServiceImpl(AccessTokenValidator accessTokenValidator,
+                                 CassandraOperation cassandraOperation,
+                                 CacheService redisCacheMgr) {
+        this.accessTokenValidator = accessTokenValidator;
+        this.cassandraOperation = cassandraOperation;
+        this.redisCacheMgr = redisCacheMgr;
+    }
 
     /**
      * Retrieves a list of all institutions from the master data.
@@ -47,8 +48,8 @@ public class MasterDataServiceImpl implements MasterDataService {
      */
     @Override
     public ApiResponse getInstitutionsList(String authToken) {
-        logger.info("MasterDataServiceImpl::getInstitutionsList started");
-        ApiResponse response = ProjectUtil.createDefaultResponse(Constants.API_GET_STATE_LIST);
+        log.info("MasterDataServiceImpl::getInstitutionsList started");
+        ApiResponse response = ApiResponse.createDefaultResponse(Constants.API_GET_STATE_LIST);
         String userId = accessTokenValidator.fetchUserIdFromAccessToken(authToken);
         if (StringUtils.isEmpty(userId)) {
             updateErrorDetails(response, Constants.USER_ID_DOESNT_EXIST, HttpStatus.BAD_REQUEST);
@@ -58,20 +59,20 @@ public class MasterDataServiceImpl implements MasterDataService {
             Map<String, Object> institutionsMap = getInstitutionsFromCache();
             if (!MapUtils.isEmpty(institutionsMap)) {
                 response.getResult().put(Constants.INSTITUTION_LIST, institutionsMap);
-                logger.info("MasterDataServiceImpl::getInstitutionsList completed successfully with cached data");
+                log.info("MasterDataServiceImpl::getInstitutionsList completed successfully with cached data");
                 return response;
             }
             institutionsMap = getInstitutionsFromDatabase();
             if (!MapUtils.isEmpty(institutionsMap)) {
                 response.getResult().put(Constants.INSTITUTION_LIST, institutionsMap);
                 redisCacheMgr.putCache(Constants.INSTITUTION_LIST, institutionsMap);
-                logger.info("MasterDataServiceImpl::getInstitutionsList completed successfully");
+                log.info("MasterDataServiceImpl::getInstitutionsList completed successfully");
             } else {
                 response.getResult().put(Constants.INSTITUTION_LIST, List.of());
-                logger.info("MasterDataServiceImpl::getInstitutionsList - No institution data found");
+                log.info("MasterDataServiceImpl::getInstitutionsList - No institution data found");
             }
         } catch (Exception e) {
-            logger.error("Error processing institutions data: {}", e.getMessage(), e);
+            log.error("Error processing institutions data: {}", e.getMessage(), e);
             updateErrorDetails(response, "Failed to process institutions data: " + e.getMessage(),
                     HttpStatus.INTERNAL_SERVER_ERROR);
         }
@@ -88,8 +89,8 @@ public class MasterDataServiceImpl implements MasterDataService {
      */
     @Override
     public ApiResponse getDegreesList(String authToken) {
-        logger.info("MasterDataServiceImpl::getDegreesList started");
-        ApiResponse response = ProjectUtil.createDefaultResponse(Constants.API_GET_DEGREE_LIST);
+        log.info("MasterDataServiceImpl::getDegreesList started");
+        ApiResponse response = ApiResponse.createDefaultResponse(Constants.API_GET_DEGREE_LIST);
         String userId = accessTokenValidator.fetchUserIdFromAccessToken(authToken);
         if (StringUtils.isEmpty(userId)) {
             updateErrorDetails(response, Constants.USER_ID_DOESNT_EXIST, HttpStatus.BAD_REQUEST);
@@ -99,20 +100,20 @@ public class MasterDataServiceImpl implements MasterDataService {
             Map<String, Object> degreesMap = getDegreesFromCache();
             if (!MapUtils.isEmpty(degreesMap)) {
                 response.getResult().put(Constants.DEGREES_LIST, degreesMap);
-                logger.info("MasterDataServiceImpl::getDegreesList completed successfully with cached data");
+                log.info("MasterDataServiceImpl::getDegreesList completed successfully with cached data");
                 return response;
             }
             degreesMap = getDegreesFromDatabase();
             if (!MapUtils.isEmpty(degreesMap)) {
                 response.getResult().put(Constants.DEGREES_LIST, degreesMap);
                 redisCacheMgr.putCache(Constants.DEGREES_LIST, degreesMap);
-                logger.info("MasterDataServiceImpl::getDegreesList completed successfully");
+                log.info("MasterDataServiceImpl::getDegreesList completed successfully");
             } else {
                 response.getResult().put(Constants.DEGREES_LIST, List.of());
-                logger.info("MasterDataServiceImpl::getDegreesList - No degrees data found");
+                log.info("MasterDataServiceImpl::getDegreesList - No degrees data found");
             }
         } catch (Exception e) {
-            logger.error("Error processing degrees data: {}", e.getMessage(), e);
+            log.error("Error processing degrees data: {}", e.getMessage(), e);
             updateErrorDetails(response, "Failed to process degrees data: " + e.getMessage(),
                     HttpStatus.INTERNAL_SERVER_ERROR);
         }
@@ -131,7 +132,7 @@ public class MasterDataServiceImpl implements MasterDataService {
                 return new ObjectMapper().readValue(institutionsJson, new TypeReference<Map<String, Object>>() {});
             }
         } catch (Exception e) {
-            logger.error("Error retrieving institutions from cache: {}", e.getMessage(), e);
+            log.error("Error retrieving institutions from cache: {}", e.getMessage(), e);
         }
         return Map.of();
     }
@@ -147,8 +148,8 @@ public class MasterDataServiceImpl implements MasterDataService {
             properties.put(Constants.ID, Constants.INSTITUTIONS_CONFIG);
             List<String> fields = new ArrayList<>();
             fields.add(Constants.FIELD_KEY);
-            List<Map<String, Object>> rawData = cassandraOperation.getRecordsByPropertiesByKey(
-                    Constants.KEYSPACE_SUNBIRD, Constants.SYSTEM_SETTINGS, properties, fields, Constants.ID);
+            List<Map<String, Object>> rawData = cassandraOperation.getRecordsByProperties(
+                    Constants.KEYSPACE_SUNBIRD, Constants.SYSTEM_SETTINGS, properties, fields, null);
             if (rawData != null && !rawData.isEmpty()) {
                 String jsonString = (String) rawData.get(0).get(Constants.FIELD_KEY);
                 if (!StringUtils.isEmpty(jsonString)) {
@@ -156,7 +157,7 @@ public class MasterDataServiceImpl implements MasterDataService {
                 }
             }
         } catch (Exception e) {
-            logger.error("Error retrieving institutions from database: {}", e.getMessage(), e);
+            log.error("Error retrieving institutions from database: {}", e.getMessage(), e);
         }
         return Map.of();
     }
@@ -173,7 +174,7 @@ public class MasterDataServiceImpl implements MasterDataService {
                 return new ObjectMapper().readValue(degreesJson, new TypeReference<Map<String, Object>>() {});
             }
         } catch (Exception e) {
-            logger.error("Error retrieving degrees from cache: {}", e.getMessage(), e);
+            log.error("Error retrieving degrees from cache: {}", e.getMessage(), e);
         }
         return Map.of();
     }
@@ -189,8 +190,8 @@ public class MasterDataServiceImpl implements MasterDataService {
             properties.put(Constants.ID, Constants.DEGREES_CONFIG);
             List<String> fields = new ArrayList<>();
             fields.add(Constants.FIELD_KEY);
-            List<Map<String, Object>> rawData = cassandraOperation.getRecordsByPropertiesByKey(
-                    Constants.KEYSPACE_SUNBIRD, Constants.SYSTEM_SETTINGS, properties, fields, Constants.ID);
+            List<Map<String, Object>> rawData = cassandraOperation.getRecordsByProperties(
+                    Constants.KEYSPACE_SUNBIRD, Constants.SYSTEM_SETTINGS, properties, fields, null);
             if (rawData != null && !rawData.isEmpty()) {
                 String jsonString = (String) rawData.get(0).get(Constants.FIELD_KEY);
                 if (!StringUtils.isEmpty(jsonString)) {
@@ -198,7 +199,7 @@ public class MasterDataServiceImpl implements MasterDataService {
                 }
             }
         } catch (Exception e) {
-            logger.error("Error retrieving degrees from database: {}", e.getMessage(), e);
+            log.error("Error retrieving degrees from database: {}", e.getMessage(), e);
         }
         return Map.of();
     }
@@ -226,8 +227,8 @@ public class MasterDataServiceImpl implements MasterDataService {
      */
     @Override
     public ApiResponse updateInstitutionList(String authToken, Map<String, Object> requestBody) {
-        logger.info("MasterDataServiceImpl::updateInstitutionList started");
-        ApiResponse response = ProjectUtil.createDefaultResponse(Constants.API_UPDATE_INSTITUTION_LIST);
+        log.info("MasterDataServiceImpl::updateInstitutionList started");
+        ApiResponse response = ApiResponse.createDefaultResponse(Constants.API_UPDATE_INSTITUTION_LIST);
         String userId = accessTokenValidator.fetchUserIdFromAccessToken(authToken);
         if (StringUtils.isEmpty(userId)) {
             updateErrorDetails(response, Constants.USER_ID_DOESNT_EXIST, HttpStatus.BAD_REQUEST);
@@ -239,7 +240,7 @@ public class MasterDataServiceImpl implements MasterDataService {
         try {
             processInstitutionUpdate(requestBody, response);
         } catch (Exception e) {
-            logger.error("Error updating institution: {}", e.getMessage(), e);
+            log.error("Error updating institution: {}", e.getMessage(), e);
             updateErrorDetails(response, "Failed to update institution: " + e.getMessage(),
                     HttpStatus.INTERNAL_SERVER_ERROR);
         }
@@ -285,11 +286,11 @@ public class MasterDataServiceImpl implements MasterDataService {
                 saveInstitutionChangesToDatabaseAndCache(institutionsMap);
                 response.getResult().put(Constants.RESPONSE, "Institution added successfully : " + institutionName);
                 response.setResponseCode(HttpStatus.CREATED);
-                logger.info("MasterDataServiceImpl::updateInstitutionList completed successfully");
+                log.info("MasterDataServiceImpl::updateInstitutionList completed successfully");
             } catch (Exception e) {
                 updateErrorDetails(response, "Failed to update institution: " + e.getMessage(),
                         HttpStatus.INTERNAL_SERVER_ERROR);
-                logger.error("Error saving institution changes: {}", e.getMessage(), e);
+                log.error("Error saving institution changes: {}", e.getMessage(), e);
             }
         } else {
             response.getResult().put(Constants.RESPONSE, "Institution already exists");
@@ -324,7 +325,7 @@ public class MasterDataServiceImpl implements MasterDataService {
     private List<String> getInstitutionList(Map<String, Object> institutionsMap, ApiResponse response) {
         List<String> institutionList = (List<String>) institutionsMap.get(Constants.INSTITUTIONS);
         if (CollectionUtils.isEmpty(institutionList)) {
-            logger.error("Invalid institutions data: institutions list is null or not a valid list");
+            log.error("Invalid institutions data: institutions list is null or not a valid list");
             updateErrorDetails(response, "Invalid institutions data format", HttpStatus.INTERNAL_SERVER_ERROR);
             return Collections.emptyList();
         }
@@ -361,8 +362,10 @@ public class MasterDataServiceImpl implements MasterDataService {
         Map<String, Object> updateMap = new HashMap<>();
         String jsonString = new ObjectMapper().writeValueAsString(institutionsMap);
         updateMap.put(Constants.FIELD_KEY, jsonString);
-        updateMap.put(Constants.ID, Constants.INSTITUTIONS_CONFIG);
-        cassandraOperation.updateRecord(Constants.KEYSPACE_SUNBIRD, Constants.SYSTEM_SETTINGS, updateMap);
+        updateMap.put(Constants.VALUE, jsonString);
+        Map<String, Object> primaryKey = new HashMap<>();
+        primaryKey.put(Constants.ID, Constants.INSTITUTIONS_CONFIG);
+        cassandraOperation.updateRecord(Constants.KEYSPACE_SUNBIRD, Constants.SYSTEM_SETTINGS, updateMap, primaryKey);
         redisCacheMgr.putCache(Constants.INSTITUTION_LIST, institutionsMap);
     }
 
@@ -375,8 +378,8 @@ public class MasterDataServiceImpl implements MasterDataService {
      */
     @Override
     public ApiResponse updateDegreesList(String authToken, Map<String, Object> requestBody) {
-        logger.info("MasterDataServiceImpl::updateDegreesList started");
-        ApiResponse response = ProjectUtil.createDefaultResponse(Constants.API_UPDATE_DEGREE_LIST);
+        log.info("MasterDataServiceImpl::updateDegreesList started");
+        ApiResponse response = ApiResponse.createDefaultResponse(Constants.API_UPDATE_DEGREE_LIST);
         String userId = accessTokenValidator.fetchUserIdFromAccessToken(authToken);
         if (StringUtils.isEmpty(userId)) {
             updateErrorDetails(response, Constants.USER_ID_DOESNT_EXIST, HttpStatus.BAD_REQUEST);
@@ -388,7 +391,7 @@ public class MasterDataServiceImpl implements MasterDataService {
         try {
             processDegreeUpdate(requestBody, response);
         } catch (Exception e) {
-            logger.error("Error updating degree: {}", e.getMessage(), e);
+            log.error("Error updating degree: {}", e.getMessage(), e);
             updateErrorDetails(response, "Failed to update degree: " + e.getMessage(),
                     HttpStatus.INTERNAL_SERVER_ERROR);
         }
@@ -432,11 +435,11 @@ public class MasterDataServiceImpl implements MasterDataService {
                 saveDegreeChangesToDatabaseAndCache(degreesMap);
                 response.getResult().put(Constants.RESPONSE, "Degree added successfully : " + degreeName);
                 response.setResponseCode(HttpStatus.CREATED);
-                logger.info("MasterDataServiceImpl::updateDegreesList completed successfully");
+                log.info("MasterDataServiceImpl::updateDegreesList completed successfully");
             } catch (Exception e) {
                 updateErrorDetails(response, "Failed to update degree: " + e.getMessage(),
                         HttpStatus.INTERNAL_SERVER_ERROR);
-                logger.error("Error saving degree changes: {}", e.getMessage(), e);
+                log.error("Error saving degree changes: {}", e.getMessage(), e);
             }
         } else {
             response.getResult().put(Constants.RESPONSE, "Degree already exists");
@@ -471,7 +474,7 @@ public class MasterDataServiceImpl implements MasterDataService {
     protected List<String> getDegreesList(Map<String, Object> degreesMap, ApiResponse response) {
         List<String> degreesList = (List<String>) degreesMap.get(Constants.DEGREES);
         if (CollectionUtils.isEmpty(degreesList)) {
-            logger.error("Invalid degrees data: degrees list is null or not a valid list");
+            log.error("Invalid degrees data: degrees list is null or not a valid list");
             updateErrorDetails(response, "Invalid degrees data format", HttpStatus.INTERNAL_SERVER_ERROR);
             return Collections.emptyList();
         }
@@ -489,8 +492,10 @@ public class MasterDataServiceImpl implements MasterDataService {
         Map<String, Object> updateMap = new HashMap<>();
         String jsonString = new ObjectMapper().writeValueAsString(degreesMap);
         updateMap.put(Constants.FIELD_KEY, jsonString);
-        updateMap.put(Constants.ID, Constants.DEGREES_CONFIG);
-        cassandraOperation.updateRecord(Constants.KEYSPACE_SUNBIRD, Constants.SYSTEM_SETTINGS, updateMap);
+        updateMap.put(Constants.VALUE, jsonString);
+        Map<String, Object> primaryKey = new HashMap<>();
+        primaryKey.put(Constants.ID, Constants.DEGREES_CONFIG);
+        cassandraOperation.updateRecord(Constants.KEYSPACE_SUNBIRD, Constants.SYSTEM_SETTINGS, updateMap, primaryKey);
         redisCacheMgr.putCache(Constants.DEGREES_LIST, degreesMap);
     }
 

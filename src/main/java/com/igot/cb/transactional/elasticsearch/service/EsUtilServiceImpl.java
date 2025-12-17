@@ -6,6 +6,8 @@ import com.igot.cb.util.CbServerProperties;
 import com.igot.cb.util.Constants;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.elasticsearch.client.RequestOptions;

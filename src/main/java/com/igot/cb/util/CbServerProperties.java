@@ -130,6 +130,17 @@ public class CbServerProperties {
     @Value("${cb.certificate.count.redis.key}")
     private String certificateCountRedisKey;
 
+    @Value("${cb.certificate.count.redis.ttl}")
+    private int certificateCountRedisTtl;
+
+    public int getCertificateCountRedisTtl() {
+        return certificateCountRedisTtl;
+    }
+
+    public void setCertificateCountRedisTtl(int certificateCountRedisTtl) {
+        this.certificateCountRedisTtl = certificateCountRedisTtl;
+    }
+
     public List<String> getBasicProfileFields() {
         return Arrays.asList(basicProfileFields.split(","));
     }
@@ -174,4 +185,9 @@ public class CbServerProperties {
     public List<String> getMasterDataAllowedType() {
         return Arrays.asList(masterDataAllowedType.split(","));
     }
+    @Value("${user.basic.details.filtered}")
+    private String basicDetailsFilteredKeys;
+
+    @Value("${profile.visible.allowed.fields}")
+    private String profileVisibleAllowedFields;
 }

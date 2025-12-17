@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.igot.cb.util.CbServerProperties;
-import com.igot.cb.util.PropertiesCache;
 
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
@@ -43,11 +42,6 @@ public class CbExtUserProfileApplication {
     @Bean
     public RestTemplate restTemplate() {
         return new RestTemplate(getClientHttpRequestFactory());
-    }
-
-    @Bean
-    public PropertiesCache propertiesCache() {
-        return PropertiesCache.getInstance();
     }
 
     private ClientHttpRequestFactory getClientHttpRequestFactory() {
