@@ -462,6 +462,7 @@ public class Constants {
     public static final String SORT_BY = "sortBy";
     public static final String ORDER_BY= "orderBy";
     public static final String API_SEARCH_MASTER_DATA = "api.search.masterdata";
+    public static final String DEGREE = "degree";
     private Constants() {
     }
 }
