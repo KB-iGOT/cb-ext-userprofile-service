@@ -69,8 +69,8 @@ public class ValidationService {
     }
 
     public boolean validateSearchString(String keyword, ApiResponse apiResponse) {
-        int MIN_SEARCH_LENGTH = Integer.parseInt(cbServerProperties.getMasterDataSearchStringMinLength());
-        int MAX_SEARCH_LENGTH = Integer.parseInt(cbServerProperties.getMasterDataSearchStringMaxLength());
+        int MIN_SEARCH_LENGTH = Integer.parseInt(cbServerProperties.getMasterDataSearchStringMinLength().trim());
+        int MAX_SEARCH_LENGTH = Integer.parseInt(cbServerProperties.getMasterDataSearchStringMaxLength().trim());
         if (StringUtils.isEmpty(keyword)) {
             return true;
         }
