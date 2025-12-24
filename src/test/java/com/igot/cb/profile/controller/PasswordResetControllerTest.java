@@ -2,6 +2,7 @@ package com.igot.cb.profile.controller;
 
 import com.igot.cb.profile.service.PasswordResetService;
 import com.igot.cb.util.ApiResponse;
+import com.igot.cb.util.Constants;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,7 +42,7 @@ class PasswordResetControllerTest {
                 .thenReturn(apiResponse);
 
         mockMvc.perform(get("/user/v2/reset/password")
-                        .header("authToken", "valid-token")
+                        .header(Constants.X_AUTH_TOKEN, "valid-token")
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk());
 
@@ -58,7 +59,7 @@ class PasswordResetControllerTest {
                 .thenReturn(apiResponse);
 
         mockMvc.perform(get("/user/v2/reset/password")
-                        .header("authToken", "invalid-token"))
+                        .header(Constants.X_AUTH_TOKEN, "invalid-token"))
                 .andExpect(status().isBadRequest());
 
         verify(passwordResetService).resetPassword("invalid-token");
@@ -73,7 +74,7 @@ class PasswordResetControllerTest {
                 .thenReturn(apiResponse);
 
         mockMvc.perform(get("/user/v2/reset/password")
-                        .header("authToken", "token"))
+                        .header(Constants.X_AUTH_TOKEN, "token"))
                 .andExpect(status().isInternalServerError());
     }
 
