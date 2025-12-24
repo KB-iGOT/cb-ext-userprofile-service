@@ -171,6 +171,12 @@ public class CbServerProperties {
     @Value("${master.data.search.string.max.length}")
     private String masterDataSearchStringMaxLength;
 
+    @Value("${learner.service.host}")
+    private String learnerServiceHost;
+
+    @Value("${password.reset.path}")
+    private String passwordResetPath;
+
     public List<String> getMasterDataAllowedType() {
         return Arrays.asList(masterDataAllowedType.split(","));
     }
