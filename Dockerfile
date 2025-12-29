@@ -1,4 +1,4 @@
-FROM openjdk:17.0.1-jdk-slim
+FROM sivaprakash123/openjdk:17-slim-debian11
 # Install necessary dependencies
 RUN apt-get update \
     && apt-get install -y \

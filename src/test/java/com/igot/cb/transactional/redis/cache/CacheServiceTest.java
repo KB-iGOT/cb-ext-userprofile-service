@@ -58,7 +58,7 @@ class CacheServiceTest {
 
     @Test
     void hset_SetsValueAndTTL() {
-        cacheService.hset("key", 0, "field", "value");
+        cacheService.hset("key", 0, "field", "value",0);
         verify(jedis).hset("key", "field", "value");
         verify(jedis).expire("key", 84600);
     }
@@ -145,7 +145,7 @@ class CacheServiceTest {
     @Test
     void hset_DoesNotThrow_OnException() {
         doThrow(new RuntimeException("fail")).when(jedis).hset("key", "field", "value");
-        cacheService.hset("key", 0, "field", "value");
+        cacheService.hset("key", 0, "field", "value",0);
         assertNotNull(cacheService);
     }
 
