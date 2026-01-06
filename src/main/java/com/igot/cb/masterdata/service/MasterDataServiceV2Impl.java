@@ -287,55 +287,68 @@ public class MasterDataServiceV2Impl implements MasterDataServiceV2 {
             int from = page * size;
 
             // Sorting fields
-            String sortBy = String.valueOf(searchRequest.getOrDefault(Constants.SORT_BY, "id"));
-            if (sortBy.isEmpty()) sortBy = "id";
-            if ("name".equals(sortBy)) sortBy = "name.keyword";
-            if ("description".equals(sortBy)) sortBy = "description.keyword";
+            SearchSourceBuilder source = new SearchSourceBuilder()
+                    .from(from)
+                    .size(size);
 
-            String orderBy = String.valueOf(searchRequest.getOrDefault(Constants.ORDER_BY, "ASC"));
-            boolean isDesc = "DESC".equalsIgnoreCase(orderBy);
-            SortOrder sortOrder = isDesc ? SortOrder.DESC : SortOrder.ASC;
+            String sortBy = String.valueOf(searchRequest.getOrDefault(Constants.SORT_BY, "")).trim();
+            if (!sortBy.isEmpty()) {
+                if (Constants.NAME.equals(sortBy)) {
+                    sortBy = "name.keyword";
+                } else if (Constants.DESCRIPTION.equals(sortBy)) {
+                    sortBy = "description.keyword";
+                }
+                SortOrder sortOrder = "DESC".equalsIgnoreCase(
+                        String.valueOf(searchRequest.getOrDefault(Constants.ORDER_BY, "ASC"))
+                ) ? SortOrder.DESC : SortOrder.ASC;
+
+                source.sort(sortBy, sortOrder);
+            }
 
             // Build ES request
             SearchRequest esSearch = new SearchRequest(indexName).types(docType);
-            SearchSourceBuilder source = new SearchSourceBuilder()
-                    .from(from)
-                    .size(size)
-                    .sort(sortBy, sortOrder);
-
             BoolQueryBuilder bool = QueryBuilders.boolQuery();
 
             // ----------- SEARCH STRING (optional) -----------
-            String keyword = (String) searchRequest.get(Constants.SEARCH_STRING);
-            if (keyword != null && !keyword.isBlank()) {
-                bool.must(QueryBuilders.multiMatchQuery(keyword)
-                        .field("name")
-                        .field("name.ngram")
-                        .field("description")
-                        .field("description.ngram"));
+            String keyword = String.valueOf(searchRequest.getOrDefault(Constants.SEARCH_STRING, "")).trim();
+            if (!keyword.isEmpty()) {
+
+                BoolQueryBuilder relevanceQuery = QueryBuilders.boolQuery()
+                        // Exact match (highest priority)
+                        .should(QueryBuilders.termQuery("name.keyword", keyword).boost(10f))
+                        // Exact phrase match
+                        .should(QueryBuilders.matchPhraseQuery("name", keyword).boost(6f))
+                        // Partial matches
+                        .should(QueryBuilders.matchQuery("name", keyword).boost(4f))
+                        .should(QueryBuilders.matchQuery("description", keyword).boost(2f))
+                        // Ngram fallback
+                        .should(QueryBuilders.matchQuery("name.ngram", keyword).boost(1f))
+                        .should(QueryBuilders.matchQuery("description.ngram", keyword).boost(0.5f))
+                        .minimumShouldMatch(1);
+                bool.must(relevanceQuery);
             } else {
                 bool.must(QueryBuilders.matchAllQuery());
             }
 
             // ----------- EXACT MATCH FILTERS -----------
-            Map<String, Object> filters = (Map<String, Object>) searchRequest.get("filters");
+            Object filtersObj = searchRequest.get(Constants.FILTERS);
+            Map<String, Object> filters = filtersObj instanceof Map ? (Map<String, Object>) filtersObj : null;
             if (MapUtils.isNotEmpty(filters)) {
-                if (ObjectUtils.isNotEmpty(filters.get("id"))) {
-                    bool.filter(QueryBuilders.termQuery("id", filters.get("id")));
+                if (ObjectUtils.isNotEmpty(filters.get(Constants.ID))) {
+                    bool.filter(QueryBuilders.termQuery(Constants.ID, filters.get(Constants.ID)));
                 }
-                if (ObjectUtils.isNotEmpty(filters.get("name"))) {
-                    bool.filter(QueryBuilders.termQuery("name.keyword", filters.get("name")));
+                if (ObjectUtils.isNotEmpty(filters.get(Constants.NAME))) {
+                    bool.filter(QueryBuilders.termQuery("name.keyword", filters.get(Constants.NAME)));
                 }
-                if (ObjectUtils.isNotEmpty(filters.get("status"))) {
-                    Object statObj = filters.get("status");
+                if (ObjectUtils.isNotEmpty(filters.get(Constants.STATUS))) {
+                    Object statObj = filters.get(Constants.STATUS);
                     int stat = (statObj instanceof Number n)
                             ? n.intValue()
                             : Integer.parseInt(statObj.toString());
-
-                    bool.filter(QueryBuilders.termQuery("status", stat));
+                    bool.filter(QueryBuilders.termQuery(Constants.STATUS, stat));
                 }
             } else {
-                bool.filter(QueryBuilders.termQuery("status", 1));
+                bool.filter(QueryBuilders.termQuery(Constants.STATUS, 1));
             }
             source.query(bool);
             esSearch.source(source);
