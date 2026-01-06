@@ -295,9 +295,9 @@ public class MasterDataServiceV2Impl implements MasterDataServiceV2 {
             String keyword = String.valueOf(searchRequest.getOrDefault(Constants.SEARCH_STRING, "")).trim();
             if (!sortBy.isEmpty()) {
                 if (Constants.NAME.equals(sortBy)) {
-                    sortBy = "name.keyword";
+                    sortBy = Constants.NAME_KEYWORD;
                 } else if (Constants.DESCRIPTION.equals(sortBy)) {
-                    sortBy = "description.keyword";
+                    sortBy = Constants.DESCRIPTION_KEYWORD;
                 }
                 SortOrder sortOrder = "DESC".equalsIgnoreCase(
                         String.valueOf(searchRequest.getOrDefault(Constants.ORDER_BY, "ASC"))
@@ -323,15 +323,15 @@ public class MasterDataServiceV2Impl implements MasterDataServiceV2 {
 
                 BoolQueryBuilder relevanceQuery = QueryBuilders.boolQuery()
                         // Exact match (highest priority)
-                        .should(QueryBuilders.termQuery("name.keyword", keyword).boost(10f))
+                        .should(QueryBuilders.termQuery(Constants.NAME_KEYWORD, keyword).boost(10f))
                         // Exact phrase match
-                        .should(QueryBuilders.matchPhraseQuery("name", keyword).boost(6f))
+                        .should(QueryBuilders.matchPhraseQuery(Constants.NAME, keyword).boost(6f))
                         // Partial matches
-                        .should(QueryBuilders.matchQuery("name", keyword).boost(4f))
-                        .should(QueryBuilders.matchQuery("description", keyword).boost(2f))
+                        .should(QueryBuilders.matchQuery(Constants.NAME, keyword).boost(4f))
+                        .should(QueryBuilders.matchQuery(Constants.DESCRIPTION, keyword).boost(2f))
                         // Ngram fallback
-                        .should(QueryBuilders.matchQuery("name.ngram", keyword).boost(1f))
-                        .should(QueryBuilders.matchQuery("description.ngram", keyword).boost(0.5f))
+                        .should(QueryBuilders.matchQuery(Constants.NAME+".ngram", keyword).boost(1f))
+                        .should(QueryBuilders.matchQuery(Constants.DESCRIPTION+".ngram", keyword).boost(0.5f))
                         .minimumShouldMatch(1);
                 bool.must(relevanceQuery);
             } else {
@@ -346,7 +346,7 @@ public class MasterDataServiceV2Impl implements MasterDataServiceV2 {
                     bool.filter(QueryBuilders.termQuery(Constants.ID, filters.get(Constants.ID)));
                 }
                 if (ObjectUtils.isNotEmpty(filters.get(Constants.NAME))) {
-                    bool.filter(QueryBuilders.termQuery("name.keyword", filters.get(Constants.NAME)));
+                    bool.filter(QueryBuilders.termQuery(Constants.NAME_KEYWORD, filters.get(Constants.NAME)));
                 }
                 if (ObjectUtils.isNotEmpty(filters.get(Constants.STATUS))) {
                     Object statObj = filters.get(Constants.STATUS);

@@ -467,6 +467,8 @@ public class Constants {
     public static final String API_USER_PASSWORD_RESET_V2 = "api.v2.user.password.reset";
     public static final String PASSWORD_RESET_FAILED = "Password reset failed";
     public static final String INVALID_AUTH_TOKEN = "Invalid user auth token";
+    public static final String NAME_KEYWORD = "name.keyword";
+    public static final String DESCRIPTION_KEYWORD = "description.keyword";
     private Constants() {
     }
 }
