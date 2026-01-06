@@ -292,6 +292,7 @@ public class MasterDataServiceV2Impl implements MasterDataServiceV2 {
                     .size(size);
 
             String sortBy = String.valueOf(searchRequest.getOrDefault(Constants.SORT_BY, "")).trim();
+            String keyword = String.valueOf(searchRequest.getOrDefault(Constants.SEARCH_STRING, "")).trim();
             if (!sortBy.isEmpty()) {
                 if (Constants.NAME.equals(sortBy)) {
                     sortBy = "name.keyword";
@@ -302,7 +303,15 @@ public class MasterDataServiceV2Impl implements MasterDataServiceV2 {
                         String.valueOf(searchRequest.getOrDefault(Constants.ORDER_BY, "ASC"))
                 ) ? SortOrder.DESC : SortOrder.ASC;
 
-                source.sort(sortBy, sortOrder);
+                if (!keyword.isEmpty()) {
+                    //Relevance first
+                    source.sort("_score", SortOrder.DESC);
+                    //Secondary sort
+                    source.sort(sortBy, sortOrder);
+                } else {
+                    //No search, pure sorting
+                    source.sort(sortBy, sortOrder);
+                }
             }
 
             // Build ES request
@@ -310,7 +319,6 @@ public class MasterDataServiceV2Impl implements MasterDataServiceV2 {
             BoolQueryBuilder bool = QueryBuilders.boolQuery();
 
             // ----------- SEARCH STRING (optional) -----------
-            String keyword = String.valueOf(searchRequest.getOrDefault(Constants.SEARCH_STRING, "")).trim();
             if (!keyword.isEmpty()) {
 
                 BoolQueryBuilder relevanceQuery = QueryBuilders.boolQuery()
