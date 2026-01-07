@@ -9,7 +9,13 @@ import com.igot.cb.transactional.elasticsearch.service.EsUtilService;
 import com.igot.cb.util.ApiResponse;
 import com.igot.cb.util.CbServerProperties;
 import com.igot.cb.util.Constants;
+import com.igot.cb.util.ProjectUtil;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.*;
@@ -442,5 +448,387 @@ class MasterDataServiceV2ImplTest {
         when(validationService.validateSearchRequest(any(), any())).thenReturn(true);
         ApiResponse response = masterDataService.searchMasterData(requestBody);
         assertEquals("Invalid type.", response.getParams().getErrMsg());
+    }
+
+    @Test
+    void testSearchMasterData_sortByNotAllowed() {
+        Map<String, Object> requestBody = Map.of(
+                Constants.TYPE, "degree",
+                Constants.REQUEST, Map.of(
+                        Constants.PAGE_NUMBER, 0,
+                        Constants.PAGE_SIZE, 10,
+                        Constants.SORT_BY, "unauthorizedField"
+                )
+        );
+        when(serverProperties.getMasterDataAllowedType())
+                .thenReturn(List.of("degree"));
+
+        when(serverProperties.getMasterDataAllowedSortByFields())
+                .thenReturn(List.of("name", "description", "id"));
+        doAnswer(invocation -> {
+            ApiResponse apiResponse = invocation.getArgument(0);
+            ProjectUtil.errorResponse(
+                    apiResponse,
+                    "sortBy field is not allowed",
+                    HttpStatus.BAD_REQUEST
+            );
+            return false;
+        }).when(validationService)
+                .validateSearchRequest(any(ApiResponse.class), any());
+        ApiResponse response = masterDataService.searchMasterData(requestBody);
+        assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
+        assertEquals("sortBy field is not allowed",
+                response.getParams().getErrMsg());
+        verify(validationService)
+                .validateSearchRequest(any(ApiResponse.class), any());
+    }
+
+    @Test
+    void testSearchMasterData_emptyRequestMap() {
+        Map<String, Object> requestBody = Map.of(Constants.TYPE, "degree", Constants.REQUEST, Map.of());
+        when(validationService.validateSearchRequest(any(), any())).thenReturn(true);
+        when(serverProperties.getMasterDataAllowedType()).thenReturn(List.of("degree"));
+
+        // simulate ES returning empty data
+        doReturn(EsResponse.builder().success(true).data(List.of()).count(0L).build())
+                .when(masterDataService).searchMasterDataInIgotES(any(), any(), any());
+
+        ApiResponse response = masterDataService.searchMasterData(requestBody);
+        assertEquals(0L, response.getResult().get(Constants.COUNT));
+        assertTrue(((List<?>) response.getResult().get(Constants.RESULT)).isEmpty());
+    }
+
+    @Test
+    void testSearchMasterData_success_institute() {
+        Map<String, Object> requestBody = Map.of(
+                Constants.TYPE, "institute",
+                Constants.REQUEST, Map.of(Constants.PAGE_NUMBER, 0, Constants.PAGE_SIZE, 10)
+        );
+        when(validationService.validateSearchRequest(any(), any())).thenReturn(true);
+        when(serverProperties.getMasterDataAllowedType()).thenReturn(List.of("degree", "institute"));
+        when(serverProperties.getEsInstituteIndexName()).thenReturn("inst_index");
+        when(serverProperties.getEsMasterDataIndexDocType()).thenReturn("_doc");
+
+        EsResponse esResp = EsResponse.builder().success(true)
+                .data(List.of(Map.of("name", "IIT")))
+                .count(1L)
+                .build();
+
+        doReturn(esResp)
+                .when(masterDataService)
+                .searchMasterDataInIgotES(eq("inst_index"), eq("_doc"), any(Map.class));
+
+        ApiResponse response = masterDataService.searchMasterData(requestBody);
+        assertEquals(1L, response.getResult().get(Constants.COUNT));
+        assertNotNull(response.getResult().get(Constants.RESULT));
+    }
+
+    @Test
+    void testSearchMasterData_missingRequestKey() {
+        Map<String, Object> requestBody = Map.of(Constants.TYPE, "degree"); // no REQUEST
+        when(validationService.validateSearchRequest(any(), any())).thenReturn(true);
+        when(serverProperties.getMasterDataAllowedType()).thenReturn(List.of("degree"));
+        EsResponse esResp = EsResponse.builder().success(true).data(List.of()).count(0L).build();
+        doReturn(esResp).when(masterDataService).searchMasterDataInIgotES(any(), any(), any());
+
+        ApiResponse response = masterDataService.searchMasterData(requestBody);
+        assertEquals(0L, response.getResult().get(Constants.COUNT));
+    }
+
+    @Test
+    void testUpsertDegree_updateWithStatusOnly() {
+        Degree existing = new Degree();
+        existing.setId(1L);
+        existing.setName("MBA");
+        existing.setStatus(1);
+
+        Map<String, Object> requestBody = Map.of(
+                Constants.REQUEST, Map.of(
+                        Constants.ID, 1L,
+                        Constants.STATUS, 0
+                )
+        );
+
+        when(validationService.upsertDegreeValidation(any(), any())).thenReturn(true);
+        when(degreeRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(degreeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(serverProperties.getEsDegreeIndexName()).thenReturn("degree_index");
+        when(serverProperties.getEsMasterDataIndexDocType()).thenReturn("_doc");
+        when(esUtilService.saveObjectInIgotES(any(), any(), any(), any()))
+                .thenReturn(EsResponse.builder().success(true).build());
+
+        ApiResponse response = masterDataService.upsertDegree(requestBody);
+
+        Degree result = (Degree) response.getResult().get(Constants.RESULT);
+        assertEquals(0, result.getStatus());
+    }
+
+    @Test
+    void testUpsertInstitute_updateWithStatusOnly() {
+        Institute existing = new Institute();
+        existing.setId(1L);
+        existing.setName("IIT");
+        existing.setStatus(1);
+
+        Map<String, Object> requestBody = Map.of(
+                Constants.REQUEST, Map.of(
+                        Constants.ID, 1L,
+                        Constants.STATUS, 0
+                )
+        );
+
+        when(validationService.upsertInstituteValidation(any(), any())).thenReturn(true);
+        when(instituteRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(instituteRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(serverProperties.getEsInstituteIndexName()).thenReturn("inst_index");
+        when(serverProperties.getEsMasterDataIndexDocType()).thenReturn("_doc");
+        when(esUtilService.saveObjectInIgotES(any(), any(), any(), any()))
+                .thenReturn(EsResponse.builder().success(true).build());
+
+        ApiResponse response = masterDataService.upsertInstitute(requestBody);
+
+        Institute result = (Institute) response.getResult().get(Constants.RESULT);
+        assertEquals(0, result.getStatus());
+    }
+
+    @Test
+    void testSearchMasterData_successWithNullData() {
+        Map<String, Object> requestBody = Map.of(
+                Constants.TYPE, "degree",
+                Constants.REQUEST, Map.of(Constants.PAGE_NUMBER, 0, Constants.PAGE_SIZE, 10)
+        );
+
+        when(validationService.validateSearchRequest(any(), any())).thenReturn(true);
+        when(serverProperties.getMasterDataAllowedType()).thenReturn(List.of("degree"));
+        when(serverProperties.getEsDegreeIndexName()).thenReturn("degree_index");
+        when(serverProperties.getEsMasterDataIndexDocType()).thenReturn("_doc");
+
+        EsResponse esResp = EsResponse.builder()
+                .success(true)
+                .data(null)
+                .count(0L)
+                .build();
+
+        doReturn(esResp)
+                .when(masterDataService)
+                .searchMasterDataInIgotES(any(), any(), any());
+
+        ApiResponse response = masterDataService.searchMasterData(requestBody);
+
+        assertEquals(0L, response.getResult().get(Constants.COUNT));
+    }
+
+    @Test
+    void testSearchMasterData_missingIndexName() {
+        Map<String, Object> requestBody = Map.of(
+                Constants.TYPE, "degree",
+                Constants.REQUEST, Map.of(Constants.PAGE_NUMBER, 0)
+        );
+        when(validationService.validateSearchRequest(any(), any())).thenReturn(true);
+        when(serverProperties.getMasterDataAllowedType()).thenReturn(List.of("degree"));
+        when(serverProperties.getEsDegreeIndexName()).thenReturn(null);
+        ApiResponse response = masterDataService.searchMasterData(requestBody);
+        assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
+    }
+
+    @Test
+    void testUpsertDegree_esThrowsException() {
+        Map<String, Object> requestBody = Map.of(
+                Constants.REQUEST, Map.of(Constants.NAME, "MBA")
+        );
+        when(validationService.upsertDegreeValidation(any(), any())).thenReturn(true);
+        when(degreeRepository.findByNameIgnoreCase("MBA")).thenReturn(Optional.empty());
+        when(degreeRepository.save(any())).thenThrow(new RuntimeException("ES down"));
+        ApiResponse response = masterDataService.upsertDegree(requestBody);
+        assertEquals("Unexpected error while adding/updating degree",
+                response.getParams().getErrMsg());
+    }
+
+    @Test
+    void upsertDegree_update_esFailure() {
+        Degree existing = new Degree();
+        existing.setId(1L);
+        existing.setName("MBA");
+        when(validationService.upsertDegreeValidation(any(), any())).thenReturn(true);
+        when(degreeRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(degreeRepository.save(any())).thenReturn(existing);
+        when(esUtilService.saveObjectInIgotES(any(), any(), any(), any()))
+                .thenReturn(EsResponse.builder().success(false).build());
+        ApiResponse response = masterDataService.upsertDegree(
+                Map.of(Constants.REQUEST, Map.of(Constants.ID, 1L))
+        );
+        assertNotNull(response);
+    }
+
+    @Test
+    void searchMasterDataInIgotES_success() throws Exception {
+        Map<String, Object> searchRequest = new HashMap<>();
+        searchRequest.put(Constants.PAGE_NUMBER, 0);
+        searchRequest.put(Constants.PAGE_SIZE, 10);
+        SearchHit hit = mock(SearchHit.class);
+        when(hit.getSourceAsMap()).thenReturn(Map.of("name", "MBA"));
+        SearchHits hits = mock(SearchHits.class);
+        when(hits.getHits()).thenReturn(new SearchHit[]{hit});
+        when(hits.getTotalHits()).thenReturn(1L); // ✅ ES 6.x
+        SearchResponse response = mock(SearchResponse.class);
+        when(response.getHits()).thenReturn(hits);
+        when(igotESClient.search(any(SearchRequest.class), eq(RequestOptions.DEFAULT)))
+                .thenReturn(response);
+
+        EsResponse esResponse = masterDataService.searchMasterDataInIgotES(
+                "degree_index",
+                "_doc",
+                searchRequest
+        );
+        assertTrue(esResponse.isSuccess());
+        assertEquals(1L, esResponse.getCount());
+        assertEquals("MBA", (((Map<String, Object>)((List<Map<String, Object>>) esResponse.getData()).get(0)).get(Constants.NAME)));
+    }
+
+    @Test
+    void searchMasterDataInIgotES_exception() throws Exception {
+
+        when(igotESClient.search(any(SearchRequest.class), eq(RequestOptions.DEFAULT)))
+                .thenThrow(new RuntimeException("ES down"));
+
+        EsResponse response =
+                masterDataService.searchMasterDataInIgotES("idx", "_doc", Map.of());
+
+        assertFalse(response.isSuccess());
+        assertTrue(response.getMessage().contains("Search failed"));
+    }
+
+    @Test
+    void searchMasterData_keywordWithSort() throws Exception {
+
+        Map<String, Object> searchRequest = new HashMap<>();
+        searchRequest.put(Constants.SEARCH_STRING, "MBA");
+        searchRequest.put(Constants.SORT_BY, Constants.NAME);
+        searchRequest.put(Constants.ORDER_BY, "DESC");
+
+        SearchHit hit = mock(SearchHit.class);
+        when(hit.getSourceAsMap()).thenReturn(Map.of(Constants.NAME, "MBA"));
+
+        SearchHits hits = mock(SearchHits.class);
+        when(hits.getHits()).thenReturn(new SearchHit[]{hit});
+        when(hits.getTotalHits()).thenReturn(1L);
+
+        SearchResponse response = mock(SearchResponse.class);
+        when(response.getHits()).thenReturn(hits);
+
+        when(igotESClient.search(any(SearchRequest.class), eq(RequestOptions.DEFAULT)))
+                .thenReturn(response);
+
+        EsResponse esResponse = masterDataService.searchMasterDataInIgotES(
+                "degree_index", "_doc", searchRequest
+        );
+
+        assertTrue(esResponse.isSuccess());
+        assertEquals(1L, esResponse.getCount());
+    }
+
+    @Test
+    void searchMasterData_keywordWithoutSort() throws Exception {
+
+        Map<String, Object> searchRequest = Map.of(
+                Constants.SEARCH_STRING, "MBA"
+        );
+
+        SearchHit hit = mock(SearchHit.class);
+        when(hit.getSourceAsMap()).thenReturn(Map.of(Constants.NAME, "MBA"));
+
+        SearchHits hits = mock(SearchHits.class);
+        when(hits.getHits()).thenReturn(new SearchHit[]{hit});
+        when(hits.getTotalHits()).thenReturn(1L);
+
+        SearchResponse response = mock(SearchResponse.class);
+        when(response.getHits()).thenReturn(hits);
+
+        when(igotESClient.search(any(SearchRequest.class), eq(RequestOptions.DEFAULT)))
+                .thenReturn(response);
+
+        EsResponse result =
+                masterDataService.searchMasterDataInIgotES("idx", "_doc", searchRequest);
+
+        assertTrue(result.isSuccess());
+    }
+
+    @Test
+    void searchMasterData_withFilters() throws Exception {
+
+        Map<String, Object> searchRequest = new HashMap<>();
+        searchRequest.put(Constants.FILTERS, Map.of(
+                Constants.ID, 10L,
+                Constants.STATUS, 1
+        ));
+
+        SearchHit hit = mock(SearchHit.class);
+        when(hit.getSourceAsMap()).thenReturn(Map.of(Constants.ID, 10L));
+
+        SearchHits hits = mock(SearchHits.class);
+        when(hits.getHits()).thenReturn(new SearchHit[]{hit});
+        when(hits.getTotalHits()).thenReturn(1L);
+
+        SearchResponse response = mock(SearchResponse.class);
+        when(response.getHits()).thenReturn(hits);
+
+        when(igotESClient.search(any(SearchRequest.class), eq(RequestOptions.DEFAULT)))
+                .thenReturn(response);
+
+        EsResponse result =
+                masterDataService.searchMasterDataInIgotES("idx", "_doc", searchRequest);
+
+        assertTrue(result.isSuccess());
+    }
+
+    @Test
+    void searchMasterData_defaultStatusFilter() throws Exception {
+
+        Map<String, Object> searchRequest = new HashMap<>();
+
+        SearchHit hit = mock(SearchHit.class);
+        when(hit.getSourceAsMap()).thenReturn(Map.of(Constants.STATUS, 1));
+
+        SearchHits hits = mock(SearchHits.class);
+        when(hits.getHits()).thenReturn(new SearchHit[]{hit});
+        when(hits.getTotalHits()).thenReturn(1L);
+
+        SearchResponse response = mock(SearchResponse.class);
+        when(response.getHits()).thenReturn(hits);
+
+        when(igotESClient.search(any(SearchRequest.class), eq(RequestOptions.DEFAULT)))
+                .thenReturn(response);
+
+        EsResponse result =
+                masterDataService.searchMasterDataInIgotES("idx", "_doc", searchRequest);
+
+        assertTrue(result.isSuccess());
+    }
+
+    @Test
+    void searchMasterData_withPagination() throws Exception {
+
+        Map<String, Object> searchRequest = Map.of(
+                Constants.PAGE_NUMBER, 2,
+                Constants.PAGE_SIZE, 5
+        );
+
+        SearchHit hit = mock(SearchHit.class);
+        when(hit.getSourceAsMap()).thenReturn(Map.of("name", "Test"));
+
+        SearchHits hits = mock(SearchHits.class);
+        when(hits.getHits()).thenReturn(new SearchHit[]{hit});
+        when(hits.getTotalHits()).thenReturn(1L);
+
+        SearchResponse response = mock(SearchResponse.class);
+        when(response.getHits()).thenReturn(hits);
+
+        when(igotESClient.search(any(SearchRequest.class), eq(RequestOptions.DEFAULT)))
+                .thenReturn(response);
+
+        EsResponse result =
+                masterDataService.searchMasterDataInIgotES("idx", "_doc", searchRequest);
+
+        assertTrue(result.isSuccess());
     }
 }

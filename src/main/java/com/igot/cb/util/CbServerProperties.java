@@ -188,6 +188,11 @@ public class CbServerProperties {
     @Value("${password.reset.path}")
     private String passwordResetPath;
 
+    @Value("${master.data.search.allowed.sortby.fields}")
+    private String masterDataAllowedSortByFields;
+
+    public List<String> getMasterDataAllowedSortByFields() {return Arrays.asList(masterDataAllowedSortByFields.split(","));}
+
     public List<String> getMasterDataAllowedType() {
         return Arrays.asList(masterDataAllowedType.split(","));
     }

@@ -56,6 +56,13 @@ public class ValidationService {
                     return false;
                 }
             }
+            String sortBy = String.valueOf(searchRequest.getOrDefault(Constants.SORT_BY, "")).trim();
+            if (!sortBy.isEmpty()) {
+                if (!cbServerProperties.getMasterDataAllowedSortByFields().contains(sortBy)) {
+                    ProjectUtil.errorResponse(apiResponse, "sortBy field is not allowed", HttpStatus.BAD_REQUEST);
+                    return false;
+                }
+            }
             String keyword = searchRequest.get(Constants.SEARCH_STRING) != null
                     ? searchRequest.get(Constants.SEARCH_STRING).toString()
                     : null;
