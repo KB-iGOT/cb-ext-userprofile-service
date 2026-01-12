@@ -132,9 +132,9 @@ public class DefaultEncryptionServiceImpl implements EncryptionService {
         if (StringUtils.isBlank(encryption_key)) {
             logger.info("throwing exception for invalid salt");
             throw new ProjectCommonException(
-                    ResponseCode.invalidParameterValue,
+                    ResponseCode.INVALID_PARAMETER_VALUE,
                     String.format(
-                            ResponseCode.invalidParameterValue.getErrorMessage(), Constants.ENCRYPTION_KEY),
+                            ResponseCode.INVALID_PARAMETER_VALUE.getErrorMessage(), Constants.ENCRYPTION_KEY),
                     ResponseCode.SERVER_ERROR.getResponseCode());
         }
         return encryption_key;

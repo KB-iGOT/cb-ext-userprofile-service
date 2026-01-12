@@ -18,7 +18,7 @@ public class ProfileController {
     private ProfileService profileService;
 
     @PostMapping("/extended")
-    public ResponseEntity<?> saveExtendedProfile(
+    public ResponseEntity<Object> saveExtendedProfile(
             @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken,
             @RequestBody Map<String, Object> request) throws Exception {
         ApiResponse response = profileService.saveExtendedProfile(request, authToken);
