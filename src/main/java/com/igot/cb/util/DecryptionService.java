@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.Map;
 
 public interface DecryptionService {
-    String ALGORITHM = "AES";
+    String ALGORITHM = "AES/GCM/NoPadding";
     int ITERATIONS = 3;
     byte[] keyValue =
             new byte[] {'T', 'h', 'i', 's', 'A', 's', 'I', 'S', 'e', 'r', 'c', 'e', 'K', 't', 'e', 'y'};
