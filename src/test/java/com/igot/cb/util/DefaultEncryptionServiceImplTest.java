@@ -71,7 +71,19 @@ public class DefaultEncryptionServiceImplTest {
 
     @Test
     public void testEncryptDataMapWhenEncryptionOn() throws Exception {
-        // Set sunbirdEncryption to ON using reflection
+        // Reinitialize cipher
+        Field encKeyField = DefaultEncryptionServiceImpl.class.getDeclaredField("encryption_key");
+        encKeyField.setAccessible(true);
+        encKeyField.set(null, "TestKey123456789");
+        
+        Field cipherField = DefaultEncryptionServiceImpl.class.getDeclaredField("c");
+        cipherField.setAccessible(true);
+        Key key = new SecretKeySpec(new byte[] {'T', 'h', 'i', 's', 'A', 's', 'I', 'S', 'e', 'r', 'c', 'e', 'K', 't', 'e', 'y'}, "AES");
+        Cipher cipher = Cipher.getInstance("AES");
+        cipher.init(Cipher.ENCRYPT_MODE, key);
+        cipherField.set(null, cipher);
+
+        // Set sunbirdEncryption to ON
         Field field = DefaultEncryptionServiceImpl.class.getDeclaredField("sunbirdEncryption");
         field.setAccessible(true);
         field.set(encryptionService, "ON");
@@ -137,7 +149,19 @@ public class DefaultEncryptionServiceImplTest {
 
     @Test
     public void testEncryptDataListWhenEncryptionOn() throws Exception {
-        // Set sunbirdEncryption to ON using reflection
+        // Reinitialize cipher
+        Field encKeyField = DefaultEncryptionServiceImpl.class.getDeclaredField("encryption_key");
+        encKeyField.setAccessible(true);
+        encKeyField.set(null, "TestKey123456789");
+        
+        Field cipherField = DefaultEncryptionServiceImpl.class.getDeclaredField("c");
+        cipherField.setAccessible(true);
+        Key key = new SecretKeySpec(new byte[] {'T', 'h', 'i', 's', 'A', 's', 'I', 'S', 'e', 'r', 'c', 'e', 'K', 't', 'e', 'y'}, "AES");
+        Cipher cipher = Cipher.getInstance("AES");
+        cipher.init(Cipher.ENCRYPT_MODE, key);
+        cipherField.set(null, cipher);
+
+        // Set sunbirdEncryption to ON
         Field field = DefaultEncryptionServiceImpl.class.getDeclaredField("sunbirdEncryption");
         field.setAccessible(true);
         field.set(encryptionService, "ON");
@@ -184,7 +208,19 @@ public class DefaultEncryptionServiceImplTest {
 
     @Test
     public void testEncryptDataStringWhenEncryptionOn() throws Exception {
-        // Set sunbirdEncryption to ON using reflection
+        // Reinitialize cipher
+        Field encKeyField = DefaultEncryptionServiceImpl.class.getDeclaredField("encryption_key");
+        encKeyField.setAccessible(true);
+        encKeyField.set(null, "TestKey123456789");
+        
+        Field cipherField = DefaultEncryptionServiceImpl.class.getDeclaredField("c");
+        cipherField.setAccessible(true);
+        Key key = new SecretKeySpec(new byte[] {'T', 'h', 'i', 's', 'A', 's', 'I', 'S', 'e', 'r', 'c', 'e', 'K', 't', 'e', 'y'}, "AES");
+        Cipher cipher = Cipher.getInstance("AES");
+        cipher.init(Cipher.ENCRYPT_MODE, key);
+        cipherField.set(null, cipher);
+
+        // Set sunbirdEncryption to ON
         Field field = DefaultEncryptionServiceImpl.class.getDeclaredField("sunbirdEncryption");
         field.setAccessible(true);
         field.set(encryptionService, "ON");
@@ -198,7 +234,7 @@ public class DefaultEncryptionServiceImplTest {
         String emptyResult = encryptionService.encryptData("");
         assertEquals("Empty string should remain empty", "", emptyResult);
 
-        // Test with null string - Add explicit cast to resolve ambiguity
+        // Test with null string
         String nullResult = encryptionService.encryptData((String) null);
         assertNull("Null string should remain null", nullResult);
     }
@@ -215,7 +251,19 @@ public class DefaultEncryptionServiceImplTest {
     }
 
     @Test
-    public void testEncryptMethod() {
+    public void testEncryptMethod() throws Exception {
+        // Reinitialize cipher
+        Field encKeyField = DefaultEncryptionServiceImpl.class.getDeclaredField("encryption_key");
+        encKeyField.setAccessible(true);
+        encKeyField.set(null, "TestKey123456789");
+        
+        Field cipherField = DefaultEncryptionServiceImpl.class.getDeclaredField("c");
+        cipherField.setAccessible(true);
+        Key key = new SecretKeySpec(new byte[] {'T', 'h', 'i', 's', 'A', 's', 'I', 'S', 'e', 'r', 'c', 'e', 'K', 't', 'e', 'y'}, "AES");
+        Cipher cipher = Cipher.getInstance("AES");
+        cipher.init(Cipher.ENCRYPT_MODE, key);
+        cipherField.set(null, cipher);
+
         // Test encrypt static method
         String original = "testValue";
         String encrypted = DefaultEncryptionServiceImpl.encrypt(original);
