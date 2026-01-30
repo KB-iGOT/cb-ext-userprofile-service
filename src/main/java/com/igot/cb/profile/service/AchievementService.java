@@ -12,7 +12,7 @@ public interface AchievementService {
 
     ApiResponse deleteLearnerAchievement(Map<String, Object> request, String userToken);
 
-    ApiResponse readLearnerAchievement(String userId, String userToken);
+    ApiResponse readLearnerAchievement(String achievementId, String userToken);
 
 
 }

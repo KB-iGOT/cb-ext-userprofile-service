@@ -33,10 +33,10 @@ public class AchievementController {
         return new ResponseEntity<>(response, response.getResponseCode());
     }
 
-    @GetMapping("/read/{userId}")
-    public ResponseEntity<Object> readLearnerAchievement(@PathVariable(Constants.USER_ID_RQST) String userId,
+    @GetMapping("/read/{achievementId}")
+    public ResponseEntity<Object> readLearnerAchievement(@PathVariable(Constants.ACHIEVEMENT_ID) String achievementId,
                                                             @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken) {
-        ApiResponse response = achievementService.readLearnerAchievement(userId, authToken);
+        ApiResponse response = achievementService.readLearnerAchievement(achievementId, authToken);
         return new ResponseEntity<>(response, HttpStatus.valueOf(response.getResponseCode().value()));
     }
 

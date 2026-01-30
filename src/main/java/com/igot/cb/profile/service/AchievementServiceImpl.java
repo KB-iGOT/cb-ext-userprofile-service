@@ -26,7 +26,7 @@ public class AchievementServiceImpl implements AchievementService{
     }
 
     @Override
-    public ApiResponse readLearnerAchievement(String userId, String userToken) {
+    public ApiResponse readLearnerAchievement(String achievementId, String userToken) {
         return null;
     }
 }
