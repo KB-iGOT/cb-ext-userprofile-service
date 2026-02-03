@@ -29,4 +29,9 @@ public class AchievementServiceImpl implements AchievementService{
     public ApiResponse readLearnerAchievement(String achievementId, String userToken) {
         return null;
     }
+
+    @Override
+    public ApiResponse statusUpdateLearnerAchievement(Map<String, Object> request, String authToken) {
+        return null;
+    }
 }
