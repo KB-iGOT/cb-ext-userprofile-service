@@ -100,7 +100,7 @@ public class AchievementServiceImpl implements AchievementService{
             Map<String, Object> compositeKey = new HashMap<>();
             compositeKey.put(Constants.ID, reqMap.get(Constants.ID));
             compositeKey.put(Constants.USER_ID, reqMap.get(FIELD_LEARNER_ID));
-            compositeKey.put(Constants.FIELD_CONTEXT_TYPE, Constants.CONTEXT_TYPE_ACHIEVEMENTS);
+            compositeKey.put(Constants.FIELD_CONTEXT_TYPE, reqMap.get(Constants.CONTENT_TYPE_KEY));
             List<Map<String, Object>> records = cassandraOperation.getAllRecordsByPrimaryKey(
                 Constants.KEYSPACE_SUNBIRD,
                 Constants.LEARNER_ACHIEVEMENT_TABLE,
