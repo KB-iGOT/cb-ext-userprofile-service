@@ -10,6 +10,7 @@ import com.igot.cb.util.Constants;
 import com.igot.cb.util.ProjectUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -184,7 +185,7 @@ public class AchievementServiceImpl implements AchievementService{
     }
 
     private boolean validateStatusUpdateRequest(Map<String, Object> request, ApiResponse response) {
-        if (request == null || !request.containsKey(Constants.REQUEST) || !(request.get(Constants.REQUEST) instanceof Map)) {
+        if (MapUtils.isEmpty(request) || !(request.get(Constants.REQUEST) instanceof Map) || MapUtils.isEmpty((Map<?, ?>) request.get(Constants.REQUEST))) {
             ProjectUtil.errorResponse(response, "Missing or invalid 'request' object in payload", HttpStatus.BAD_REQUEST);
             return false;
         }
