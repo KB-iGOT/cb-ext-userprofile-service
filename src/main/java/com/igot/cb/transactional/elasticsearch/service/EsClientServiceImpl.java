@@ -31,6 +31,7 @@ import com.igot.cb.util.CbServerProperties;
 import com.igot.cb.util.Constants;
 import com.networknt.schema.JsonSchemaFactory;
 import lombok.extern.slf4j.Slf4j;
+import org.elasticsearch.client.RequestOptions;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -96,8 +97,7 @@ public class EsClientServiceImpl implements EsClientService {
         }
     }
 
-    @Override
-    public String updateDocument(
+    public void updateDocument(
             String index, String indexType, String entityId, Map<String, Object> updatedDocument, String JsonFilePath) {
         try {
             JsonSchemaFactory schemaFactory = JsonSchemaFactory.getInstance();
@@ -120,9 +120,8 @@ public class EsClientServiceImpl implements EsClientService {
                     .refresh(Refresh.True)
                     .build();
             IndexResponse response = elasticsearchClient.index(indexRequest);
-            return response.result().jsonValue();
         } catch (IOException e) {
-            return null;
+            log.error("Error occurred during deleting document in elasticsearch");
         }
     }
 
@@ -562,4 +561,3 @@ public class EsClientServiceImpl implements EsClientService {
 
 
 }
-

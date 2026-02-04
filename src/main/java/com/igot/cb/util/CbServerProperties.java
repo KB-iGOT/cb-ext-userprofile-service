@@ -191,6 +191,12 @@ public class CbServerProperties {
     @Value("${master.data.search.allowed.sortby.fields}")
     private String masterDataAllowedSortByFields;
 
+    @Value("${achievement.status.update.required.fields}")
+    private String requiredFieldsProperty;
+
+    @Value("${elastic.required.field.achievement.json.path}")
+    private String achievementEsRequiredFieldsMappingPath;
+
     public List<String> getMasterDataAllowedSortByFields() {return Arrays.asList(masterDataAllowedSortByFields.split(","));}
 
     public List<String> getMasterDataAllowedType() {

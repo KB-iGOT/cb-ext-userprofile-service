@@ -48,4 +48,12 @@ public class AchievementController {
         return new ResponseEntity<>(response, response.getResponseCode());
     }
 
+    @PutMapping("/status/update")
+    public ResponseEntity<?> statusUpdateLearnerAchievement(
+            @RequestHeader(value = Constants.X_AUTH_TOKEN, required = false) String authToken,
+            @RequestBody Map<String, Object> request) {
+        ApiResponse response = achievementService.statusUpdateLearnerAchievement(request, authToken);
+        return new ResponseEntity<>(response, response.getResponseCode());
+    }
+
 }

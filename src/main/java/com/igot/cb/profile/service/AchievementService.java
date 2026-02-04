@@ -14,5 +14,5 @@ public interface AchievementService {
 
     ApiResponse readLearnerAchievement(String achievementId, String userToken);
 
-
+    ApiResponse statusUpdateLearnerAchievement(Map<String, Object> request, String authToken);
 }
