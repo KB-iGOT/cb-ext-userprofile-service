@@ -14,7 +14,7 @@ import java.util.Map;
 public interface EsClientService {
   String addDocument(String esIndexName, String type, String id, Map<String, Object> document, String JsonFilePath);
 
-  String updateDocument(String index, String indexType, String entityId, Map<String, Object> document, String JsonFilePath);
+  void updateDocument(String index, String indexType, String entityId, Map<String, Object> document, String JsonFilePath);
 
   void deleteDocument(String documentId, String esIndexName);
 

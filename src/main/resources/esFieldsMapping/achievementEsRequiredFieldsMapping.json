@@ -1,0 +1,45 @@
+{
+  "userId": {
+    "type": "keyword"
+  },
+  "id": {
+    "type": "keyword"
+  },
+  "contextType": {
+    "type": "keyword"
+  },
+  "status": {
+    "type": "keyword"
+  },
+  "orgId": {
+    "type": "keyword"
+  },
+  "approvedBy": {
+    "type": "keyword"
+  },
+  "source": {
+    "type": "text",
+    "fields": {
+      "keyword": {
+        "type": "keyword",
+        "ignore_above": 256
+      }
+    }
+  },
+  "approvedOn": {
+    "type": "date"
+  },
+  "createdOn": {
+    "type": "date"
+  },
+  "contextData": {
+    "type": "object",
+    "dynamic": true
+  },
+  "updatedOn": {
+    "type": "date"
+  },
+  "updatedBy": {
+    "type": "keyword"
+  }
+}
