@@ -1,12 +1,16 @@
 package com.igot.cb.profile.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.authentication.util.AccessTokenValidator;
 import com.igot.cb.transactional.cassandrautils.CassandraOperation;
 import com.igot.cb.transactional.elasticsearch.service.EsClientService;
 import com.igot.cb.util.ApiResponse;
+import com.igot.cb.util.CbServerProperties;
 import com.igot.cb.util.Constants;
 import com.igot.cb.util.ProjectUtil;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -23,28 +27,39 @@ import java.util.Map;
 @Slf4j
 public class AchievementServiceImpl implements AchievementService{
 
-    @Value("${achievement.status.update.required.fields}")
-    private String requiredFieldsProperty;
     private List<String> requiredFields;
 
-    @Autowired
-    private AccessTokenValidator accessTokenValidator;
+    private final AccessTokenValidator accessTokenValidator;
 
-    @Autowired
-    private CassandraOperation cassandraOperation;
+    private final CbServerProperties cbServerProperties;
 
-    @Autowired
-    private EsClientService esClientService;
-    @Value("${elastic.required.field.achievement.json.path}")
-    private String achievementEsRequiredFieldsMappingPath;
+    private final CassandraOperation cassandraOperation;
+
+    private final EsClientService esClientService;
+
+    private final ObjectMapper objectMapper;
 
     private static final String FIELD_REASON = "reason";
+
     private static final String FIELD_LEARNER_ID = "learnerId";
 
+    @Autowired
+    public AchievementServiceImpl(
+            AccessTokenValidator accessTokenValidator,
+            CbServerProperties cbServerProperties,
+            CassandraOperation cassandraOperation,
+            EsClientService esClientService,
+            ObjectMapper objectMapper) {
+        this.accessTokenValidator = accessTokenValidator;
+        this.cbServerProperties = cbServerProperties;
+        this.cassandraOperation = cassandraOperation;
+        this.esClientService = esClientService;
+        this.objectMapper = objectMapper;
+    }
 
     @PostConstruct
     private void initRequiredFields() {
-        requiredFields = Arrays.asList(requiredFieldsProperty.split(","));
+        requiredFields = Arrays.asList(cbServerProperties.getRequiredFieldsProperty().split(","));
     }
 
     @Override
@@ -73,7 +88,7 @@ public class AchievementServiceImpl implements AchievementService{
         ApiResponse response = ProjectUtil.createDefaultResponse(Constants.API_ACHIEVEMENT_STATUS_UPDATE);
         try {
             String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(authToken);
-            if (userIdFromToken == null) {
+            if (StringUtils.isBlank(userIdFromToken)) {
                 ProjectUtil.errorResponse(response, "Invalid or missing access token", HttpStatus.UNAUTHORIZED);
                 return response;
             }
@@ -81,7 +96,6 @@ public class AchievementServiceImpl implements AchievementService{
                 return response;
             }
             Map<String, Object> reqMap = (Map<String, Object>) request.get(Constants.REQUEST);
-            // Check if record exists
             Map<String, Object> compositeKey = new HashMap<>();
             compositeKey.put(Constants.ID, reqMap.get(Constants.ID));
             compositeKey.put(Constants.USER_ID, reqMap.get(FIELD_LEARNER_ID));
@@ -93,7 +107,7 @@ public class AchievementServiceImpl implements AchievementService{
                 null,
                 Constants.CASSANDRA_FETCH_LIMIT
             );
-            if (records == null || records.isEmpty()) {
+            if (CollectionUtils.isEmpty(records)) {
                 ProjectUtil.errorResponse(response, "Achievement record not found for update", HttpStatus.NOT_FOUND);
                 return response;
             }
@@ -114,10 +128,19 @@ public class AchievementServiceImpl implements AchievementService{
                 ProjectUtil.errorResponse(response, String.valueOf(cassandraResponse.get(Constants.ERROR_MESSAGE)), HttpStatus.INTERNAL_SERVER_ERROR);
                 return response;
             }
-            // Prepare ES update map (partial update)
+            updateAchievementInES(records, reqMap, userIdFromToken, approvedOnDate);
+            response.getResult().put("message", "Achievement status updated successfully");
+        } catch (Exception e) {
+            log.error("Exception in statusUpdateLearnerAchievement", e);
+            ProjectUtil.errorResponse(response, "Exception occurred: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+        return response;
+    }
+
+    private void updateAchievementInES(List<Map<String, Object>> records, Map<String, Object> reqMap, String userIdFromToken, String approvedOnDate) {
+        try {
             Map<String, Object> esUpdateMap = new HashMap<>();
-            // Add all existing DB fields to ES map, converting LocalDate/LocalDateTime to String
-            if (!records.isEmpty()) {
+            if (CollectionUtils.isNotEmpty(records)) {
                 Map<String, Object> dbRecord = records.get(0);
                 for (Map.Entry<String, Object> entry : dbRecord.entrySet()) {
                     Object value = entry.getValue();
@@ -126,12 +149,9 @@ public class AchievementServiceImpl implements AchievementService{
                     } else if (value instanceof java.time.LocalDateTime) {
                         esUpdateMap.put(entry.getKey(), value.toString());
                     } else if ("contextdata".equalsIgnoreCase(entry.getKey()) && value != null) {
-                        // Ensure contextData is always a Map for ES mapping
                         if (value instanceof String) {
                             try {
-                                // Try to parse JSON string to Map
-                                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-                                Map<String, Object> contextDataMap = mapper.readValue((String) value, Map.class);
+                                Map<String, Object> contextDataMap = objectMapper.readValue((String) value, Map.class);
                                 esUpdateMap.put(entry.getKey(), contextDataMap);
                             } catch (Exception ex) {
                                 log.warn("Failed to parse contextData string to Map for ES. Storing as empty object.", ex);
@@ -147,42 +167,37 @@ public class AchievementServiceImpl implements AchievementService{
                     }
                 }
             }
-            // Overwrite/add new attributes
             esUpdateMap.put(Constants.STATUS, reqMap.get(Constants.STATUS));
             esUpdateMap.put(FIELD_REASON, reqMap.get(FIELD_REASON));
             esUpdateMap.put(Constants.FIELD_APPROVED_BY, userIdFromToken);
-            esUpdateMap.put(Constants.FIELD_APPROVED_ON, approvedOnDate); // ES mapping expects date
-            // Update ES index (do not pass type at all for ES 7+)
+            esUpdateMap.put(Constants.FIELD_APPROVED_ON, approvedOnDate);
             esClientService.updateDocument(
-                "achievement_entity",
-                null, // pass null for type so it is omitted in the request
+                Constants.LEARNER_ACHIEVEMENT_INDEX,
+                null,
                 String.valueOf(reqMap.get(Constants.ID)),
                 esUpdateMap,
-                achievementEsRequiredFieldsMappingPath
+                cbServerProperties.getAchievementEsRequiredFieldsMappingPath()
             );
-            response.getResult().put("message", "Achievement status updated successfully");
         } catch (Exception e) {
-            log.error("Exception in statusUpdateLearnerAchievement", e);
-            ProjectUtil.errorResponse(response, "Exception occurred: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+            log.error("Exception while updating achievement in ES", e);
         }
-        return response;
     }
 
     private boolean validateStatusUpdateRequest(Map<String, Object> request, ApiResponse response) {
         if (request == null || !request.containsKey(Constants.REQUEST) || !(request.get(Constants.REQUEST) instanceof Map)) {
-            ProjectUtil.errorResponse(response, "Missing or invalid 'request' object in payload", org.springframework.http.HttpStatus.BAD_REQUEST);
+            ProjectUtil.errorResponse(response, "Missing or invalid 'request' object in payload", HttpStatus.BAD_REQUEST);
             return false;
         }
         Map<String, Object> reqMap = (Map<String, Object>) request.get(Constants.REQUEST);
         for (String field : requiredFields) {
             if (!reqMap.containsKey(field) || reqMap.get(field) == null) {
-                ProjectUtil.errorResponse(response, "Missing required field: " + field, org.springframework.http.HttpStatus.BAD_REQUEST);
+                ProjectUtil.errorResponse(response, "Missing required field: " + field, HttpStatus.BAD_REQUEST);
                 return false;
             }
         }
         String statusValue = String.valueOf(reqMap.get(Constants.STATUS));
         if (!Constants.APPROVED.equalsIgnoreCase(statusValue) && !Constants.REJECT.equalsIgnoreCase(statusValue)) {
-            ProjectUtil.errorResponse(response, "Invalid status value. Allowed values are 'Approved' or 'Reject'", org.springframework.http.HttpStatus.BAD_REQUEST);
+            ProjectUtil.errorResponse(response, "Invalid status value. Allowed values are 'Approved' or 'Reject'", HttpStatus.BAD_REQUEST);
             return false;
         }
         return true;
