@@ -112,6 +112,12 @@ public class AchievementServiceImpl implements AchievementService{
                 ProjectUtil.errorResponse(response, "Achievement record not found for update", HttpStatus.NOT_FOUND);
                 return response;
             }
+            // Additional validation: status must be PENDING
+            String currentStatus = String.valueOf(records.get(0).get(Constants.STATUS));
+            if (!Constants.PENDING.equalsIgnoreCase(currentStatus)) {
+                ProjectUtil.errorResponse(response, "Achievement status must be 'PENDING' to update. Current status: " + currentStatus, HttpStatus.BAD_REQUEST);
+                return response;
+            }
             Map<String, Object> updateAttributes = new HashMap<>();
             updateAttributes.put(Constants.STATUS, reqMap.get(Constants.STATUS));
             updateAttributes.put(FIELD_REASON, reqMap.get(FIELD_REASON));

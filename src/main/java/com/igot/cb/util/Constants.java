@@ -479,6 +479,7 @@ public class Constants {
     public static final int CASSANDRA_FETCH_LIMIT = 1;
     public static final String LEARNER_ACHIEVEMENT_TABLE ="learner_achievements_v2";
     public static final String LEARNER_ACHIEVEMENT_INDEX = "achievement_entity";
+    public static final String PENDING = "PENDING";
 
     private Constants() {
     }
