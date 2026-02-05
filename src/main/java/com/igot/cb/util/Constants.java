@@ -486,6 +486,11 @@ public class Constants {
     public static final String SEARCH_RESULT_REDIS_TEMPLATE = "searchResultRedisTemplate";
     public static final String SEARCH_RESULTS = "search_results";
     public static final String MINIMUM_CHARACTERS_NEEDED= "Minimum 3 characters are required to search";
+    public static final String USER_PREFIX = "user:" ;
+    public static final String USER_ID_KEY = "user_id";
+    public static final String USER_TABLE = "user";
+    public static final String FIRST_NAME_KEY = "first_name";
+    public static final String FIRST_NAME_CAMEL_CASE = "firstName";
 
     private Constants() {
     }

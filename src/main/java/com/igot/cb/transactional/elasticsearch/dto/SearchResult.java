@@ -1,6 +1,5 @@
 package com.igot.cb.transactional.elasticsearch.dto;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -19,4 +18,5 @@ public class SearchResult implements Serializable {
   private List<Map<String, Object>> data;
   private Map<String, List<FacetDTO>> facets;
   private long totalCount;
+  private Map<String, String> userDetails;
 }
