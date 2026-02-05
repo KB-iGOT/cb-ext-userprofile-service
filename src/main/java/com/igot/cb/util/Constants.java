@@ -480,6 +480,9 @@ public class Constants {
     public static final String LEARNER_ACHIEVEMENT_TABLE ="learner_achievements_v2";
     public static final String LEARNER_ACHIEVEMENT_INDEX = "achievement_entity";
     public static final String PENDING = "PENDING";
+    public static final String API_ACHIEVEMENT_SEARCH = "api.achievement.search";
+    public static final String USER_ID_LOWER = "userid";
+    public static final String CONTEXT_TYPE_KEY = "contextType";
 
     private Constants() {
     }

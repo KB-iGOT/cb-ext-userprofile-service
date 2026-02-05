@@ -1,6 +1,7 @@
 package com.igot.cb.profile.controller;
 
 import com.igot.cb.profile.service.AchievementService;
+import com.igot.cb.transactional.elasticsearch.dto.SearchCriteria;
 import com.igot.cb.util.ApiResponse;
 import com.igot.cb.util.Constants;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -56,6 +57,14 @@ public class AchievementController {
             @RequestHeader(value = Constants.X_AUTH_TOKEN, required = false) String authToken,
             @RequestBody Map<String, Object> request) {
         ApiResponse response = achievementService.statusUpdateLearnerAchievement(request, authToken);
+        return new ResponseEntity<>(response, response.getResponseCode());
+    }
+
+    @PostMapping("/search")
+    public ResponseEntity<?> searchLearnerAchievements(
+            @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken,
+            @RequestBody SearchCriteria searchCriteria) {
+        ApiResponse response = achievementService.searchLearnerAchievements(searchCriteria, authToken);
         return new ResponseEntity<>(response, response.getResponseCode());
     }
 
