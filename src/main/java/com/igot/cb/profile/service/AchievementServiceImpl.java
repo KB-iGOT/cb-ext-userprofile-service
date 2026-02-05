@@ -1,8 +1,10 @@
 package com.igot.cb.profile.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.authentication.util.AccessTokenValidator;
 import com.igot.cb.transactional.cassandrautils.CassandraOperation;
+import com.igot.cb.transactional.elasticsearch.dto.SearchCriteria;
 import com.igot.cb.transactional.elasticsearch.service.EsClientService;
 import com.igot.cb.util.ApiResponse;
 import com.igot.cb.util.CbServerProperties;
@@ -99,8 +101,8 @@ public class AchievementServiceImpl implements AchievementService{
             Map<String, Object> reqMap = (Map<String, Object>) request.get(Constants.REQUEST);
             Map<String, Object> compositeKey = new HashMap<>();
             compositeKey.put(Constants.ID, reqMap.get(Constants.ID));
-            compositeKey.put(Constants.USER_ID, reqMap.get(FIELD_LEARNER_ID));
-            compositeKey.put(Constants.FIELD_CONTEXT_TYPE, reqMap.get(Constants.CONTENT_TYPE_KEY));
+            compositeKey.put(Constants.USER_ID_LOWER, reqMap.get(FIELD_LEARNER_ID));
+            compositeKey.put(Constants.FIELD_CONTEXT_TYPE, reqMap.get(Constants.CONTEXT_TYPE_KEY));
             List<Map<String, Object>> records = cassandraOperation.getAllRecordsByPrimaryKey(
                 Constants.KEYSPACE_SUNBIRD,
                 Constants.LEARNER_ACHIEVEMENT_TABLE,
@@ -208,5 +210,12 @@ public class AchievementServiceImpl implements AchievementService{
             return false;
         }
         return true;
+    }
+
+    @Override
+    public ApiResponse searchLearnerAchievements(SearchCriteria searchCriteria, String authToken) {
+        log.info("AchievementService::searchLearnerAchievements");
+        ApiResponse response = ProjectUtil.createDefaultResponse(Constants.API_ACHIEVEMENT_SEARCH);
+        return null;
     }
 }
