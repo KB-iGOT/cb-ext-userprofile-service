@@ -315,7 +315,7 @@ public class EsClientServiceImpl implements EsClientService {
                     Constants.ASC.equals(searchCriteria.getOrderDirection()) ? SortOrder.Asc : SortOrder.Desc;
             searchRequestBuilder.sort(SortOptions.of(so -> so
                     .field(f -> f
-                            .field(searchCriteria.getOrderBy() + Constants.KEYWORD)
+                            .field(searchCriteria.getOrderBy())
                             .order(sortOrder)
                     )
             ));
