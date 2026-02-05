@@ -1,10 +1,13 @@
 package com.igot.cb.profile.service;
 
+import com.auth0.jwt.JWT;
+import com.auth0.jwt.algorithms.Algorithm;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.authentication.util.AccessTokenValidator;
 import com.igot.cb.transactional.cassandrautils.CassandraOperation;
 import com.igot.cb.transactional.elasticsearch.dto.SearchCriteria;
+import com.igot.cb.transactional.elasticsearch.dto.SearchResult;
 import com.igot.cb.transactional.elasticsearch.service.EsClientService;
 import com.igot.cb.util.ApiResponse;
 import com.igot.cb.util.CbServerProperties;
@@ -15,16 +18,16 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
 import java.time.LocalDateTime;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 @Service
 @Slf4j
@@ -42,6 +45,8 @@ public class AchievementServiceImpl implements AchievementService{
 
     private final ObjectMapper objectMapper;
 
+    private final RedisTemplate<String, SearchResult> redisTemplate;
+
     private static final String FIELD_REASON = "reason";
 
     private static final String FIELD_LEARNER_ID = "learnerId";
@@ -52,12 +57,14 @@ public class AchievementServiceImpl implements AchievementService{
             CbServerProperties cbServerProperties,
             CassandraOperation cassandraOperation,
             EsClientService esClientService,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            @Qualifier(Constants.SEARCH_RESULT_REDIS_TEMPLATE) RedisTemplate<String, SearchResult> redisTemplate) {
         this.accessTokenValidator = accessTokenValidator;
         this.cbServerProperties = cbServerProperties;
         this.cassandraOperation = cassandraOperation;
         this.esClientService = esClientService;
         this.objectMapper = objectMapper;
+        this.redisTemplate = redisTemplate;
     }
 
     @PostConstruct
@@ -216,6 +223,53 @@ public class AchievementServiceImpl implements AchievementService{
     public ApiResponse searchLearnerAchievements(SearchCriteria searchCriteria, String authToken) {
         log.info("AchievementService::searchLearnerAchievements");
         ApiResponse response = ProjectUtil.createDefaultResponse(Constants.API_ACHIEVEMENT_SEARCH);
-        return null;
+        String cacheKey = generateRedisJwtTokenKey(searchCriteria);
+        SearchResult searchResult = redisTemplate.opsForValue().get(cacheKey);
+        if (searchResult != null) {
+            log.info("DiscussionServiceImpl::searchDiscussion:  search result fetched from redis");
+            response.getResult().put(Constants.SEARCH_RESULTS, searchResult);
+            return response;
+        }
+        String searchString = searchCriteria.getSearchString();
+        if (searchString != null && !searchString.isEmpty() && searchString.length() < 3) {
+            ProjectUtil.errorResponse(response, Constants.MINIMUM_CHARACTERS_NEEDED, HttpStatus.BAD_REQUEST);
+            return response;
+        }
+        try {
+            log.info("DiscussionServiceImpl::searchDiscussion:  search result fetched from es");
+            if (MapUtils.isEmpty(searchCriteria.getFilterCriteriaMap())) {
+                searchCriteria.setFilterCriteriaMap(new HashMap<>());
+            }
+
+            searchResult = esClientService.searchDocuments(Constants.LEARNER_ACHIEVEMENT_INDEX, searchCriteria);
+            if (CollectionUtils.isEmpty(searchResult.getData())) {
+                ProjectUtil.errorResponse(response, Constants.NO_DATA_FOUND, HttpStatus.OK);
+                response.getResult().put(Constants.SEARCH_RESULTS, searchResult);
+                return response;
+            }
+            List<Map<String, Object>> discussions = searchResult.getData();
+            searchResult.setData(discussions);
+            redisTemplate.opsForValue().set(cacheKey, searchResult, cbServerProperties.getSearchResultRedisTtl(), TimeUnit.SECONDS);
+            response.getResult().put(Constants.SEARCH_RESULTS, searchResult);
+            return response;
+        } catch (Exception e) {
+            log.error("error while searching discussion : {} .", e.getMessage(), e);
+            ProjectUtil.errorResponse(response, e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+            return response;
+        }
+    }
+
+    public String generateRedisJwtTokenKey(Object requestPayload) {
+        if (requestPayload != null) {
+            try {
+                String reqJsonString = objectMapper.writeValueAsString(requestPayload);
+                return JWT.create()
+                        .withClaim(Constants.REQUEST, reqJsonString)
+                        .sign(Algorithm.HMAC256(Constants.JWT_SECRET_KEY));
+            } catch (JsonProcessingException e) {
+                log.error("Error occurred while converting json object to json string", e);
+            }
+        }
+        return "";
     }
 }

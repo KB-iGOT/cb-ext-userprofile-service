@@ -483,6 +483,9 @@ public class Constants {
     public static final String API_ACHIEVEMENT_SEARCH = "api.achievement.search";
     public static final String USER_ID_LOWER = "userid";
     public static final String CONTEXT_TYPE_KEY = "contextType";
+    public static final String SEARCH_RESULT_REDIS_TEMPLATE = "searchResultRedisTemplate";
+    public static final String SEARCH_RESULTS = "search_results";
+    public static final String MINIMUM_CHARACTERS_NEEDED= "Minimum 3 characters are required to search";
 
     private Constants() {
     }

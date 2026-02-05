@@ -168,7 +168,7 @@ public class EsClientServiceImpl implements EsClientService {
             Map<String, List<FacetDTO>> fieldAggregations =
                     extractFacetData(paginatedSearchResponse, searchCriteria);
             SearchResult searchResult = new SearchResult();
-            searchResult.setData(objectMapper.valueToTree(paginatedResult));
+            searchResult.setData(paginatedResult);
             searchResult.setFacets(fieldAggregations);
             searchResult.setTotalCount(paginatedSearchResponse.hits().total().value());
             return searchResult;
