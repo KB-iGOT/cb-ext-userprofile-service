@@ -1,11 +1,13 @@
 package com.igot.cb.profile.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.authentication.util.AccessTokenValidator;
 import com.igot.cb.transactional.cassandrautils.CassandraOperation;
+import com.igot.cb.transactional.elasticsearch.dto.SearchCriteria;
 import com.igot.cb.transactional.elasticsearch.dto.SearchCriteria;
 import com.igot.cb.transactional.elasticsearch.dto.SearchResult;
 import com.igot.cb.transactional.elasticsearch.service.EsClientService;
