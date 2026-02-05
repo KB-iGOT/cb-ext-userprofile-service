@@ -116,6 +116,15 @@ public class CacheService {
         return result;
     }
 
+    public void removeCache(String key) {
+        try (Jedis jedis = jedisPool.getResource()) {
+            jedis.del(key);
+            logger.debug("Cache key {} removed from redis", key);
+        } catch (Exception e) {
+            logger.error("Error removing cache key {}", key, e);
+        }
+    }
+
     public List<Object> hget(List<String> keys) {
         List<Object> resultList = new ArrayList<>();
         try (Jedis jedis = jedisDataPopulationPool.getResource()) {
