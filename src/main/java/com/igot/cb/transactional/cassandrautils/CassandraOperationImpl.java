@@ -264,4 +264,34 @@ public class CassandraOperationImpl implements CassandraOperation {
         }
         return allResults;
     }
+
+    @Override
+    public Map<String, Object> deleteRecordByCompositeKey(String keyspaceName, String tableName, Map<String, Object> compositeKey) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            StringBuilder queryBuilder = new StringBuilder();
+            queryBuilder.append("DELETE FROM ")
+                        .append(keyspaceName).append(".").append(tableName)
+                        .append(" WHERE ");
+            List<Object> values = new ArrayList<>();
+            int count = 0;
+            for (Map.Entry<String, Object> entry : compositeKey.entrySet()) {
+                if (count > 0) queryBuilder.append(" AND ");
+                queryBuilder.append(entry.getKey()).append(" = ?");
+                values.add(entry.getValue());
+                count++;
+            }
+            String query = queryBuilder.toString();
+            CqlSession session = connectionManager.getSession(keyspaceName);
+            PreparedStatement statement = session.prepare(query);
+            BoundStatement boundStatement = statement.bind(values.toArray());
+            session.execute(boundStatement);
+            response.put(Constants.RESPONSE, Constants.SUCCESS);
+        } catch (Exception e) {
+            logger.error("Error deleting record from {}: {}", tableName, e.getMessage());
+            response.put(Constants.RESPONSE, Constants.FAILED);
+            response.put(Constants.ERROR_MESSAGE, e.getMessage());
+        }
+        return response;
+    }
 }
