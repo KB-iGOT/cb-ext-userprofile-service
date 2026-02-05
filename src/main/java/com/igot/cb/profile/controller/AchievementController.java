@@ -20,23 +20,26 @@ public class AchievementController {
     @PostMapping("/create")
     public ResponseEntity<?> createLearnerAchievement(
             @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken,
+            @RequestHeader(value = Constants.X_AUTH_USER_ORG_ID, required = true) String rootOrgId,
             @RequestBody Map<String, Object> request) throws Exception {
-        ApiResponse response = achievementService.createLearnerAchievement(request, authToken);
+        ApiResponse response = achievementService.createLearnerAchievement(request, authToken, rootOrgId);
         return new ResponseEntity<>(response, response.getResponseCode());
     }
 
     @PutMapping("/update")
     public ResponseEntity<?> updateLearnerAchievement(
             @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken,
+            @RequestHeader(value = Constants.X_AUTH_USER_ORG_ID, required = true) String rootOrgId,
             @RequestBody Map<String, Object> request) throws Exception {
-        ApiResponse response = achievementService.updateLearnerAchievement(request, authToken);
+        ApiResponse response = achievementService.updateLearnerAchievement(request, authToken, rootOrgId);
         return new ResponseEntity<>(response, response.getResponseCode());
     }
 
     @GetMapping("/read/{achievementId}")
     public ResponseEntity<Object> readLearnerAchievement(@PathVariable(Constants.ACHIEVEMENT_ID) String achievementId,
-                                                            @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken) {
-        ApiResponse response = achievementService.readLearnerAchievement(achievementId, authToken);
+                                                         @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken,
+                                                         @RequestHeader(value = Constants.CONTEXT_TYPE, required = true) String contextType) {
+        ApiResponse response = achievementService.readLearnerAchievement(achievementId, authToken, contextType);
         return new ResponseEntity<>(response, HttpStatus.valueOf(response.getResponseCode().value()));
     }
 
