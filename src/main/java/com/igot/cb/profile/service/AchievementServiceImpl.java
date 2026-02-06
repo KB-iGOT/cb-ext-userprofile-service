@@ -27,9 +27,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.util.*;
-import jakarta.annotation.PostConstruct;
 
-import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -407,7 +405,7 @@ public class AchievementServiceImpl implements AchievementService{
             }
         }
         String statusValue = String.valueOf(reqMap.get(Constants.STATUS));
-        if (!Constants.APPROVED_KEY.equalsIgnoreCase(statusValue) && !Constants.REJECT.equalsIgnoreCase(statusValue)) {
+        if (!Constants.APPROVED_KEY.equalsIgnoreCase(statusValue) && !Constants.REJECTED.equalsIgnoreCase(statusValue)) {
             ProjectUtil.errorResponse(response, "Invalid status value. Allowed values are 'Approved' or 'Reject'", HttpStatus.BAD_REQUEST);
             return false;
         }
