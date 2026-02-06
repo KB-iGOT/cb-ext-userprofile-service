@@ -470,7 +470,7 @@ public class Constants {
     public static final String NAME_KEYWORD = "name.keyword";
     public static final String DESCRIPTION_KEYWORD = "description.keyword";
     public static final String ACHIEVEMENT_ID = "achievementId";
-    public static final String REJECT = "Reject";
+    public static final String REJECT = "REJECT";
     public static final String FIELD_CONTEXT_TYPE = "contexttype";
     public static final String FIELD_APPROVED_BY = "approvedby";
     public static final String FIELD_APPROVED_ON = "approvedon";
@@ -491,6 +491,7 @@ public class Constants {
     public static final String USER_TABLE = "user";
     public static final String FIRST_NAME_KEY = "first_name";
     public static final String FIRST_NAME_CAMEL_CASE = "firstName";
+    public static final String APPROVED_KEY = "APPROVED";
 
     private Constants() {
     }
