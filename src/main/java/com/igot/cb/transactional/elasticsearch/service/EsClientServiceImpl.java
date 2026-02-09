@@ -168,7 +168,7 @@ public class EsClientServiceImpl implements EsClientService {
             Map<String, List<FacetDTO>> fieldAggregations =
                     extractFacetData(paginatedSearchResponse, searchCriteria);
             SearchResult searchResult = new SearchResult();
-            searchResult.setData(objectMapper.valueToTree(paginatedResult));
+            searchResult.setData(paginatedResult);
             searchResult.setFacets(fieldAggregations);
             searchResult.setTotalCount(paginatedSearchResponse.hits().total().value());
             return searchResult;
@@ -315,7 +315,7 @@ public class EsClientServiceImpl implements EsClientService {
                     Constants.ASC.equals(searchCriteria.getOrderDirection()) ? SortOrder.Asc : SortOrder.Desc;
             searchRequestBuilder.sort(SortOptions.of(so -> so
                     .field(f -> f
-                            .field(searchCriteria.getOrderBy() + Constants.KEYWORD)
+                            .field(searchCriteria.getOrderBy())
                             .order(sortOrder)
                     )
             ));
@@ -556,6 +556,26 @@ public class EsClientServiceImpl implements EsClientService {
             log.error(e.getMessage());
             throw new CustomException("error bulk uploading", e.getMessage(),
                 HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @Override
+    public Map<String, Object> readDocument(String esIndexName, String id) {
+        try {
+            GetRequest getRequest = new GetRequest.Builder()
+                    .index(esIndexName)
+                    .id(id)
+                    .build();
+            GetResponse<Object> getResponse = elasticsearchClient.get(getRequest, Object.class);
+            if (getResponse.found() && getResponse.source() instanceof Map) {
+                return (Map<String, Object>) getResponse.source();
+            } else {
+                log.info("Document not found in ES for index: {} and id: {}", esIndexName, id);
+                return null;
+            }
+        } catch (Exception e) {
+            log.error("Error reading document from ES for index: {} and id: {}", esIndexName, id, e);
+            return null;
         }
     }
 

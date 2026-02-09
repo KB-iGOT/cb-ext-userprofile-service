@@ -26,4 +26,11 @@ public interface EsClientService {
 
   BulkResponse saveAll(String esIndexName, List<JsonNode> entities) throws IOException;
 
+  /**
+   * Reads a document from Elasticsearch by index and id.
+   * @param esIndexName The Elasticsearch index name.
+   * @param id The document id.
+   * @return The document as a Map<String, Object>, or null if not found.
+   */
+  Map<String, Object> readDocument(String esIndexName, String id);
 }
