@@ -709,11 +709,4 @@ public class AchievementServiceImpl implements AchievementService{
         return now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ"));
     }
 
-    private String formatLocalDateToUtcTimestamp(LocalDate date) {
-        if (date == null) {
-            return null;
-        }
-        return date.atStartOfDay(ZoneId.of("UTC")).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ"));
-    }
-
 }
