@@ -126,8 +126,7 @@ public class AchievementServiceImpl implements AchievementService{
             return response;
         }
         // Format createdOn for ES as yyyy-MM-dd'T'HH:mm:ss.SSSZ
-        ZonedDateTime now = ZonedDateTime.now(ZoneId.of("UTC"));
-        String createdOnFormatted = now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ"));
+        String createdOnFormatted = getCurrentUtcTimestampFormatted();
         Map<String, Object> esRecord = new HashMap<>(achievementRecord);
         esRecord.put(Constants.CREATED_ON, createdOnFormatted);
         Map<String, Object> map = objectMapper.convertValue(esRecord, Map.class);
@@ -202,7 +201,7 @@ public class AchievementServiceImpl implements AchievementService{
         // For ES, use formatted createdOn and updatedOn
         Map<String, Object> esDoc = esClientService.readDocument(Constants.LEARNER_ACHIEVEMENT_INDEX, id);
         String createdOnFormatted = null;
-        if (esDoc != null && esDoc.get(Constants.CREATED_ON) instanceof String) {
+        if (MapUtils.isNotEmpty(esDoc) && esDoc.get(Constants.CREATED_ON) instanceof String) {
             createdOnFormatted = (String) esDoc.get(Constants.CREATED_ON);
         } else {
             // fallback to existingRecord if ES not found
@@ -216,8 +215,7 @@ public class AchievementServiceImpl implements AchievementService{
             }
         }
         // Set updatedOn to current timestamp in required format (for ES only)
-        ZonedDateTime updatedOnNow = ZonedDateTime.now(ZoneId.of("UTC"));
-        String updatedOnFormatted = updatedOnNow.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ"));
+        String updatedOnFormatted = getCurrentUtcTimestampFormatted();
         Map<String, Object> esRecord = new HashMap<>(existingRecord);
         esRecord.put(Constants.CREATED_ON, createdOnFormatted);
         esRecord.put(Constants.UPDATED_ON, updatedOnFormatted);
@@ -352,8 +350,7 @@ public class AchievementServiceImpl implements AchievementService{
             // Store approvedon as date (yyyy-MM-dd) for Cassandra
             String approvedOnDate = java.time.LocalDate.now().toString();
             updateAttributes.put(Constants.FIELD_APPROVED_ON, approvedOnDate);
-            ZonedDateTime approvedOnNow = ZonedDateTime.now(ZoneId.of("UTC"));
-            String approvedOnDateEs = approvedOnNow.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ"));
+            String approvedOnDateEs = getCurrentUtcTimestampFormatted();
             Map<String, Object> cassandraResponse = cassandraOperation.updateRecordByCompositeKey(
                 Constants.KEYSPACE_SUNBIRD,
                 Constants.LEARNER_ACHIEVEMENT_TABLE,
@@ -703,4 +700,20 @@ public class AchievementServiceImpl implements AchievementService{
         }
         return achievement;
     }
+
+    /**
+     * Returns the current UTC timestamp formatted as yyyy-MM-dd'T'HH:mm:ss.SSSZ
+     */
+    private String getCurrentUtcTimestampFormatted() {
+        ZonedDateTime now = ZonedDateTime.now(ZoneId.of("UTC"));
+        return now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ"));
+    }
+
+    private String formatLocalDateToUtcTimestamp(LocalDate date) {
+        if (date == null) {
+            return null;
+        }
+        return date.atStartOfDay(ZoneId.of("UTC")).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ"));
+    }
+
 }
