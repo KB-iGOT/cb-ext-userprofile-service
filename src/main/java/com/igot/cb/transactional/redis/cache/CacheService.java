@@ -124,4 +124,19 @@ public class CacheService {
             logger.error("Error removing cache key {}", key, e);
         }
     }
+
+    public List<Object> hget(List<String> keys) {
+        List<Object> resultList = new ArrayList<>();
+        try (Jedis jedis = jedisDataPopulationPool.getResource()) {
+            // Default index is 0, no need to select
+            for (String key : keys) {
+                List<String> result = jedis.hmget(key, key);
+                String value = org.springframework.util.StringUtils.isEmpty(result) ? null : result.get(0);
+                resultList.add(value);
+            }
+        } catch (Exception e) {
+            logger.error("Error in hget: ", e);
+        }
+        return resultList;
+    }
 }

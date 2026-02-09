@@ -470,7 +470,7 @@ public class Constants {
     public static final String NAME_KEYWORD = "name.keyword";
     public static final String DESCRIPTION_KEYWORD = "description.keyword";
     public static final String ACHIEVEMENT_ID = "achievementId";
-    public static final String REJECT = "Reject";
+    public static final String REJECTED = "REJECTED";
     public static final String FIELD_CONTEXT_TYPE = "contexttype";
     public static final String FIELD_APPROVED_BY = "approvedby";
     public static final String FIELD_APPROVED_ON = "approvedon";
@@ -483,6 +483,15 @@ public class Constants {
     public static final String API_ACHIEVEMENT_SEARCH = "api.achievement.search";
     public static final String USER_ID_LOWER = "userid";
     public static final String CONTEXT_TYPE_KEY = "contextType";
+    public static final String SEARCH_RESULT_REDIS_TEMPLATE = "searchResultRedisTemplate";
+    public static final String SEARCH_RESULTS = "search_results";
+    public static final String MINIMUM_CHARACTERS_NEEDED= "Minimum 3 characters are required to search";
+    public static final String USER_PREFIX = "user:" ;
+    public static final String USER_ID_KEY = "user_id";
+    public static final String USER_TABLE = "user";
+    public static final String FIRST_NAME_KEY = "first_name";
+    public static final String FIRST_NAME_CAMEL_CASE = "firstName";
+    public static final String APPROVED_KEY = "APPROVED";
 
     private Constants() {
     }
