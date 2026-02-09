@@ -352,6 +352,8 @@ public class AchievementServiceImpl implements AchievementService{
             // Store approvedon as date (yyyy-MM-dd) for Cassandra
             String approvedOnDate = java.time.LocalDate.now().toString();
             updateAttributes.put(Constants.FIELD_APPROVED_ON, approvedOnDate);
+            ZonedDateTime approvedOnNow = ZonedDateTime.now(ZoneId.of("UTC"));
+            String approvedOnDateEs = approvedOnNow.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ"));
             Map<String, Object> cassandraResponse = cassandraOperation.updateRecordByCompositeKey(
                 Constants.KEYSPACE_SUNBIRD,
                 Constants.LEARNER_ACHIEVEMENT_TABLE,
@@ -362,7 +364,7 @@ public class AchievementServiceImpl implements AchievementService{
                 ProjectUtil.errorResponse(response, String.valueOf(cassandraResponse.get(Constants.ERROR_MESSAGE)), HttpStatus.INTERNAL_SERVER_ERROR);
                 return response;
             }
-            updateAchievementInES(records, reqMap, userIdFromToken, approvedOnDate);
+            updateAchievementInES(records, reqMap, userIdFromToken, approvedOnDateEs);
             response.getResult().put("message", "Achievement status updated successfully");
         } catch (Exception e) {
             log.error("Exception in statusUpdateLearnerAchievement", e);
