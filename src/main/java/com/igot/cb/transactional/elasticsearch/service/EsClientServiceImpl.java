@@ -559,5 +559,25 @@ public class EsClientServiceImpl implements EsClientService {
         }
     }
 
+    @Override
+    public Map<String, Object> readDocument(String esIndexName, String id) {
+        try {
+            GetRequest getRequest = new GetRequest.Builder()
+                    .index(esIndexName)
+                    .id(id)
+                    .build();
+            GetResponse<Object> getResponse = elasticsearchClient.get(getRequest, Object.class);
+            if (getResponse.found() && getResponse.source() instanceof Map) {
+                return (Map<String, Object>) getResponse.source();
+            } else {
+                log.info("Document not found in ES for index: {} and id: {}", esIndexName, id);
+                return null;
+            }
+        } catch (Exception e) {
+            log.error("Error reading document from ES for index: {} and id: {}", esIndexName, id, e);
+            return null;
+        }
+    }
+
 
 }

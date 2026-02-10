@@ -26,6 +26,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
+import java.time.LocalDate;
 import java.util.*;
 
 import java.util.concurrent.TimeUnit;
@@ -120,8 +125,10 @@ public class AchievementServiceImpl implements AchievementService{
                     HttpStatus.INTERNAL_SERVER_ERROR);
             return response;
         }
+        // Format createdOn for ES as yyyy-MM-dd'T'HH:mm:ss.SSSZ
+        String createdOnFormatted = getCurrentUtcTimestampFormatted();
         Map<String, Object> esRecord = new HashMap<>(achievementRecord);
-        esRecord.put(Constants.CREATED_ON, createdOn.toString());
+        esRecord.put(Constants.CREATED_ON, createdOnFormatted);
         Map<String, Object> map = objectMapper.convertValue(esRecord, Map.class);
         esClientService.addDocument(Constants.LEARNER_ACHIEVEMENT_INDEX, Constants.INDEX_TYPE, id, map, cbServerProperties.getAchievementEsRequiredFieldsMappingPath());
 
@@ -173,20 +180,17 @@ public class AchievementServiceImpl implements AchievementService{
             ProjectUtil.errorResponse(response, "Achievement records not found", HttpStatus.NOT_FOUND);
             return response;
         }
-
         String currentStatus = (String) existingRecord.get(Constants.STATUS);
-
         if (!Constants.PENDING.equalsIgnoreCase(currentStatus)) {
             ProjectUtil.errorResponse(response,
                     "Only PENDING achievements can be updated",
                     HttpStatus.BAD_REQUEST);
             return response;
         }
-        existingRecord.put(Constants.CONTEXT_DATA, newContextData);
-        LocalDate updateOn = LocalDate.now();
-        existingRecord.put(Constants.UPDATED_ON, updateOn);
-        existingRecord.put(Constants.UPDATED_BY, userId);
 
+        existingRecord.put(Constants.CONTEXT_DATA, newContextData);
+        existingRecord.put(Constants.UPDATED_BY, userId);
+        existingRecord.put(Constants.UPDATED_ON, LocalDate.now()); // For Cassandra, keep as LocalDate
         boolean isSaved = saveAchievementToCassandra(existingRecord);
         if (!isSaved) {
             ProjectUtil.errorResponse(response,
@@ -194,9 +198,28 @@ public class AchievementServiceImpl implements AchievementService{
                     HttpStatus.INTERNAL_SERVER_ERROR);
             return response;
         }
+        // For ES, use formatted createdOn and updatedOn
+        Map<String, Object> esDoc = esClientService.readDocument(Constants.LEARNER_ACHIEVEMENT_INDEX, id);
+        String createdOnFormatted = null;
+        if (MapUtils.isNotEmpty(esDoc) && esDoc.get(Constants.CREATED_ON) instanceof String) {
+            createdOnFormatted = (String) esDoc.get(Constants.CREATED_ON);
+        } else {
+            // fallback to existingRecord if ES not found
+            Object createdOnObj = existingRecord.get(Constants.CREATED_ON);
+            if (createdOnObj instanceof String) {
+                createdOnFormatted = (String) createdOnObj;
+            } else if (createdOnObj instanceof LocalDate) {
+                createdOnFormatted = ((LocalDate) createdOnObj)
+                        .atStartOfDay(ZoneId.of("UTC"))
+                        .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ"));
+            }
+        }
+        // Set updatedOn to current timestamp in required format (for ES only)
+        String updatedOnFormatted = getCurrentUtcTimestampFormatted();
         Map<String, Object> esRecord = new HashMap<>(existingRecord);
-        esRecord.put(Constants.CREATED_ON, existingRecord.get(Constants.CREATED_ON).toString());
-        esRecord.put(Constants.UPDATED_ON, updateOn.toString());
+        esRecord.put(Constants.CREATED_ON, createdOnFormatted);
+        esRecord.put(Constants.UPDATED_ON, updatedOnFormatted);
+        esRecord.put(Constants.UPDATED_BY, userId);
         Map<String, Object> map = objectMapper.convertValue(esRecord, Map.class);
         esClientService.updateDocument(Constants.LEARNER_ACHIEVEMENT_INDEX, Constants.INDEX_TYPE, id, map, cbServerProperties.getAchievementEsRequiredFieldsMappingPath());
         cacheService.putCache(
@@ -327,6 +350,7 @@ public class AchievementServiceImpl implements AchievementService{
             // Store approvedon as date (yyyy-MM-dd) for Cassandra
             String approvedOnDate = java.time.LocalDate.now().toString();
             updateAttributes.put(Constants.FIELD_APPROVED_ON, approvedOnDate);
+            String approvedOnDateEs = getCurrentUtcTimestampFormatted();
             Map<String, Object> cassandraResponse = cassandraOperation.updateRecordByCompositeKey(
                 Constants.KEYSPACE_SUNBIRD,
                 Constants.LEARNER_ACHIEVEMENT_TABLE,
@@ -337,7 +361,7 @@ public class AchievementServiceImpl implements AchievementService{
                 ProjectUtil.errorResponse(response, String.valueOf(cassandraResponse.get(Constants.ERROR_MESSAGE)), HttpStatus.INTERNAL_SERVER_ERROR);
                 return response;
             }
-            updateAchievementInES(records, reqMap, userIdFromToken, approvedOnDate);
+            updateAchievementInES(records, reqMap, userIdFromToken, approvedOnDateEs);
             response.getResult().put("message", "Achievement status updated successfully");
         } catch (Exception e) {
             log.error("Exception in statusUpdateLearnerAchievement", e);
@@ -676,4 +700,13 @@ public class AchievementServiceImpl implements AchievementService{
         }
         return achievement;
     }
+
+    /**
+     * Returns the current UTC timestamp formatted as yyyy-MM-dd'T'HH:mm:ss.SSSZ
+     */
+    private String getCurrentUtcTimestampFormatted() {
+        ZonedDateTime now = ZonedDateTime.now(ZoneId.of("UTC"));
+        return now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ"));
+    }
+
 }
