@@ -492,6 +492,8 @@ public class Constants {
     public static final String FIRST_NAME_KEY = "first_name";
     public static final String FIRST_NAME_CAMEL_CASE = "firstName";
     public static final String APPROVED_KEY = "APPROVED";
+    public static final String FIELD_APPROVED_BY_ES= "approvedBy";
+    public static final String FIELD_APPROVED_ON_ES = "approvedOn";
 
     private Constants() {
     }

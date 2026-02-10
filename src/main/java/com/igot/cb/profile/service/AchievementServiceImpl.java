@@ -402,8 +402,8 @@ public class AchievementServiceImpl implements AchievementService{
             }
             esUpdateMap.put(Constants.STATUS, reqMap.get(Constants.STATUS));
             esUpdateMap.put(FIELD_REASON, reqMap.get(FIELD_REASON));
-            esUpdateMap.put(Constants.FIELD_APPROVED_BY, userIdFromToken);
-            esUpdateMap.put(Constants.FIELD_APPROVED_ON, approvedOnDate);
+            esUpdateMap.put(Constants.FIELD_APPROVED_BY_ES, userIdFromToken);
+            esUpdateMap.put(Constants.FIELD_APPROVED_ON_ES, approvedOnDate);
             esClientService.updateDocument(
                 Constants.LEARNER_ACHIEVEMENT_INDEX,
                 null,
