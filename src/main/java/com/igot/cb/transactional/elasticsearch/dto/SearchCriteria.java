@@ -36,4 +36,6 @@ public class SearchCriteria {
     private String startsWith;
 
     private String startsWithField;
+
+    private String facetMode;
 }
