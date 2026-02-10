@@ -30,8 +30,6 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.time.LocalDate;
-import java.util.*;
 
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -139,6 +137,8 @@ public class AchievementServiceImpl implements AchievementService{
         );
         response.setResponseCode(HttpStatus.OK);
         response.setResponse(achievementRecord);
+        // Refresh search cache for this user after creation
+        refreshAchievementSearchCacheForUser(userId);
         return response;
     }
 
@@ -228,6 +228,8 @@ public class AchievementServiceImpl implements AchievementService{
         );
         response.setResponseCode(HttpStatus.OK);
         response.setResponse(esRecord);
+        // Refresh search cache for this user after update
+        refreshAchievementSearchCacheForUser(userId);
         return response;
     }
 
@@ -305,6 +307,8 @@ public class AchievementServiceImpl implements AchievementService{
         }
         response.setResponseCode(HttpStatus.OK);
         response.getResult().put("message", "Achievement deleted successfully");
+        // Refresh search cache for this user after deletion
+        refreshAchievementSearchCacheForUser(userId);
         return response;
     }
 
@@ -441,6 +445,7 @@ public class AchievementServiceImpl implements AchievementService{
         log.info("AchievementService::searchLearnerAchievements");
         ApiResponse response = ProjectUtil.createDefaultResponse(Constants.API_ACHIEVEMENT_SEARCH);
         String cacheKey = generateRedisJwtTokenKey(searchCriteria);
+        log.info(cacheKey);
         SearchResult searchResult = redisTemplate.opsForValue().get(cacheKey);
         if (searchResult != null) {
             log.info("DiscussionServiceImpl::searchDiscussion:  search result fetched from redis");
@@ -709,4 +714,49 @@ public class AchievementServiceImpl implements AchievementService{
         return now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ"));
     }
 
+    /**
+     * Invalidate search cache for first five pages for a given userId after ES update.
+     * This will generate the search payload for each page, generate the cache key, and delete it from Redis.
+     * @param userId the userId for which to invalidate the cache
+     */
+
+    // Utility method to build a default SearchCriteria for a user and page, matching the search API structure
+    private SearchCriteria buildDefaultSearchCriteriaForUser(String userId, int pageNumber) {
+        SearchCriteria searchCriteria = new SearchCriteria();
+        HashMap<String, Object> filterCriteriaMap = new HashMap<>();
+        filterCriteriaMap.put(Constants.USER_ID, userId);
+        searchCriteria.setFilterCriteriaMap(filterCriteriaMap);
+        searchCriteria.setRequestedFields(null); // Set to null, not empty list
+        searchCriteria.setPageNumber(pageNumber);
+        searchCriteria.setPageSize(Constants.DEFAULT_PAGE_SIZE);
+        searchCriteria.setOrderBy(Constants.DEFAULT_ORDER_BY);
+        searchCriteria.setOrderDirection(Constants.DEFAULT_ORDER_DIRECTION);
+        searchCriteria.setFacets(new ArrayList<>(Arrays.asList(Constants.STATUS))); // Use ArrayList, not singleton
+        searchCriteria.setSearchString(null);
+        searchCriteria.setQuery(null);
+        searchCriteria.setStartsWith(null);
+        searchCriteria.setStartsWithField(null);
+        return searchCriteria;
+    }
+
+    private void refreshAchievementSearchCacheForUser(String userId) {
+        try {
+            for (int pageNumber = 0; pageNumber < Constants.ACHIEVEMENT_SEARCH_CACHE_PAGES; pageNumber++) {
+                SearchCriteria searchCriteria = buildDefaultSearchCriteriaForUser(userId, pageNumber);
+                String cacheKey = generateRedisJwtTokenKey(searchCriteria);
+                SearchResult searchResult = esClientService.searchDocuments(Constants.LEARNER_ACHIEVEMENT_INDEX, searchCriteria);
+                if (CollectionUtils.isEmpty(searchResult.getData())) {
+                    continue;
+                }
+                List<Map<String, Object>> achievements = searchResult.getData();
+                searchResult.setUserDetails(fetchUsernamesFromSearchData(achievements));
+                searchResult.setData(achievements);
+                redisTemplate.opsForValue().set(cacheKey, searchResult, cbServerProperties.getSearchResultRedisTtl(), TimeUnit.SECONDS);
+                log.info("Refreshed achievement search cache for userId: {} page: {} key: {}", userId, pageNumber, cacheKey);
+            }
+        } catch (Exception e) {
+            log.error("Exception while refreshing achievement search cache for userId: {}", userId, e);
+            throw new RuntimeException("Failed to refresh achievement search cache for userId: " + userId, e);
+        }
+    }
 }
