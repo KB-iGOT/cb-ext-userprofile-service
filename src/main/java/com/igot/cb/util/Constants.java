@@ -473,7 +473,7 @@ public class Constants {
     public static final String REJECTED = "REJECTED";
     public static final String FIELD_CONTEXT_TYPE = "contexttype";
     public static final String FIELD_APPROVED_BY = "approvedby";
-    public static final String FIELD_APPROVED_ON = "approvedon";
+    public static final String FIELD_APPROVED_ON = "approvedOn";
     public static final String CONTEXT_TYPE_ACHIEVEMENTS = "achievements";
     public static final String API_ACHIEVEMENT_STATUS_UPDATE = "api.achievement.status.update";
     public static final int CASSANDRA_FETCH_LIMIT = 1;
@@ -492,6 +492,8 @@ public class Constants {
     public static final String FIRST_NAME_KEY = "first_name";
     public static final String FIRST_NAME_CAMEL_CASE = "firstName";
     public static final String APPROVED_KEY = "APPROVED";
+    public static final String FIELD_APPROVED_BY_ES= "approvedBy";
+    public static final String FIELD_APPROVED_ON_ES = "approvedOn";
 
     private Constants() {
     }
