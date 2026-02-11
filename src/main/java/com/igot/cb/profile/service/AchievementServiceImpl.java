@@ -404,6 +404,27 @@ public class AchievementServiceImpl implements AchievementService{
                     }
                 }
             }
+            Map<String, Object> esDoc = esClientService.readDocument(Constants.LEARNER_ACHIEVEMENT_INDEX, reqMap.get(Constants.ID).toString());
+
+            String createdOnFormatted = null;
+            if (MapUtils.isNotEmpty(esDoc) && esDoc.get(Constants.CREATED_ON) instanceof String) {
+                createdOnFormatted = (String) esDoc.get(Constants.CREATED_ON);
+            } else {
+                // fallback to existingRecord if ES not found
+                Object createdOnObj = records.get(0).get(Constants.CREATED_ON);
+                if (createdOnObj instanceof String) {
+                    createdOnFormatted = (String) createdOnObj;
+                } else if (createdOnObj instanceof LocalDate) {
+                    createdOnFormatted = ((LocalDate) createdOnObj)
+                            .atStartOfDay(ZoneId.of("UTC"))
+                            .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ"));
+                }
+            }
+            String updatedOn = (String) esDoc.get(Constants.UPDATED_ON);
+            if (StringUtils.isNotBlank(updatedOn)) {
+                esUpdateMap.put(Constants.UPDATED_ON, updatedOn);
+            }
+            esUpdateMap.put(Constants.CREATED_ON, createdOnFormatted);
             esUpdateMap.put(Constants.STATUS, reqMap.get(Constants.STATUS));
             esUpdateMap.put(FIELD_REASON, reqMap.get(FIELD_REASON));
             esUpdateMap.put(Constants.FIELD_APPROVED_BY_ES, userIdFromToken);
