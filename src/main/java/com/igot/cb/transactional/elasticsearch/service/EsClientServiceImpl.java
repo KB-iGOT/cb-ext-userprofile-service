@@ -215,7 +215,9 @@ public class EsClientServiceImpl implements EsClientService {
             log.error("Search criteria body is missing");
             return null;
         }
-        BoolQuery.Builder boolQueryBuilder = buildFilterQuery(searchCriteria.getFilterCriteriaMap());
+        BoolQuery.Builder boolQueryBuilder = buildFilterQuery(searchCriteria.getFilterCriteriaMap(), searchCriteria);
+        String facetMode = searchCriteria.getFacetMode();
+        Query facetPostFilter = buildFacetPostFilter(searchCriteria);
         // Add startsWith logic if present
         String startsWith = searchCriteria.getStartsWith();
         String startsWithField = searchCriteria.getStartsWithField();
@@ -228,17 +230,28 @@ public class EsClientServiceImpl implements EsClientService {
             boolQueryBuilder.must(prefixQuery);
         }
         SearchRequest.Builder searchSourceBuilder = new SearchRequest.Builder();
+        if (facetPostFilter != null && Constants.GLOBAL.equalsIgnoreCase(facetMode)) {
+            searchSourceBuilder.postFilter(facetPostFilter);
+        }
+
+        //  if facetMode is FILTERED (or null), apply facet filters to query
+        if (facetPostFilter != null && !Constants.GLOBAL.equalsIgnoreCase(facetMode)) {
+            boolQueryBuilder.filter(facetPostFilter);
+        }
+        addQueryStringToFilter(searchCriteria.getSearchString(), boolQueryBuilder);
+        Query queryPart = buildQueryPart(searchCriteria.getQuery());
+        if (queryPart != null) {
+            boolQueryBuilder.must(queryPart);
+        }
         searchSourceBuilder.query(boolQueryBuilder.build()._toQuery());
         addSortToSearchSourceBuilder(searchCriteria, searchSourceBuilder);
         addRequestedFieldsToSearchSourceBuilder(searchCriteria, searchSourceBuilder);
         addQueryStringToFilter(searchCriteria.getSearchString(), boolQueryBuilder);
         addFacetsToSearchSourceBuilder(searchCriteria.getFacets(), searchSourceBuilder);
-        Query queryPart = buildQueryPart(searchCriteria.getQuery());
-        boolQueryBuilder.must(queryPart);
         return searchSourceBuilder;
     }
 
-    private BoolQuery.Builder buildFilterQuery(Map<String, Object> filterCriteriaMap) {
+    private BoolQuery.Builder buildFilterQuery(Map<String, Object> filterCriteriaMap, SearchCriteria searchCriteria) {
         BoolQuery.Builder boolQueryBuilder = QueryBuilders.bool();
         List<Query> mustNotQueries = new ArrayList<>();
         List<Query> boolQueries = new ArrayList<>();
@@ -246,6 +259,11 @@ public class EsClientServiceImpl implements EsClientService {
         if (filterCriteriaMap != null) {
             filterCriteriaMap.forEach(
                     (field, value) -> {
+                        if (Constants.GLOBAL.equalsIgnoreCase(searchCriteria.getFacetMode())
+                                && searchCriteria.getFacets() != null
+                                && searchCriteria.getFacets().contains(field)) {
+                            return;
+                        }
                         if (field.equals("must_not") && value instanceof ArrayList) {
                             mustNotQueries.forEach(mustNotQuery -> boolQueryBuilder.mustNot(mustNotQuery));
                         } else if (value instanceof Boolean) {
@@ -577,6 +595,33 @@ public class EsClientServiceImpl implements EsClientService {
             log.error("Error reading document from ES for index: {} and id: {}", esIndexName, id, e);
             return null;
         }
+    }
+
+    private Query buildFacetPostFilter(SearchCriteria searchCriteria) {
+
+        Map<String, Object> filterMap = searchCriteria.getFilterCriteriaMap();
+        List<String> facets = searchCriteria.getFacets();
+
+        if (filterMap == null || filterMap.isEmpty()
+                || facets == null || facets.isEmpty()) {
+            return null;
+        }
+
+        BoolQuery.Builder facetBool = new BoolQuery.Builder();
+        for (String facet : facets) {
+            Object value = filterMap.get(facet);
+
+            if (value != null) {
+                facetBool.filter(q -> q.term(t -> t
+                        .field(facet + ".keyword")
+                        .value(value.toString())
+                ));
+            }
+        }
+
+        return facetBool.hasClauses()
+                ? facetBool.build()._toQuery()
+                : null;
     }
 
 
