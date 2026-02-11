@@ -178,26 +178,86 @@ public class EsClientServiceImpl implements EsClientService {
         }
     }
 
+    // Facet aggregations: for each facet, use global aggregation and remove the facet field from the filter if present
+    private void addFacetsToSearchSourceBuilder(
+            List<String> facets, SearchRequest.Builder searchRequestBuilder, Map<String, Object> filterCriteriaMap) {
+        if (facets != null && !facets.isEmpty()) {
+            for (String facet : facets) {
+                // Build filter map excluding the current facet (if present)
+                Map<String, Object> filterWithoutFacet = new HashMap<>();
+                if (filterCriteriaMap != null) {
+                    for (Map.Entry<String, Object> entry : filterCriteriaMap.entrySet()) {
+                        if (!facet.equals(entry.getKey())) {
+                            filterWithoutFacet.put(entry.getKey(), entry.getValue());
+                        }
+                    }
+                }
+                // Add global aggregation for this facet
+                searchRequestBuilder.aggregations(facet + "_global",
+                    agg -> agg.global(g -> g)
+                        .aggregations(facet + "_facet",
+                            subAgg -> {
+                                // If there are filters (other than the facet field), add a filter aggregation
+                                if (!filterWithoutFacet.isEmpty()) {
+                                    // Build bool query for the filter
+                                    BoolQuery.Builder boolQueryBuilder = QueryBuilders.bool();
+                                    filterWithoutFacet.forEach((field, value) -> {
+                                        if (value instanceof String) {
+                                            boolQueryBuilder.must(Query.of(q -> q.term(t -> t.field(field + ".keyword").value((String) value))));
+                                        } else if (value instanceof Boolean) {
+                                            boolQueryBuilder.must(Query.of(q -> q.term(t -> t.field(field).value((Boolean) value))));
+                                        } else if (value instanceof List) {
+                                            List<FieldValue> termsList = ((List<?>) value).stream().map(v -> FieldValue.of(v.toString())).collect(Collectors.toList());
+                                            boolQueryBuilder.must(Query.of(q -> q.terms(t -> t.field(field + ".keyword").terms(terms -> terms.value(termsList)))));
+                                        }
+                                    });
+                                    return subAgg.filter(f -> f.bool(boolQueryBuilder.build()))
+                                        .aggregations(facet + "_terms", termsAgg -> termsAgg.terms(t -> t.field(facet + ".keyword").size(250)));
+                                } else {
+                                    // No filter, just terms aggregation
+                                    return subAgg.terms(t -> t.field(facet + ".keyword").size(250));
+                                }
+                            })
+                );
+            }
+        }
+    }
+
+    // Update extractFacetData to match the global/filter/terms aggregation structure
     private Map<String, List<FacetDTO>> extractFacetData(
             SearchResponse<Object> searchResponse, SearchCriteria searchCriteria) {
         Map<String, List<FacetDTO>> fieldAggregations = new HashMap<>();
-        if (searchCriteria.getFacets() != null) {
-            for (String field : searchCriteria.getFacets()) {
-                Aggregate aggregate = searchResponse
-                        .aggregations()
-                        .get(field + "_agg");
-                if (aggregate.isSterms()) {
-                    List<FacetDTO> fieldValueList = new ArrayList<>();
-                    for (StringTermsBucket bucket : aggregate.sterms().buckets().array()) {
-                        if (!bucket.key().stringValue().isEmpty()) {
-                            FacetDTO facetDTO = new FacetDTO(bucket.key().stringValue(), bucket.docCount());
-                            fieldValueList.add(facetDTO);
-                        }
-                    }
-                    fieldAggregations.put(field, fieldValueList);
+        if (searchCriteria == null || searchCriteria.getFacets() == null) return Collections.emptyMap();
+        for (String field : searchCriteria.getFacets()) {
+            String globalAggName = field + "_global";
+            Aggregate globalAgg = searchResponse.aggregations().get(globalAggName);
+            if (globalAgg == null || !globalAgg.isGlobal()) {
+                log.warn("Global aggregation '{}' not found or not a global aggregation!", globalAggName);
+                continue;
+            }
+            // Try to get filter aggregation (if filter was present)
+            Aggregate filterAgg = globalAgg.global().aggregations().get(field + "_facet");
+            Aggregate termsAgg = null;
+            if (filterAgg != null && filterAgg.isFilter()) {
+                termsAgg = filterAgg.filter().aggregations().get(field + "_terms");
+            } else if (filterAgg != null && filterAgg.isSterms()) {
+                // No filter, just terms aggregation
+                termsAgg = filterAgg;
+            }
+            if (termsAgg == null || !termsAgg.isSterms() || termsAgg.sterms().buckets() == null) {
+                log.warn("Terms aggregation '{}' is not a string terms aggregation or has no buckets!", field + "_terms");
+                continue;
+            }
+            List<FacetDTO> fieldValueList = new ArrayList<>();
+            for (StringTermsBucket bucket : termsAgg.sterms().buckets().array()) {
+                if (!bucket.key().stringValue().isEmpty()) {
+                    FacetDTO facetDTO = new FacetDTO(bucket.key().stringValue(), bucket.docCount());
+                    fieldValueList.add(facetDTO);
                 }
             }
+            fieldAggregations.put(field, fieldValueList);
         }
+        log.info("Extracted facet data: {}", fieldAggregations);
         return fieldAggregations;
     }
 
@@ -232,7 +292,7 @@ public class EsClientServiceImpl implements EsClientService {
         addSortToSearchSourceBuilder(searchCriteria, searchSourceBuilder);
         addRequestedFieldsToSearchSourceBuilder(searchCriteria, searchSourceBuilder);
         addQueryStringToFilter(searchCriteria.getSearchString(), boolQueryBuilder);
-        addFacetsToSearchSourceBuilder(searchCriteria.getFacets(), searchSourceBuilder);
+        addFacetsToSearchSourceBuilder(searchCriteria.getFacets(), searchSourceBuilder, searchCriteria.getFilterCriteriaMap());
         Query queryPart = buildQueryPart(searchCriteria.getQuery());
         boolQueryBuilder.must(queryPart);
         return searchSourceBuilder;
