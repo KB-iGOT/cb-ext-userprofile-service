@@ -197,6 +197,9 @@ public class CbServerProperties {
     @Value("${elastic.required.field.achievement.json.path}")
     private String achievementEsRequiredFieldsMappingPath;
 
+    @Value("${cassandra.fetch.limit}")
+    private int cassandraFetchLimit;
+
     public List<String> getMasterDataAllowedSortByFields() {return Arrays.asList(masterDataAllowedSortByFields.split(","));}
 
     public List<String> getMasterDataAllowedType() {
