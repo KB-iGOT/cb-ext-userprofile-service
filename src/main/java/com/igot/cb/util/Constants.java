@@ -499,6 +499,7 @@ public class Constants {
     public static final String DEFAULT_ORDER_BY = CREATED_ON;
     public static final String DEFAULT_ORDER_DIRECTION = "desc";
     public static final String API_ACHIEVEMENT_LIST = "api.achievement.list";
+    public static final String ACHIEVEMENTS_REDIS_KEY = "achievements:";
 
     private Constants() {
     }

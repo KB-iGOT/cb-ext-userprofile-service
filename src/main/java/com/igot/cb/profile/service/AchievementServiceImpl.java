@@ -770,7 +770,7 @@ public class AchievementServiceImpl implements AchievementService{
             return response;
         }
         try {
-            String cacheKey = "achievements:" + userId;
+            String cacheKey = Constants.ACHIEVEMENTS_REDIS_KEY + userId;
             List<Map<String, Object>> achievements = null;
             String cachedJson = cacheService.getCache(cacheKey);
             if (StringUtils.isNotBlank(cachedJson)) {
