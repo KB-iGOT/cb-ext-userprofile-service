@@ -130,6 +130,8 @@ public class AchievementServiceImpl implements AchievementService{
             esRecord.put(Constants.CREATED_ON, createdOnFormatted);
             Map<String, Object> map = objectMapper.convertValue(esRecord, Map.class);
             esClientService.addDocument(Constants.LEARNER_ACHIEVEMENT_INDEX, Constants.INDEX_TYPE, id, map, cbServerProperties.getAchievementEsRequiredFieldsMappingPath());
+            // Refresh search cache for this user after creation
+            refreshAchievementSearchCacheForUser(userId);
         }
         // Cache record
         cacheService.putCache(
@@ -138,8 +140,6 @@ public class AchievementServiceImpl implements AchievementService{
         );
         response.setResponseCode(HttpStatus.OK);
         response.setResponse(achievementRecord);
-        // Refresh search cache for this user after creation
-        refreshAchievementSearchCacheForUser(userId);
         // Refresh user achievements cache after creation
         fetchAndCacheUserAchievements(userId);
         return response;
@@ -219,6 +219,8 @@ public class AchievementServiceImpl implements AchievementService{
             esRecord.put(Constants.UPDATED_BY, userId);
             Map<String, Object> map = objectMapper.convertValue(esRecord, Map.class);
             esClientService.updateDocument(Constants.LEARNER_ACHIEVEMENT_INDEX, Constants.INDEX_TYPE, id, map, cbServerProperties.getAchievementEsRequiredFieldsMappingPath());
+            // Refresh search cache for this user after update
+            refreshAchievementSearchCacheForUser(userId);
         }
         cacheService.putCache(
                 buildCacheKey("user:achievement", userId, contextType, id),
@@ -226,8 +228,6 @@ public class AchievementServiceImpl implements AchievementService{
         );
         response.setResponseCode(HttpStatus.OK);
         response.setResponse(existingRecord);
-        // Refresh search cache for this user after update
-        refreshAchievementSearchCacheForUser(userId);
         // Refresh user achievements cache after update
         fetchAndCacheUserAchievements(userId);
         return response;
@@ -303,14 +303,14 @@ public class AchievementServiceImpl implements AchievementService{
         if (cbServerProperties.isRequireEs()) {
             try {
                 esClientService.deleteDocument(achievementId, Constants.LEARNER_ACHIEVEMENT_INDEX);
+                // Refresh search cache for this user after deletion
+                refreshAchievementSearchCacheForUser(userId);
             } catch (Exception e) {
                 log.warn("Failed to delete achievement from ES for id {}", achievementId, e);
             }
         }
         response.setResponseCode(HttpStatus.OK);
         response.getResult().put("message", "Achievement deleted successfully");
-        // Refresh search cache for this user after deletion
-        refreshAchievementSearchCacheForUser(userId);
         // Refresh user achievements cache after deletion
         fetchAndCacheUserAchievements(userId);
         return response;
