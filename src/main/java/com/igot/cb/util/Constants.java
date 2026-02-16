@@ -498,6 +498,7 @@ public class Constants {
     public static final int DEFAULT_PAGE_SIZE = 100;
     public static final String DEFAULT_ORDER_BY = CREATED_ON;
     public static final String DEFAULT_ORDER_DIRECTION = "desc";
+    public static final String API_ACHIEVEMENT_LIST = "api.achievement.list";
 
     private Constants() {
     }

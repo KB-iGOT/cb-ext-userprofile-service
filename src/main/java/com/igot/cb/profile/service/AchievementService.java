@@ -18,4 +18,6 @@ public interface AchievementService {
     ApiResponse statusUpdateLearnerAchievement(Map<String, Object> request, String authToken);
 
     ApiResponse searchLearnerAchievements(SearchCriteria searchCriteria, String authToken);
+
+    ApiResponse getUserAchievements(String authToken);
 }

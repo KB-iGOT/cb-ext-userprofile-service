@@ -68,4 +68,11 @@ public class AchievementController {
         return new ResponseEntity<>(response, response.getResponseCode());
     }
 
+    @GetMapping("/list")
+    public ResponseEntity<?> listLearnerAchievements(
+            @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken) {
+        ApiResponse response = achievementService.getUserAchievements(authToken);
+        return new ResponseEntity<>(response, response.getResponseCode());
+    }
+
 }
