@@ -925,4 +925,347 @@ class AchievementServiceImplTest {
         assertNotNull(response);
     }
 
+    // ==================== GET USER ACHIEVEMENTS TESTS ====================
+
+    @Test
+    void testGetUserAchievements_success_fromCache() throws Exception {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+
+        Map<String, Object> cachedData = new HashMap<>();
+        List<Map<String, Object>> achievements = new ArrayList<>();
+        Map<String, Object> achievement = new HashMap<>();
+        achievement.put(Constants.ID, "achv1");
+        achievement.put(Constants.CONTEXT_TYPE, "testContext");
+        achievement.put(Constants.STATUS, "APPROVED");
+        achievements.add(achievement);
+        cachedData.put(Constants.DATA, achievements);
+        cachedData.put(Constants.TOTAL_COUNT, 1);
+
+        String cachedJson = "{\"data\":[{\"id\":\"achv1\",\"contextType\":\"testContext\"}],\"totalCount\":1}";
+        when(cacheService.getCache(anyString())).thenReturn(cachedJson);
+        when(objectMapper.readValue(anyString(), eq(Map.class))).thenReturn(cachedData);
+
+        ApiResponse response = achievementService.getUserAchievements("token");
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        assertNotNull(response.getResult().get(Constants.SEARCH_RESULTS));
+        verify(cacheService, times(1)).getCache(anyString());
+        verify(cassandraOperation, never()).getRecordsByPropertiesWithoutFiltering(any(), any(), any(), any(), anyInt());
+    }
+
+    @Test
+    void testGetUserAchievements_success_fromDatabase() throws Exception {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        when(cacheService.getCache(anyString())).thenReturn(null);
+        when(cbServerProperties.getCassandraFetchLimit()).thenReturn(100);
+
+        List<Map<String, Object>> achievements = new ArrayList<>();
+        Map<String, Object> achievement1 = new HashMap<>();
+        achievement1.put(Constants.ID, "achv1");
+        achievement1.put(Constants.CONTEXT_TYPE, "testContext");
+        achievement1.put(Constants.CONTEXT_DATA, new HashMap<>());
+        achievement1.put(Constants.CREATED_ON, LocalDate.now());
+        achievement1.put(Constants.UPDATED_ON, LocalDate.now());
+        achievement1.put(Constants.FIELD_APPROVED_ON, LocalDate.now());
+        achievement1.put(Constants.STATUS, "APPROVED");
+        achievements.add(achievement1);
+
+        when(cassandraOperation.getRecordsByPropertiesWithoutFiltering(any(), any(), any(), any(), anyInt()))
+                .thenReturn(achievements);
+
+        ApiResponse response = achievementService.getUserAchievements("token");
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        assertNotNull(response.getResult().get(Constants.SEARCH_RESULTS));
+        Map<String, Object> searchResults = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
+        assertNotNull(searchResults.get(Constants.DATA));
+        assertEquals(1, searchResults.get(Constants.TOTAL_COUNT));
+        verify(cacheService, times(1)).putCache(anyString(), any());
+    }
+
+    @Test
+    void testGetUserAchievements_success_withContextDataString() throws Exception {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        when(cacheService.getCache(anyString())).thenReturn(null);
+        when(cbServerProperties.getCassandraFetchLimit()).thenReturn(100);
+
+        List<Map<String, Object>> achievements = new ArrayList<>();
+        Map<String, Object> achievement1 = new HashMap<>();
+        achievement1.put(Constants.ID, "achv1");
+        achievement1.put(Constants.CONTEXT_TYPE, "testContext");
+        achievement1.put(Constants.CONTEXT_DATA, "{\"field1\":\"value1\",\"field2\":\"value2\"}");
+        achievement1.put(Constants.CREATED_ON, LocalDate.now());
+        achievement1.put(Constants.STATUS, "APPROVED");
+        achievements.add(achievement1);
+
+        when(cassandraOperation.getRecordsByPropertiesWithoutFiltering(any(), any(), any(), any(), anyInt()))
+                .thenReturn(achievements);
+        when(objectMapper.readValue(anyString(), eq(Map.class))).thenReturn(new HashMap<>());
+
+        ApiResponse response = achievementService.getUserAchievements("token");
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        assertNotNull(response.getResult().get(Constants.SEARCH_RESULTS));
+        verify(objectMapper, atLeastOnce()).readValue(anyString(), eq(Map.class));
+    }
+
+    @Test
+    void testGetUserAchievements_success_withLocalDateTimeFields() throws Exception {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        when(cacheService.getCache(anyString())).thenReturn(null);
+        when(cbServerProperties.getCassandraFetchLimit()).thenReturn(100);
+
+        List<Map<String, Object>> achievements = new ArrayList<>();
+        Map<String, Object> achievement1 = new HashMap<>();
+        achievement1.put(Constants.ID, "achv1");
+        achievement1.put(Constants.CONTEXT_TYPE, "testContext");
+        achievement1.put(Constants.CONTEXT_DATA, new HashMap<>());
+        achievement1.put(Constants.CREATED_ON, java.time.LocalDateTime.now());
+        achievement1.put(Constants.UPDATED_ON, java.time.LocalDateTime.now());
+        achievement1.put(Constants.FIELD_APPROVED_ON, java.time.LocalDateTime.now());
+        achievement1.put(Constants.STATUS, "APPROVED");
+        achievements.add(achievement1);
+
+        when(cassandraOperation.getRecordsByPropertiesWithoutFiltering(any(), any(), any(), any(), anyInt()))
+                .thenReturn(achievements);
+
+        ApiResponse response = achievementService.getUserAchievements("token");
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        assertNotNull(response.getResult().get(Constants.SEARCH_RESULTS));
+        Map<String, Object> searchResults = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
+        List<Map<String, Object>> resultData = (List<Map<String, Object>>) searchResults.get(Constants.DATA);
+        assertNotNull(resultData);
+        assertEquals(1, resultData.size());
+        // Verify dates are converted to strings
+        assertTrue(resultData.get(0).get(Constants.CREATED_ON) instanceof String);
+        assertTrue(resultData.get(0).get(Constants.UPDATED_ON) instanceof String);
+        assertTrue(resultData.get(0).get(Constants.FIELD_APPROVED_ON) instanceof String);
+    }
+
+    @Test
+    void testGetUserAchievements_success_emptyResults() throws Exception {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        when(cacheService.getCache(anyString())).thenReturn(null);
+        when(cbServerProperties.getCassandraFetchLimit()).thenReturn(100);
+
+        when(cassandraOperation.getRecordsByPropertiesWithoutFiltering(any(), any(), any(), any(), anyInt()))
+                .thenReturn(Collections.emptyList());
+
+        ApiResponse response = achievementService.getUserAchievements("token");
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        assertNotNull(response.getResult().get(Constants.SEARCH_RESULTS));
+        Map<String, Object> searchResults = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
+        assertEquals(0, searchResults.get(Constants.TOTAL_COUNT));
+        verify(cacheService, times(1)).putCache(anyString(), any());
+    }
+
+    @Test
+    void testGetUserAchievements_success_nullResults() throws Exception {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        when(cacheService.getCache(anyString())).thenReturn(null);
+        when(cbServerProperties.getCassandraFetchLimit()).thenReturn(100);
+
+        when(cassandraOperation.getRecordsByPropertiesWithoutFiltering(any(), any(), any(), any(), anyInt()))
+                .thenReturn(null);
+
+        ApiResponse response = achievementService.getUserAchievements("token");
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        assertNotNull(response.getResult().get(Constants.SEARCH_RESULTS));
+        Map<String, Object> searchResults = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
+        assertEquals(0, searchResults.get(Constants.TOTAL_COUNT));
+    }
+
+    @Test
+    void testGetUserAchievements_invalidToken_blank() {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("");
+
+        ApiResponse response = achievementService.getUserAchievements("token");
+
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getResponseCode());
+        assertNotNull(response.getParams());
+        assertTrue(response.getParams().getErrMsg().contains("Invalid or missing access token"));
+        verify(cacheService, never()).getCache(anyString());
+        verify(cassandraOperation, never()).getRecordsByPropertiesWithoutFiltering(any(), any(), any(), any(), anyInt());
+    }
+
+    @Test
+    void testGetUserAchievements_invalidToken_null() {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(null);
+
+        ApiResponse response = achievementService.getUserAchievements("token");
+
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getResponseCode());
+        assertNotNull(response.getParams());
+        assertTrue(response.getParams().getErrMsg().contains("Invalid or missing access token"));
+        verify(cacheService, never()).getCache(anyString());
+        verify(cassandraOperation, never()).getRecordsByPropertiesWithoutFiltering(any(), any(), any(), any(), anyInt());
+    }
+
+    @Test
+    void testGetUserAchievements_cacheReadException() throws Exception {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        when(cacheService.getCache(anyString())).thenReturn("{invalid json}");
+        when(objectMapper.readValue(anyString(), eq(Map.class)))
+                .thenThrow(new com.fasterxml.jackson.core.JsonProcessingException("JSON parse error") {});
+
+        ApiResponse response = achievementService.getUserAchievements("token");
+
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
+        assertNotNull(response.getParams());
+        assertTrue(response.getParams().getErrMsg().contains("Failed to fetch achievements"));
+    }
+
+    @Test
+    void testGetUserAchievements_databaseException() {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        when(cacheService.getCache(anyString())).thenReturn(null);
+        when(cbServerProperties.getCassandraFetchLimit()).thenReturn(100);
+        when(cassandraOperation.getRecordsByPropertiesWithoutFiltering(any(), any(), any(), any(), anyInt()))
+                .thenThrow(new RuntimeException("Database connection error"));
+
+        ApiResponse response = achievementService.getUserAchievements("token");
+
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
+        assertNotNull(response.getParams());
+        assertTrue(response.getParams().getErrMsg().contains("Failed to fetch achievements"));
+    }
+
+    @Test
+    void testGetUserAchievements_contextDataParseException() throws Exception {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        when(cacheService.getCache(anyString())).thenReturn(null);
+        when(cbServerProperties.getCassandraFetchLimit()).thenReturn(100);
+
+        List<Map<String, Object>> achievements = new ArrayList<>();
+        Map<String, Object> achievement1 = new HashMap<>();
+        achievement1.put(Constants.ID, "achv1");
+        achievement1.put(Constants.CONTEXT_TYPE, "testContext");
+        achievement1.put(Constants.CONTEXT_DATA, "{invalid json}");
+        achievement1.put(Constants.CREATED_ON, LocalDate.now());
+        achievements.add(achievement1);
+
+        when(cassandraOperation.getRecordsByPropertiesWithoutFiltering(any(), any(), any(), any(), anyInt()))
+                .thenReturn(achievements);
+        when(objectMapper.readValue(anyString(), eq(Map.class)))
+                .thenThrow(new com.fasterxml.jackson.core.JsonProcessingException("JSON parse error") {});
+
+        ApiResponse response = achievementService.getUserAchievements("token");
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        Map<String, Object> searchResults = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
+        List<Map<String, Object>> resultData = (List<Map<String, Object>>) searchResults.get(Constants.DATA);
+        // contextData should be set to empty HashMap on parse failure
+        assertTrue(resultData.get(0).get(Constants.CONTEXT_DATA) instanceof Map);
+    }
+
+    @Test
+    void testGetUserAchievements_cachePutException() {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        when(cacheService.getCache(anyString())).thenReturn(null);
+        when(cbServerProperties.getCassandraFetchLimit()).thenReturn(100);
+
+        List<Map<String, Object>> achievements = new ArrayList<>();
+        Map<String, Object> achievement1 = new HashMap<>();
+        achievement1.put(Constants.ID, "achv1");
+        achievement1.put(Constants.CONTEXT_DATA, new HashMap<>());
+        achievement1.put(Constants.CREATED_ON, LocalDate.now());
+        achievements.add(achievement1);
+
+        when(cassandraOperation.getRecordsByPropertiesWithoutFiltering(any(), any(), any(), any(), anyInt()))
+                .thenReturn(achievements);
+        doThrow(new RuntimeException("Cache write error")).when(cacheService).putCache(anyString(), any());
+
+        ApiResponse response = achievementService.getUserAchievements("token");
+
+        // Should still return OK even if cache write fails
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
+    }
+
+    @Test
+    void testGetUserAchievements_multipleAchievements_mixedDateTypes() throws Exception {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        when(cacheService.getCache(anyString())).thenReturn(null);
+        when(cbServerProperties.getCassandraFetchLimit()).thenReturn(100);
+
+        List<Map<String, Object>> achievements = new ArrayList<>();
+
+        // Achievement with LocalDate
+        Map<String, Object> achievement1 = new HashMap<>();
+        achievement1.put(Constants.ID, "achv1");
+        achievement1.put(Constants.CONTEXT_DATA, new HashMap<>());
+        achievement1.put(Constants.CREATED_ON, LocalDate.now());
+        achievement1.put(Constants.UPDATED_ON, LocalDate.now());
+        achievements.add(achievement1);
+
+        // Achievement with LocalDateTime
+        Map<String, Object> achievement2 = new HashMap<>();
+        achievement2.put(Constants.ID, "achv2");
+        achievement2.put(Constants.CONTEXT_DATA, "{\"key\":\"value\"}");
+        achievement2.put(Constants.CREATED_ON, java.time.LocalDateTime.now());
+        achievement2.put(Constants.FIELD_APPROVED_ON, java.time.LocalDateTime.now());
+        achievements.add(achievement2);
+
+        // Achievement with String dates (already formatted)
+        Map<String, Object> achievement3 = new HashMap<>();
+        achievement3.put(Constants.ID, "achv3");
+        achievement3.put(Constants.CONTEXT_DATA, new HashMap<>());
+        achievement3.put(Constants.CREATED_ON, "2024-01-01");
+        achievement3.put(Constants.UPDATED_ON, "2024-01-02");
+        achievements.add(achievement3);
+
+        when(cassandraOperation.getRecordsByPropertiesWithoutFiltering(any(), any(), any(), any(), anyInt()))
+                .thenReturn(achievements);
+        when(objectMapper.readValue(anyString(), eq(Map.class))).thenReturn(new HashMap<>());
+
+        ApiResponse response = achievementService.getUserAchievements("token");
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        Map<String, Object> searchResults = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
+        List<Map<String, Object>> resultData = (List<Map<String, Object>>) searchResults.get(Constants.DATA);
+        assertEquals(3, resultData.size());
+        assertEquals(3, searchResults.get(Constants.TOTAL_COUNT));
+
+        // Verify all dates are strings
+        for (Map<String, Object> achievement : resultData) {
+            if (achievement.containsKey(Constants.CREATED_ON)) {
+                assertTrue(achievement.get(Constants.CREATED_ON) instanceof String);
+            }
+            if (achievement.containsKey(Constants.UPDATED_ON)) {
+                assertTrue(achievement.get(Constants.UPDATED_ON) instanceof String);
+            }
+            if (achievement.containsKey(Constants.FIELD_APPROVED_ON)) {
+                assertTrue(achievement.get(Constants.FIELD_APPROVED_ON) instanceof String);
+            }
+        }
+    }
+
+    @Test
+    void testGetUserAchievements_achievementWithoutDates() throws Exception {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        when(cacheService.getCache(anyString())).thenReturn(null);
+        when(cbServerProperties.getCassandraFetchLimit()).thenReturn(100);
+
+        List<Map<String, Object>> achievements = new ArrayList<>();
+        Map<String, Object> achievement1 = new HashMap<>();
+        achievement1.put(Constants.ID, "achv1");
+        achievement1.put(Constants.CONTEXT_DATA, new HashMap<>());
+        achievement1.put(Constants.STATUS, "PENDING");
+        // No date fields
+        achievements.add(achievement1);
+
+        when(cassandraOperation.getRecordsByPropertiesWithoutFiltering(any(), any(), any(), any(), anyInt()))
+                .thenReturn(achievements);
+
+        ApiResponse response = achievementService.getUserAchievements("token");
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        Map<String, Object> searchResults = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
+        List<Map<String, Object>> resultData = (List<Map<String, Object>>) searchResults.get(Constants.DATA);
+        assertEquals(1, resultData.size());
+        assertEquals("achv1", resultData.get(0).get(Constants.ID));
+    }
+
 }
