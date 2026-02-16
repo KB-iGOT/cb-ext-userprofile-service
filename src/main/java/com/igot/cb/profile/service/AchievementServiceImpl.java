@@ -112,7 +112,7 @@ public class AchievementServiceImpl implements AchievementService{
         achievementRecord.put(Constants.ORG_ID, orgId);
         achievementRecord.put(Constants.SOURCE, source);
         achievementRecord.put(Constants.CONTEXT_DATA, contextData);
-        achievementRecord.put(Constants.STATUS, Constants.PENDING);
+        achievementRecord.put(Constants.STATUS, Constants.APPROVED);
         achievementRecord.put(Constants.CREATED_ON, createdOn);
 
         // Save into Cassandra
@@ -124,16 +124,17 @@ public class AchievementServiceImpl implements AchievementService{
             return response;
         }
         // Format createdOn for ES as yyyy-MM-dd'T'HH:mm:ss.SSSZ
-        String createdOnFormatted = getCurrentUtcTimestampFormatted();
-        Map<String, Object> esRecord = new HashMap<>(achievementRecord);
-        esRecord.put(Constants.CREATED_ON, createdOnFormatted);
-        Map<String, Object> map = objectMapper.convertValue(esRecord, Map.class);
-        esClientService.addDocument(Constants.LEARNER_ACHIEVEMENT_INDEX, Constants.INDEX_TYPE, id, map, cbServerProperties.getAchievementEsRequiredFieldsMappingPath());
-
+        if (cbServerProperties.isRequireEs()) {
+            String createdOnFormatted = getCurrentUtcTimestampFormatted();
+            Map<String, Object> esRecord = new HashMap<>(achievementRecord);
+            esRecord.put(Constants.CREATED_ON, createdOnFormatted);
+            Map<String, Object> map = objectMapper.convertValue(esRecord, Map.class);
+            esClientService.addDocument(Constants.LEARNER_ACHIEVEMENT_INDEX, Constants.INDEX_TYPE, id, map, cbServerProperties.getAchievementEsRequiredFieldsMappingPath());
+        }
         // Cache record
         cacheService.putCache(
                 buildCacheKey("user:achievement", userId, contextType, id),
-                esRecord
+                achievementRecord
         );
         response.setResponseCode(HttpStatus.OK);
         response.setResponse(achievementRecord);
@@ -182,13 +183,6 @@ public class AchievementServiceImpl implements AchievementService{
             ProjectUtil.errorResponse(response, "Achievement records not found", HttpStatus.NOT_FOUND);
             return response;
         }
-        String currentStatus = (String) existingRecord.get(Constants.STATUS);
-        if (!Constants.PENDING.equalsIgnoreCase(currentStatus)) {
-            ProjectUtil.errorResponse(response,
-                    "Only PENDING achievements can be updated",
-                    HttpStatus.BAD_REQUEST);
-            return response;
-        }
 
         existingRecord.put(Constants.CONTEXT_DATA, newContextData);
         existingRecord.put(Constants.UPDATED_BY, userId);
@@ -201,35 +195,37 @@ public class AchievementServiceImpl implements AchievementService{
             return response;
         }
         // For ES, use formatted createdOn and updatedOn
-        Map<String, Object> esDoc = esClientService.readDocument(Constants.LEARNER_ACHIEVEMENT_INDEX, id);
-        String createdOnFormatted = null;
-        if (MapUtils.isNotEmpty(esDoc) && esDoc.get(Constants.CREATED_ON) instanceof String) {
-            createdOnFormatted = (String) esDoc.get(Constants.CREATED_ON);
-        } else {
-            // fallback to existingRecord if ES not found
-            Object createdOnObj = existingRecord.get(Constants.CREATED_ON);
-            if (createdOnObj instanceof String) {
-                createdOnFormatted = (String) createdOnObj;
-            } else if (createdOnObj instanceof LocalDate) {
-                createdOnFormatted = ((LocalDate) createdOnObj)
-                        .atStartOfDay(ZoneId.of("UTC"))
-                        .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ"));
+        if (cbServerProperties.isRequireEs()) {
+            Map<String, Object> esDoc = esClientService.readDocument(Constants.LEARNER_ACHIEVEMENT_INDEX, id);
+            String createdOnFormatted = null;
+            if (MapUtils.isNotEmpty(esDoc) && esDoc.get(Constants.CREATED_ON) instanceof String) {
+                createdOnFormatted = (String) esDoc.get(Constants.CREATED_ON);
+            } else {
+                // fallback to existingRecord if ES not found
+                Object createdOnObj = existingRecord.get(Constants.CREATED_ON);
+                if (createdOnObj instanceof String) {
+                    createdOnFormatted = (String) createdOnObj;
+                } else if (createdOnObj instanceof LocalDate) {
+                    createdOnFormatted = ((LocalDate) createdOnObj)
+                            .atStartOfDay(ZoneId.of("UTC"))
+                            .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ"));
+                }
             }
+            // Set updatedOn to current timestamp in required format (for ES only)
+            String updatedOnFormatted = getCurrentUtcTimestampFormatted();
+            Map<String, Object> esRecord = new HashMap<>(existingRecord);
+            esRecord.put(Constants.CREATED_ON, createdOnFormatted);
+            esRecord.put(Constants.UPDATED_ON, updatedOnFormatted);
+            esRecord.put(Constants.UPDATED_BY, userId);
+            Map<String, Object> map = objectMapper.convertValue(esRecord, Map.class);
+            esClientService.updateDocument(Constants.LEARNER_ACHIEVEMENT_INDEX, Constants.INDEX_TYPE, id, map, cbServerProperties.getAchievementEsRequiredFieldsMappingPath());
         }
-        // Set updatedOn to current timestamp in required format (for ES only)
-        String updatedOnFormatted = getCurrentUtcTimestampFormatted();
-        Map<String, Object> esRecord = new HashMap<>(existingRecord);
-        esRecord.put(Constants.CREATED_ON, createdOnFormatted);
-        esRecord.put(Constants.UPDATED_ON, updatedOnFormatted);
-        esRecord.put(Constants.UPDATED_BY, userId);
-        Map<String, Object> map = objectMapper.convertValue(esRecord, Map.class);
-        esClientService.updateDocument(Constants.LEARNER_ACHIEVEMENT_INDEX, Constants.INDEX_TYPE, id, map, cbServerProperties.getAchievementEsRequiredFieldsMappingPath());
         cacheService.putCache(
                 buildCacheKey("user:achievement", userId, contextType, id),
-                esRecord
+                existingRecord
         );
         response.setResponseCode(HttpStatus.OK);
-        response.setResponse(esRecord);
+        response.setResponse(existingRecord);
         // Refresh search cache for this user after update
         refreshAchievementSearchCacheForUser(userId);
         // Refresh user achievements cache after update
@@ -304,10 +300,12 @@ public class AchievementServiceImpl implements AchievementService{
         String cacheKey = buildCacheKey("user:achievement", userId, contextType, achievementId);
         cacheService.removeCache(cacheKey);
         // Remove from ES
-        try {
-            esClientService.deleteDocument(achievementId, Constants.LEARNER_ACHIEVEMENT_INDEX);
-        } catch (Exception e) {
-            log.warn("Failed to delete achievement from ES for id {}", achievementId, e);
+        if (cbServerProperties.isRequireEs()) {
+            try {
+                esClientService.deleteDocument(achievementId, Constants.LEARNER_ACHIEVEMENT_INDEX);
+            } catch (Exception e) {
+                log.warn("Failed to delete achievement from ES for id {}", achievementId, e);
+            }
         }
         response.setResponseCode(HttpStatus.OK);
         response.getResult().put("message", "Achievement deleted successfully");
@@ -410,6 +408,27 @@ public class AchievementServiceImpl implements AchievementService{
                     }
                 }
             }
+            Map<String, Object> esDoc = esClientService.readDocument(Constants.LEARNER_ACHIEVEMENT_INDEX, reqMap.get(Constants.ID).toString());
+
+            String createdOnFormatted = null;
+            if (MapUtils.isNotEmpty(esDoc) && esDoc.get(Constants.CREATED_ON) instanceof String) {
+                createdOnFormatted = (String) esDoc.get(Constants.CREATED_ON);
+            } else {
+                // fallback to existingRecord if ES not found
+                Object createdOnObj = records.get(0).get(Constants.CREATED_ON);
+                if (createdOnObj instanceof String) {
+                    createdOnFormatted = (String) createdOnObj;
+                } else if (createdOnObj instanceof LocalDate) {
+                    createdOnFormatted = ((LocalDate) createdOnObj)
+                            .atStartOfDay(ZoneId.of("UTC"))
+                            .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ"));
+                }
+            }
+            String updatedOn = (String) esDoc.get(Constants.UPDATED_ON);
+            if (StringUtils.isNotBlank(updatedOn)) {
+                esUpdateMap.put(Constants.UPDATED_ON, updatedOn);
+            }
+            esUpdateMap.put(Constants.CREATED_ON, createdOnFormatted);
             esUpdateMap.put(Constants.STATUS, reqMap.get(Constants.STATUS));
             esUpdateMap.put(FIELD_REASON, reqMap.get(FIELD_REASON));
             esUpdateMap.put(Constants.FIELD_APPROVED_BY_ES, userIdFromToken);

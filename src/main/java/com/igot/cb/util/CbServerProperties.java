@@ -205,4 +205,7 @@ public class CbServerProperties {
     public List<String> getMasterDataAllowedType() {
         return Arrays.asList(masterDataAllowedType.split(","));
     }
+
+    @Value("${achievement.require-es}")
+    private boolean requireEs;
 }
