@@ -469,6 +469,8 @@ public class Constants {
     public static final String INVALID_AUTH_TOKEN = "Invalid user auth token";
     public static final String NAME_KEYWORD = "name.keyword";
     public static final String DESCRIPTION_KEYWORD = "description.keyword";
+    public static final String ORG_STATE = "orgState";
+    public static final String ORG_DISTRICT = "orgDistrict";
     private Constants() {
     }
 }

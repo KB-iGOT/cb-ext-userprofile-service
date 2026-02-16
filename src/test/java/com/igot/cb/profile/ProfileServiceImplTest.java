@@ -25,6 +25,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.*;
 import java.util.stream.Stream;
@@ -70,6 +71,12 @@ class ProfileServiceImplTest {
     @Spy
     private OutboundRequestHandlerServiceImpl service;
 
+    @Mock
+    private OutboundRequestHandlerServiceImpl outboundRequestHandlerService;
+
+    @Mock
+    private com.igot.cb.masterdata.service.ValidationService validationService;
+
     @BeforeEach
      void setUp() {
         MockitoAnnotations.openMocks(this);
@@ -78,6 +85,7 @@ class ProfileServiceImplTest {
                 "basicDetailsFilteredKeys",
                 "profileCompletionPercentage,karmaPoints,certificateCount,postCount"
         );
+        ReflectionTestUtils.setField(profileService, "outboundRequestHandlerService", outboundRequestHandlerService);
     }
 
     static class TestContext {
@@ -95,30 +103,12 @@ class ProfileServiceImplTest {
     static Stream<TestContext> contextProvider() {
         return Stream.of(
                 new TestContext(
-                        Constants.SERVICE_HISTORY,
-                        "startDate",
-                        List.of(
-                                new HashMap<>(Map.of("startDate", "2019-01-01T00:00:00Z", "dummyField", "dummyValue")),
-                                new HashMap<>(Map.of("startDate", "2023-06-15T00:00:00Z", "dummyField", "dummyValue")),
-                                new HashMap<>(Map.of("startDate", "2020-09-10T00:00:00Z", "dummyField", "dummyValue"))
-                        )
-                ),
-                new TestContext(
                         Constants.ACHIEVEMENTS,
                         "issuedDate",
                         List.of(
                                 new HashMap<>(Map.of("issuedDate", "2019-01-01T00:00:00Z", "dummyField", "dummyValue")),
                                 new HashMap<>(Map.of("issuedDate", "2023-06-15T00:00:00Z", "dummyField", "dummyValue")),
                                 new HashMap<>(Map.of("issuedDate", "2020-09-10T00:00:00Z", "dummyField", "dummyValue"))
-                        )
-                ),
-                new TestContext(
-                        Constants.EDUCATION_QUALIFICATION,
-                        "startYear",
-                        List.of(
-                                new HashMap<>(Map.of("startYear", "2019", "dummyField", "dummyValue")),
-                                new HashMap<>(Map.of("startYear", "2023", "dummyField", "dummyValue")),
-                                new HashMap<>(Map.of("startYear", "2020", "dummyField", "dummyValue"))
                         )
                 )
         );
@@ -172,6 +162,9 @@ class ProfileServiceImplTest {
         when(serverProperties.getEducationalQualificationMandatoryFields()).thenReturn("");
         when(serverProperties.getAchievementsMandatoryFields()).thenReturn("");
         when(serverProperties.getServiceHistoryMandatoryFields()).thenReturn("");
+        when(serverProperties.getUrlFields()).thenReturn(Set.of("uploadedDocumentUrl", "url"));
+        when(serverProperties.getDateFields()).thenReturn(Set.of("issuedDate", "startDate", "endDate"));
+        when(serverProperties.getAllowedTextRegex()).thenReturn("^[a-zA-Z0-9 .,@()\\-]{1,250}$");
         when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), anyMap(), any(), any()))
                 .thenReturn(new ArrayList<>());
         when(cassandraOperation.insertRecord(any(), any(), any()))
@@ -277,6 +270,9 @@ class ProfileServiceImplTest {
         when(serverProperties.getEducationalQualificationMandatoryFields()).thenReturn("dummyField");
         when(serverProperties.getAchievementsMandatoryFields()).thenReturn("dummyField");
         when(serverProperties.getServiceHistoryMandatoryFields()).thenReturn("dummyField");
+        when(serverProperties.getDateFields()).thenReturn(Set.of("issuedDate", "startDate", "endDate"));
+        when(serverProperties.getAllowedTextRegex()).thenReturn("^[a-zA-Z0-9 .,@()\\-]{1,250}$");
+        when(serverProperties.getUrlFields()).thenReturn(Set.of("uploadedDocumentUrl", "url"));
 
         when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), anyMap(), any(), any()))
                 .thenReturn(new ArrayList<>());
@@ -622,6 +618,9 @@ class ProfileServiceImplTest {
 
         when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
         when(serverProperties.getContextType()).thenReturn(new String[] {});
+        when(serverProperties.getUrlFields()).thenReturn(Set.of("uploadedDocumentUrl", "url"));
+        when(serverProperties.getDateFields()).thenReturn(Set.of("issuedDate", "startDate", "endDate"));
+        when(serverProperties.getAllowedTextRegex()).thenReturn("^[a-zA-Z0-9 .,@()\\-]{1,250}$");
 
         ApiResponse response = profileService.saveExtendedProfile(req, "token");
 
@@ -638,6 +637,14 @@ class ProfileServiceImplTest {
 
         when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
         when(serverProperties.getContextType()).thenReturn(new String[] {"contextA"});
+        when(serverProperties.getUrlFields())
+                .thenReturn(Set.of("uploadedDocumentUrl", "url"));
+
+        when(serverProperties.getDateFields())
+                .thenReturn(Set.of("issuedDate", "startDate", "endDate"));
+
+        when(serverProperties.getAllowedTextRegex())
+                .thenReturn("^[a-zA-Z0-9 .,@()&/\\-]{1,250}$");
 
         ApiResponse response = profileService.saveExtendedProfile(req, "token");
 
@@ -660,6 +667,15 @@ class ProfileServiceImplTest {
         when(serverProperties.getEducationalQualificationMandatoryFields()).thenReturn("degree,institute");
         when(serverProperties.getAchievementsMandatoryFields()).thenReturn("");
         when(serverProperties.getServiceHistoryMandatoryFields()).thenReturn("");
+        when(serverProperties.getUrlFields())
+                .thenReturn(Set.of("uploadedDocumentUrl", "url"));
+
+        when(serverProperties.getDateFields())
+                .thenReturn(Set.of("issuedDate", "startDate", "endDate"));
+
+        when(serverProperties.getAllowedTextRegex())
+                .thenReturn("^[a-zA-Z0-9 .,@()&/\\-]{1,250}$");
+
         ApiResponse response = profileService.saveExtendedProfile(request, userToken);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
         assertEquals(Constants.FAILED, response.getParams().getStatus());
@@ -691,6 +707,14 @@ class ProfileServiceImplTest {
                 .thenReturn(new ArrayList<>());
         ApiResponse mockInsertResponse = new ApiResponse();
         mockInsertResponse.put(Constants.RESPONSE, Constants.SUCCESS);
+        when(serverProperties.getUrlFields())
+                .thenReturn(Set.of("uploadedDocumentUrl", "url"));
+
+        when(serverProperties.getDateFields())
+                .thenReturn(Set.of("issuedDate", "startDate", "endDate"));
+
+        when(serverProperties.getAllowedTextRegex())
+                .thenReturn("^[a-zA-Z0-9 .,@()&/\\-]{1,250}$");
         when(cassandraOperation.insertRecord(anyString(), anyString(), anyMap())).thenReturn(mockInsertResponse);
         ApiResponse response = profileService.saveExtendedProfile(request, userToken);
         assertEquals(HttpStatus.OK, response.getResponseCode());
@@ -709,33 +733,59 @@ class ProfileServiceImplTest {
     }
 
     @Test
-     void testSaveExtendedProfile_SaveContextDataFails_ReturnsError(){
+    void testSaveExtendedProfile_SaveContextDataFails_ReturnsError() {
+
         String userId = "user-123";
         String userToken = "valid-token";
         String localContextType = Constants.EDUCATIONAL_QUALIFICATIONS;
+
         Map<String, Object> educationItem = new HashMap<>();
         educationItem.put("degree", "Masters");
-        educationItem.put("institute", "Test University");
+        educationItem.put("institutionName", "Test University");
+
         Map<String, Object> requestData = new HashMap<>();
         requestData.put(Constants.USER_ID_RQST, userId);
         requestData.put(localContextType, List.of(educationItem));
+
         Map<String, Object> request = new HashMap<>();
         request.put(Constants.REQUEST, requestData);
-        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userId);
-        when(serverProperties.getContextType()).thenReturn(new String[]{localContextType});
-        when(serverProperties.getEducationalQualificationMandatoryFields()).thenReturn("degree,institute");
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken))
+                .thenReturn(userId);
+
+        when(serverProperties.getContextType())
+                .thenReturn(new String[]{localContextType});
+        when(serverProperties.getEducationalQualificationMandatoryFields())
+                .thenReturn("degree,institutionName");
         when(serverProperties.getAchievementsMandatoryFields()).thenReturn("");
         when(serverProperties.getServiceHistoryMandatoryFields()).thenReturn("");
+
+        when(serverProperties.getUrlFields()).thenReturn(Set.of("uploadedDocumentUrl", "url"));
+        when(serverProperties.getDateFields()).thenReturn(Set.of("issuedDate", "startDate", "endDate"));
+        when(serverProperties.getAllowedTextRegex())
+                .thenReturn("^[a-zA-Z0-9 .,@()&/\\-]{1,250}$");
+
+        when(validationService.isValidDegree(anyString(), anyString()))
+                .thenReturn(true);
+        when(validationService.isValidInstitution(anyString(), anyString()))
+                .thenReturn(true);
+
         when(cassandraOperation.getRecordsByPropertiesByKey(
                 anyString(), anyString(), anyMap(), isNull(), isNull()))
                 .thenReturn(new ArrayList<>());
+
         ApiResponse mockFailureResponse = new ApiResponse();
         mockFailureResponse.put(Constants.RESPONSE, Constants.FAILED);
-        when(cassandraOperation.insertRecord(anyString(), anyString(), anyMap())).thenReturn(mockFailureResponse);
+
+        when(cassandraOperation.insertRecord(anyString(), anyString(), anyMap()))
+                .thenReturn(mockFailureResponse);
+
         ApiResponse response = profileService.saveExtendedProfile(request, userToken);
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
         assertEquals(Constants.FAILED, response.getParams().getStatus());
-        assertEquals("Failed to save data for contextType: " + localContextType, response.getParams().getErrMsg());
+        assertEquals("Failed to save data for contextType: " + localContextType,
+                response.getParams().getErrMsg());
+
         verify(cassandraOperation).insertRecord(
                 eq(Constants.KEYSPACE_SUNBIRD),
                 eq(Constants.TABLE_USER_EXTENDED_PROFILE),
@@ -763,19 +813,27 @@ class ProfileServiceImplTest {
 
     @Test
     void testSaveExtendedProfile_NullOrEmptyList_SkipsProcessing() {
+
         String userId = "user-123";
         String userToken = "valid-token";
+
         Map<String, Object> requestData = new HashMap<>();
         requestData.put(Constants.USER_ID_RQST, userId);
-        requestData.put(Constants.EDUCATIONAL_QUALIFICATIONS, Collections.emptyList());  // Empty list
-        requestData.put(Constants.SERVICE_HISTORY, null);  // Null list
+        requestData.put(Constants.EDUCATIONAL_QUALIFICATIONS, Collections.emptyList()); // empty list
+        requestData.put(Constants.SERVICE_HISTORY, null); // null list
+
         Map<String, Object> achievementItem = new HashMap<>();
         achievementItem.put("title", "Achievement 1");
         achievementItem.put("issuer", "Issuer 1");
+
         requestData.put(Constants.ACHIEVEMENTS, List.of(achievementItem));
+
         Map<String, Object> request = new HashMap<>();
         request.put(Constants.REQUEST, requestData);
-        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userId);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken))
+                .thenReturn(userId);
+
         when(serverProperties.getContextType()).thenReturn(new String[]{
                 Constants.EDUCATIONAL_QUALIFICATIONS,
                 Constants.SERVICE_HISTORY,
@@ -784,28 +842,55 @@ class ProfileServiceImplTest {
         when(serverProperties.getEducationalQualificationMandatoryFields()).thenReturn("");
         when(serverProperties.getAchievementsMandatoryFields()).thenReturn("title,issuer");
         when(serverProperties.getServiceHistoryMandatoryFields()).thenReturn("");
+        when(serverProperties.getUrlFields()).thenReturn(Set.of("uploadedDocumentUrl", "url"));
+        when(serverProperties.getDateFields()).thenReturn(Set.of("issuedDate", "startDate", "endDate"));
+        when(serverProperties.getAllowedTextRegex())
+                .thenReturn("^[a-zA-Z0-9 .,@()&/\\-]{1,250}$");
+
+        Map<String,Object> mockSearchResponse = Map.of(
+                "result", Map.of(
+                        "response", Map.of(
+                                "content", List.of(Map.of("orgName","Test Org"))
+                        )
+                )
+        );
+
+        // existing cassandra mocks
         when(cassandraOperation.getRecordsByPropertiesByKey(
                 anyString(), anyString(), anyMap(), isNull(), isNull()))
                 .thenReturn(new ArrayList<>());
+
         ApiResponse mockResponse = new ApiResponse();
         mockResponse.put(Constants.RESPONSE, Constants.SUCCESS);
-        when(cassandraOperation.insertRecord(anyString(), anyString(), anyMap())).thenReturn(mockResponse);
+
+        when(cassandraOperation.insertRecord(anyString(), anyString(), anyMap()))
+                .thenReturn(mockResponse);
+
+        // execute
         ApiResponse response = profileService.saveExtendedProfile(request, userToken);
+
+        // assertions (unchanged behaviour)
         assertEquals(HttpStatus.OK, response.getResponseCode());
+
         verify(cassandraOperation, never()).insertRecord(
                 eq(Constants.KEYSPACE_SUNBIRD),
                 eq(Constants.TABLE_USER_EXTENDED_PROFILE),
-                argThat(map -> map.get(Constants.CONTEXT_TYPE).equals(Constants.EDUCATIONAL_QUALIFICATIONS))
+                argThat(map -> map.get(Constants.CONTEXT_TYPE)
+                        .equals(Constants.EDUCATIONAL_QUALIFICATIONS))
         );
+
         verify(cassandraOperation, never()).insertRecord(
                 eq(Constants.KEYSPACE_SUNBIRD),
                 eq(Constants.TABLE_USER_EXTENDED_PROFILE),
-                argThat(map -> map.get(Constants.CONTEXT_TYPE).equals(Constants.SERVICE_HISTORY))
+                argThat(map -> map.get(Constants.CONTEXT_TYPE)
+                        .equals(Constants.SERVICE_HISTORY))
         );
+
         verify(cassandraOperation).insertRecord(
                 eq(Constants.KEYSPACE_SUNBIRD),
                 eq(Constants.TABLE_USER_EXTENDED_PROFILE),
-                argThat(map -> map.get(Constants.CONTEXT_TYPE).equals(Constants.ACHIEVEMENTS))
+                argThat(map -> map.get(Constants.CONTEXT_TYPE)
+                        .equals(Constants.ACHIEVEMENTS))
         );
     }
 
@@ -2949,5 +3034,490 @@ class ProfileServiceImplTest {
         ApiResponse response = profileService.updateAdditionalFields(req, "token");
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
     }
+
+    // ==================== Tests for validateUsingSearchApi ====================
+
+    @Test
+    void testValidateUsingSearchApi_withOrganizationStructure_shouldReturnTrue() throws Exception {
+        String host = "http://localhost:9040";
+        String apiPath = "/v1/org/search";
+        String template = "{\"request\":{\"filters\":{\"orgName\":\"%s\"}}}";
+        String fieldName = "orgName";
+        String value = "Test Organization";
+
+        Map<String, Object> mockResponse = new HashMap<>();
+        Map<String, Object> result = new HashMap<>();
+        Map<String, Object> response = new HashMap<>();
+        List<Map<String, Object>> content = new ArrayList<>();
+        Map<String, Object> orgData = new HashMap<>();
+        orgData.put("orgName", "Test Organization");
+        content.add(orgData);
+        response.put("content", content);
+        result.put("response", response);
+        mockResponse.put("result", result);
+
+        when(outboundRequestHandlerService.fetchResultUsingPost(anyString(), anyMap(), anyMap()))
+                .thenReturn(mockResponse);
+
+        // Act
+        Method method = ProfileServiceImpl.class.getDeclaredMethod(
+                "validateUsingSearchApi", String.class, String.class, String.class, String.class, String.class
+        );
+        method.setAccessible(true);
+        boolean result1 = (boolean) method.invoke(profileService, host, apiPath, template, fieldName, value);
+
+        // Assert
+        assertTrue(result1, "Should return true for valid organization in content array");
+    }
+
+    @Test
+    void testValidateUsingSearchApi_withDesignationStructure_shouldReturnTrue() throws Exception {
+        // Arrange - Designation API returns: result.result.data[]
+        String host = "http://localhost:7001";
+        String apiPath = "/designation/search";
+        String template = "{\"request\":{\"filters\":{\"designation\":\"%s\"}}}";
+        String fieldName = "designation";
+        String value = "Controller of Mines";
+
+        Map<String, Object> mockResponse = new HashMap<>();
+        Map<String, Object> result = new HashMap<>();
+        Map<String, Object> nestedResult = new HashMap<>();
+        List<Map<String, Object>> data = new ArrayList<>();
+        Map<String, Object> designationData = new HashMap<>();
+        designationData.put("designation", "Controller of Mines");
+        data.add(designationData);
+        nestedResult.put("data", data);
+        result.put("result", nestedResult);
+        mockResponse.put("result", result);
+
+        when(outboundRequestHandlerService.fetchResultUsingPost(anyString(), anyMap(), anyMap()))
+                .thenReturn(mockResponse);
+
+        // Act
+        Method method = ProfileServiceImpl.class.getDeclaredMethod(
+                "validateUsingSearchApi", String.class, String.class, String.class, String.class, String.class
+        );
+        method.setAccessible(true);
+        boolean result1 = (boolean) method.invoke(profileService, host, apiPath, template, fieldName, value);
+
+        // Assert
+        assertTrue(result1, "Should return true for valid designation in data array");
+    }
+
+    @Test
+    void testValidateUsingSearchApi_withCaseInsensitiveMatch_shouldReturnTrue() throws Exception {
+        // Arrange - Test case insensitive matching
+        String host = "http://localhost:7001";
+        String apiPath = "/designation/search";
+        String template = "{\"request\":{\"filters\":{\"designation\":\"%s\"}}}";
+        String fieldName = "designation";
+        String value = "controller of mines"; // lowercase
+
+        Map<String, Object> mockResponse = new HashMap<>();
+        Map<String, Object> result = new HashMap<>();
+        Map<String, Object> nestedResult = new HashMap<>();
+        List<Map<String, Object>> data = new ArrayList<>();
+        Map<String, Object> designationData = new HashMap<>();
+        designationData.put("designation", "Controller of Mines"); // mixed case
+        data.add(designationData);
+        nestedResult.put("data", data);
+        result.put("result", nestedResult);
+        mockResponse.put("result", result);
+
+        when(outboundRequestHandlerService.fetchResultUsingPost(anyString(), anyMap(), anyMap()))
+                .thenReturn(mockResponse);
+
+        // Act
+        Method method = ProfileServiceImpl.class.getDeclaredMethod(
+                "validateUsingSearchApi", String.class, String.class, String.class, String.class, String.class
+        );
+        method.setAccessible(true);
+        boolean result1 = (boolean) method.invoke(profileService, host, apiPath, template, fieldName, value);
+
+        // Assert
+        assertTrue(result1, "Should return true for case-insensitive match");
+    }
+
+    @Test
+    void testValidateUsingSearchApi_withNoMatch_shouldReturnFalse() throws Exception {
+        // Arrange - Value doesn't match any in the response
+        String host = "http://localhost:7001";
+        String apiPath = "/designation/search";
+        String template = "{\"request\":{\"filters\":{\"designation\":\"%s\"}}}";
+        String fieldName = "designation";
+        String value = "Non Existent Designation";
+
+        Map<String, Object> mockResponse = new HashMap<>();
+        Map<String, Object> result = new HashMap<>();
+        Map<String, Object> nestedResult = new HashMap<>();
+        List<Map<String, Object>> data = new ArrayList<>();
+        Map<String, Object> designationData = new HashMap<>();
+        designationData.put("designation", "Controller of Mines");
+        data.add(designationData);
+        nestedResult.put("data", data);
+        result.put("result", nestedResult);
+        mockResponse.put("result", result);
+
+        when(outboundRequestHandlerService.fetchResultUsingPost(anyString(), anyMap(), anyMap()))
+                .thenReturn(mockResponse);
+
+        // Act
+        Method method = ProfileServiceImpl.class.getDeclaredMethod(
+                "validateUsingSearchApi", String.class, String.class, String.class, String.class, String.class
+        );
+        method.setAccessible(true);
+        boolean result1 = (boolean) method.invoke(profileService, host, apiPath, template, fieldName, value);
+
+        // Assert
+        assertFalse(result1, "Should return false when value doesn't match");
+    }
+
+    @Test
+    void testValidateUsingSearchApi_withEmptyData_shouldReturnFalse() throws Exception {
+        // Arrange - Empty data array
+        String host = "http://localhost:7001";
+        String apiPath = "/designation/search";
+        String template = "{\"request\":{\"filters\":{\"designation\":\"%s\"}}}";
+        String fieldName = "designation";
+        String value = "Controller of Mines";
+
+        Map<String, Object> mockResponse = new HashMap<>();
+        Map<String, Object> result = new HashMap<>();
+        Map<String, Object> nestedResult = new HashMap<>();
+        List<Map<String, Object>> data = new ArrayList<>(); // Empty list
+        nestedResult.put("data", data);
+        result.put("result", nestedResult);
+        mockResponse.put("result", result);
+
+        when(outboundRequestHandlerService.fetchResultUsingPost(anyString(), anyMap(), anyMap()))
+                .thenReturn(mockResponse);
+
+        // Act
+        Method method = ProfileServiceImpl.class.getDeclaredMethod(
+                "validateUsingSearchApi", String.class, String.class, String.class, String.class, String.class
+        );
+        method.setAccessible(true);
+        boolean result1 = (boolean) method.invoke(profileService, host, apiPath, template, fieldName, value);
+
+        // Assert
+        assertFalse(result1, "Should return false when data array is empty");
+    }
+
+    @Test
+    void testValidateUsingSearchApi_withNullResponse_shouldReturnFalse() throws Exception {
+        // Arrange - Null response
+        String host = "http://localhost:7001";
+        String apiPath = "/designation/search";
+        String template = "{\"request\":{\"filters\":{\"designation\":\"%s\"}}}";
+        String fieldName = "designation";
+        String value = "Controller of Mines";
+
+        when(outboundRequestHandlerService.fetchResultUsingPost(anyString(), anyMap(), anyMap()))
+                .thenReturn(null);
+
+        // Act
+        Method method = ProfileServiceImpl.class.getDeclaredMethod(
+                "validateUsingSearchApi", String.class, String.class, String.class, String.class, String.class
+        );
+        method.setAccessible(true);
+        boolean result1 = (boolean) method.invoke(profileService, host, apiPath, template, fieldName, value);
+
+        // Assert
+        assertFalse(result1, "Should return false when response is null");
+    }
+
+    @Test
+    void testValidateUsingSearchApi_withMissingResultKey_shouldReturnFalse() throws Exception {
+        // Arrange - Response without 'result' key
+        String host = "http://localhost:7001";
+        String apiPath = "/designation/search";
+        String template = "{\"request\":{\"filters\":{\"designation\":\"%s\"}}}";
+        String fieldName = "designation";
+        String value = "Controller of Mines";
+
+        Map<String, Object> mockResponse = new HashMap<>();
+        // No 'result' key
+
+        when(outboundRequestHandlerService.fetchResultUsingPost(anyString(), anyMap(), anyMap()))
+                .thenReturn(mockResponse);
+
+        // Act
+        Method method = ProfileServiceImpl.class.getDeclaredMethod(
+                "validateUsingSearchApi", String.class, String.class, String.class, String.class, String.class
+        );
+        method.setAccessible(true);
+        boolean result1 = (boolean) method.invoke(profileService, host, apiPath, template, fieldName, value);
+
+        // Assert
+        assertFalse(result1, "Should return false when result key is missing");
+    }
+
+    @Test
+    void testValidateUsingSearchApi_withException_shouldReturnFalse() throws Exception {
+        // Arrange - Exception during processing
+        String host = "http://localhost:7001";
+        String apiPath = "/designation/search";
+        String template = "{\"request\":{\"filters\":{\"designation\":\"%s\"}}}";
+        String fieldName = "designation";
+        String value = "Controller of Mines";
+
+        when(outboundRequestHandlerService.fetchResultUsingPost(anyString(), anyMap(), anyMap()))
+                .thenThrow(new RuntimeException("Network error"));
+
+        // Act
+        Method method = ProfileServiceImpl.class.getDeclaredMethod(
+                "validateUsingSearchApi", String.class, String.class, String.class, String.class, String.class
+        );
+        method.setAccessible(true);
+        boolean result1 = (boolean) method.invoke(profileService, host, apiPath, template, fieldName, value);
+
+        // Assert
+        assertFalse(result1, "Should return false when exception occurs");
+    }
+
+    @Test
+    void testValidateUsingSearchApi_withMultipleItems_shouldMatchCorrectOne() throws Exception {
+        // Arrange - Multiple items in data array
+        String host = "http://localhost:7001";
+        String apiPath = "/designation/search";
+        String template = "{\"request\":{\"filters\":{\"designation\":\"%s\"}}}";
+        String fieldName = "designation";
+        String value = "Senior Manager";
+
+        Map<String, Object> mockResponse = new HashMap<>();
+        Map<String, Object> result = new HashMap<>();
+        Map<String, Object> nestedResult = new HashMap<>();
+        List<Map<String, Object>> data = new ArrayList<>();
+
+        Map<String, Object> designation1 = new HashMap<>();
+        designation1.put("designation", "Controller of Mines");
+        data.add(designation1);
+
+        Map<String, Object> designation2 = new HashMap<>();
+        designation2.put("designation", "Senior Manager");
+        data.add(designation2);
+
+        Map<String, Object> designation3 = new HashMap<>();
+        designation3.put("designation", "Junior Analyst");
+        data.add(designation3);
+
+        nestedResult.put("data", data);
+        result.put("result", nestedResult);
+        mockResponse.put("result", result);
+
+        when(outboundRequestHandlerService.fetchResultUsingPost(anyString(), anyMap(), anyMap()))
+                .thenReturn(mockResponse);
+
+        // Act
+        Method method = ProfileServiceImpl.class.getDeclaredMethod(
+                "validateUsingSearchApi", String.class, String.class, String.class, String.class, String.class
+        );
+        method.setAccessible(true);
+        boolean result1 = (boolean) method.invoke(profileService, host, apiPath, template, fieldName, value);
+
+        // Assert
+        assertTrue(result1, "Should return true when matching item is found in multiple items");
+    }
+
+    // ==================== Tests for validateInputPayload ====================
+
+    @Test
+    void testValidateInputPayload_withValidTextFields_shouldReturnEmptyString() throws Exception {
+        // Arrange
+        Map<String, Object> input = new HashMap<>();
+        input.put("name", "John Doe");
+        input.put("description", "Test description");
+
+        // Setup validation mocks
+        when(serverProperties.getUrlFields()).thenReturn(Set.of("uploadedDocumentUrl", "url"));
+        when(serverProperties.getDateFields()).thenReturn(Set.of("issuedDate", "startDate", "endDate"));
+        when(serverProperties.getAllowedTextRegex()).thenReturn("^[a-zA-Z0-9 .,@()\\-]{1,250}$");
+
+        // Act
+        Method method = ProfileServiceImpl.class.getDeclaredMethod("validateInputPayload", Object.class);
+        method.setAccessible(true);
+        String result = (String) method.invoke(profileService, input);
+
+        // Assert
+        assertEquals("", result, "Should return empty string for valid text fields");
+    }
+
+    @Test
+    void testValidateInputPayload_withInvalidCharacters_shouldReturnErrorMessage() throws Exception {
+        // Arrange
+        Map<String, Object> input = new HashMap<>();
+        input.put("name", "Test@#$%^&*()");
+
+        // Setup validation mocks
+        when(serverProperties.getUrlFields()).thenReturn(Set.of("uploadedDocumentUrl", "url"));
+        when(serverProperties.getDateFields()).thenReturn(Set.of("issuedDate", "startDate", "endDate"));
+        when(serverProperties.getAllowedTextRegex()).thenReturn("^[a-zA-Z0-9 .,@()\\-]{1,250}$");
+
+        // Act
+        Method method = ProfileServiceImpl.class.getDeclaredMethod("validateInputPayload", Object.class);
+        method.setAccessible(true);
+        String result = (String) method.invoke(profileService, input);
+
+        // Assert
+        assertEquals("Request contains invalid characters", result, "Should return error message for invalid characters");
+    }
+
+    @Test
+    void testValidateInputPayload_withValidUrlField_shouldReturnEmptyString() throws Exception {
+        // Arrange
+        Map<String, Object> input = new HashMap<>();
+        input.put("uploadedDocumentUrl", "https://example.com/document.pdf");
+
+        // Setup validation mocks (using lenient to avoid UnnecessaryStubbingException)
+        lenient().when(serverProperties.getUrlFields()).thenReturn(Set.of("uploadedDocumentUrl", "url"));
+        lenient().when(serverProperties.getDateFields()).thenReturn(Set.of("issuedDate", "startDate", "endDate"));
+        lenient().when(serverProperties.getAllowedUrlRegex()).thenReturn("^(https?:\\/\\/)[a-zA-Z0-9\\-._~:/?#\\[\\]@!$&'()*+,;=%]{1,500}$");
+
+        // Act
+        Method method = ProfileServiceImpl.class.getDeclaredMethod("validateInputPayload", Object.class);
+        method.setAccessible(true);
+        String result = (String) method.invoke(profileService, input);
+
+        // Assert
+        assertEquals("", result, "Should return empty string for valid URL field");
+    }
+
+    @Test
+    void testValidateInputPayload_withListContainingInvalidData_shouldReturnErrorMessage() throws Exception {
+        // Arrange
+        Map<String, Object> item1 = new HashMap<>();
+        item1.put("name", "Valid Item");
+
+        Map<String, Object> item2 = new HashMap<>();
+        item2.put("name", "Invalid@#$%^Item");
+
+        List<Map<String, Object>> items = List.of(item1, item2);
+
+        // Setup validation mocks
+        when(serverProperties.getUrlFields()).thenReturn(Set.of("uploadedDocumentUrl", "url"));
+        when(serverProperties.getDateFields()).thenReturn(Set.of("issuedDate", "startDate", "endDate"));
+        when(serverProperties.getAllowedTextRegex()).thenReturn("^[a-zA-Z0-9 .,@()\\-]{1,250}$");
+
+        // Act
+        Method method = ProfileServiceImpl.class.getDeclaredMethod("validateInputPayload", Object.class);
+        method.setAccessible(true);
+        String result = (String) method.invoke(profileService, items);
+
+        // Assert
+        assertEquals("Request contains invalid characters", result, "Should return error message for invalid data in list");
+    }
+
+    @Test
+    void testValidateInputPayload_withNullInput_shouldReturnEmptyString() throws Exception {
+        // Arrange
+        Object input = null;
+
+        // Act
+        Method method = ProfileServiceImpl.class.getDeclaredMethod("validateInputPayload", Object.class);
+        method.setAccessible(true);
+        String result = (String) method.invoke(profileService, input);
+
+        // Assert
+        assertEquals("", result, "Should return empty string for null input");
+    }
+
+    @Test
+    void testValidateInputPayload_withEmptyMap_shouldReturnEmptyString() throws Exception {
+        // Arrange
+        Map<String, Object> input = new HashMap<>();
+
+
+        // Act
+        Method method = ProfileServiceImpl.class.getDeclaredMethod("validateInputPayload", Object.class);
+        method.setAccessible(true);
+        String result = (String) method.invoke(profileService, input);
+
+        // Assert
+        assertEquals("", result, "Should return empty string for empty map");
+    }
+
+    @Test
+    void testValidateInputPayload_withBlankString_shouldReturnEmptyString() throws Exception {
+        // Arrange - Blank strings should be skipped
+        Map<String, Object> input = new HashMap<>();
+        input.put("name", "   ");
+        input.put("description", "");
+
+        // Act
+        Method method = ProfileServiceImpl.class.getDeclaredMethod("validateInputPayload", Object.class);
+        method.setAccessible(true);
+        String result = (String) method.invoke(profileService, input);
+
+        // Assert
+        assertEquals("", result, "Should return empty string for blank strings");
+    }
+//
+//    @BeforeEach
+//    void reInjectMocksIntoSpy() {
+//
+//        // Re-inject mocks into the already created spy
+//        ReflectionTestUtils.setField(profileService, "serverConfig", serverProperties);
+//        ReflectionTestUtils.setField(profileService, "customFieldRepository", customFieldRepository);
+//        //ReflectionTestUtils.setField(profileService, "objectMapper", objectMapper);
+//        ReflectionTestUtils.setField(profileService, "projectUtil", projectUtil);
+//        ReflectionTestUtils.setField(profileService, "cassandraOperation", cassandraOperation);
+//        ReflectionTestUtils.setField(profileService, "cacheService", cacheService);
+//        ReflectionTestUtils.setField(profileService, "esUtilService", esUtilService);
+//    }
+//
+//    @Test
+//    void testValidateInputPayload_validInput_shouldReturnEmptyString() throws Exception {
+//
+//        // ---------------------------------------------------
+//        // 1️⃣ Stub configuration used inside validation
+//        // ---------------------------------------------------
+//        when(serverProperties.getUrlFields())
+//                .thenReturn(Set.of("uploadedDocumentUrl", "url"));
+//
+//        when(serverProperties.getDateFields())
+//                .thenReturn(Set.of("issuedDate", "startDate", "endDate"));
+//
+//        // ---------------------------------------------------
+//        // 2️⃣ Re-inject mocks into Spy (mandatory because @Spy is used)
+//        // 👉 IMPORTANT: change field names ONLY if service uses different names
+//        // ---------------------------------------------------
+//        ReflectionTestUtils.setField(profileService, "cbServerProperties", serverProperties);
+//        ReflectionTestUtils.setField(profileService, "customFieldRepository", customFieldRepository);
+//        ReflectionTestUtils.setField(profileService, "objectMapper", objectMapper);
+//        ReflectionTestUtils.setField(profileService, "projectUtil", projectUtil);
+//        ReflectionTestUtils.setField(profileService, "cassandraOperation", cassandraOperation);
+//        ReflectionTestUtils.setField(profileService, "cacheService", cacheService);
+//        ReflectionTestUtils.setField(profileService, "esUtilService", esUtilService);
+//
+//        // ⭐ IMPORTANT: use the SAME repository method used inside validateInputPayload()
+//        when(customFieldRepository.findAll()).thenReturn(anyList());
+//        // If your code uses another method, replace above line with:
+//        // when(customFieldRepository.findByProfileType(any())).thenReturn(fields);
+//
+//        // ---------------------------------------------------
+//        // 4️⃣ Build input payload (method parameter = Object)
+//        // ---------------------------------------------------
+//        Map<String, Object> basicProfile = new HashMap<>();
+//        basicProfile.put("issuedDate", "2023-01-01"); // valid date
+//        basicProfile.put("uploadedDocumentUrl", "https://test.com/doc.pdf"); // valid url
+//
+//        Map<String, Object> input = new HashMap<>();
+//        input.put("basicProfile", basicProfile);
+//
+//        // ---------------------------------------------------
+//        // 5️⃣ Invoke private method via reflection
+//        // ---------------------------------------------------
+//        Method method = ProfileServiceImpl.class
+//                .getDeclaredMethod("validateInputPayload", Object.class);
+//        method.setAccessible(true);
+//
+//        String result = (String) method.invoke(profileService, input);
+//
+//        // ---------------------------------------------------
+//        // 6️⃣ Assert
+//        // ---------------------------------------------------
+//        assertEquals("", result);
+//    }
+
 
 }

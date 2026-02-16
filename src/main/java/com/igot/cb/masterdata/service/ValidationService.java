@@ -12,6 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -19,6 +20,9 @@ public class ValidationService {
 
     @Autowired
     private CbServerProperties cbServerProperties;
+
+    @Autowired
+    private MasterDataService masterDataService;
 
     public boolean validateSearchRequest(ApiResponse apiResponse, Map<String, Object> requestBody) {
 
@@ -211,5 +215,23 @@ public class ValidationService {
             }
         }
         return true;
+    }
+
+    public boolean isValidDegree(String authToken, String degree) {
+        ApiResponse res = masterDataService.getDegreesList(authToken);
+        Map<String, Object> result = res.getResult();
+        Map<String, Object> degreesMap = (Map<String, Object>) result.get(Constants.DEGREES_LIST);
+
+        List<String> degrees = (List<String>) degreesMap.get(Constants.DEGREES);
+        return degrees.contains(degree);
+    }
+
+    public boolean isValidInstitution(String authToken, String institution) {
+        ApiResponse res = masterDataService.getInstitutionsList(authToken);
+        Map<String, Object> result = res.getResult();
+        Map<String, Object> instMap = (Map<String, Object>) result.get(Constants.INSTITUTION_LIST);
+
+        List<String> institutions = (List<String>) instMap.get(Constants.INSTITUTIONS);
+        return institutions.contains(institution);
     }
 }

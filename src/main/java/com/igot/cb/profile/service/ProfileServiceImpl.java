@@ -8,6 +8,8 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import com.igot.cb.common.OutboundRequestHandlerServiceImpl;
+import com.igot.cb.extendedprofile.service.ExtendedProfileService;
+import com.igot.cb.masterdata.service.ValidationService;
 import com.igot.cb.util.*;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
@@ -71,6 +73,12 @@ public class ProfileServiceImpl implements ProfileService {
     @Autowired
     OutboundRequestHandlerServiceImpl outboundRequestHandlerService;
 
+    @Autowired
+    ValidationService validationService;
+
+    @Autowired
+    ExtendedProfileService extendedProfileService;
+
     // -------------------- Service METHODS --------------------
 
     @Override
@@ -91,7 +99,13 @@ public class ProfileServiceImpl implements ProfileService {
             return response;
         }
 
-        String errMsg = validateUserExtendedProfileRequest(requestData);
+        String payloadError = performInputSanitizationCheck(requestData);
+        if (StringUtils.isNotBlank(payloadError)) {
+            ProjectUtil.errorResponse(response, payloadError, HttpStatus.BAD_REQUEST);
+            return response;
+        }
+
+        String errMsg = validateUserExtendedProfileRequest(requestData, userToken);
         if (StringUtils.isNotBlank(errMsg)) {
             ProjectUtil.errorResponse(response, errMsg, HttpStatus.BAD_REQUEST);
             return response;
@@ -522,7 +536,7 @@ public class ProfileServiceImpl implements ProfileService {
         }
     }
 
-    private String validateUserExtendedProfileRequest(Map<String, Object> requestData) {
+    private String validateUserExtendedProfileRequest(Map<String, Object> requestData, String userToken) {
         if (requestData == null)
             return "Request data is missing.";
         List<String> errList = new ArrayList<>();
@@ -532,7 +546,12 @@ public class ProfileServiceImpl implements ProfileService {
                 errList, false);
         validateFieldsForList(requestData, Constants.SERVICE_HISTORY, serverConfig.getServiceHistoryMandatoryFields(),
                 errList, true);
-        return errList.isEmpty() ? "" : "Failed Due To Missing or Invalid Params - " + String.join(", ", errList) + ".";
+        validateMasterDataFields(requestData, userToken, errList);
+        validateServiceHistoryMasterData(requestData, userToken, errList);
+        if (!errList.isEmpty()) {
+            return "Failed Due To Missing or Invalid Params - " + String.join(", ", errList) + ".";
+        }
+        return "";
     }
 
     private void validateFieldsForList(Map<String, Object> requestData, String listKey, String mandatoryFields,
@@ -1490,4 +1509,272 @@ public class ProfileServiceImpl implements ProfileService {
         }
         return result;
     }
+
+    public String performInputSanitizationCheck(Object input) {
+
+        Set<String> urlFields = Optional.ofNullable(serverConfig.getUrlFields())
+                .orElse(Set.of("uploadedDocumentUrl","url"));
+
+        Set<String> dateFields = Optional.ofNullable(serverConfig.getDateFields())
+                .orElse(Set.of("issuedDate","startDate","endDate"));
+
+        String textRegex = Optional.ofNullable(serverConfig.getAllowedTextRegex())
+                .orElse("^[a-zA-Z0-9 .,@()&/\\-]{1,250}$");
+
+        String urlRegex = Optional.ofNullable(serverConfig.getAllowedUrlRegex())
+                .orElse("^(https?://).+$");
+
+        String dateRegex = Optional.ofNullable(serverConfig.getAllowedDateRegex())
+                .orElse("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{3})?Z$");
+
+        return performInputSanitizationCheckRecursive(
+                input, urlFields, dateFields, textRegex, urlRegex, dateRegex);
+    }
+    private String performInputSanitizationCheckRecursive(
+            Object input,
+            Set<String> urlFields,
+            Set<String> dateFields,
+            String textRegex,
+            String urlRegex,
+            String dateRegex) {
+
+        if (input == null) return "";
+
+        if (input instanceof Map<?, ?> map) {
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+
+                String key = entry.getKey().toString();
+                Object value = entry.getValue();
+
+                if (value instanceof String str && !str.isBlank()) {
+
+                    String regex;
+                    if (urlFields.contains(key)) {
+                        regex = urlRegex;
+                    }
+                    else if (dateFields.contains(key)) {
+                        regex = dateRegex;
+                    }
+                    else {
+                        regex = textRegex;
+                    }
+
+                    if (!str.matches(regex)) {
+                        return "Request contains invalid characters";
+                    }
+                }
+
+                String error = performInputSanitizationCheckRecursive(
+                        value, urlFields, dateFields, textRegex, urlRegex, dateRegex);
+
+                if (!error.isEmpty()) return error;
+            }
+        }
+
+        if (input instanceof List<?> list) {
+            for (Object item : list) {
+                String error = performInputSanitizationCheckRecursive(
+                        item, urlFields, dateFields, textRegex, urlRegex, dateRegex);
+
+                if (!error.isEmpty()) return error;
+            }
+        }
+
+        return "";
+    }
+
+    public String validateInputPayload(Object input) {
+
+        if (input == null) return "";
+
+        if (input instanceof Map<?, ?> map) {
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+
+                String key = entry.getKey().toString();
+                Object value = entry.getValue();
+
+                if (value instanceof String str) {
+                    String regex;
+                    if (serverConfig.getUrlFields().contains(key)) {
+                        regex = serverConfig.getAllowedUrlRegex();
+                    }
+                    else if (serverConfig.getDateFields().contains(key)) {
+                        regex = serverConfig.getAllowedDateRegex();
+                    }
+                    else {
+                        regex = serverConfig.getAllowedTextRegex();
+                    }
+
+                    if (!str.isBlank() && !str.matches(regex)) {
+                        return "Request contains invalid characters";
+                    }
+                }
+
+                String error = validateInputPayload(value);
+                if (!error.isEmpty()) return error;
+            }
+        }
+
+        if (input instanceof List<?> list) {
+            for (Object item : list) {
+                String error = validateInputPayload(item);
+                if (!error.isEmpty()) return error;
+            }
+        }
+
+        return "";
+    }
+
+    public void validateMasterDataFields(Map<String, Object> requestData, String userToken, List<String> errList) {
+
+        List<Map<String, Object>> eduList =
+                (List<Map<String, Object>>) requestData.get(Constants.EDUCATIONAL_QUALIFICATIONS);
+
+        if (eduList == null) return;
+
+        for (Map<String, Object> edu : eduList) {
+
+            if (StringUtils.isNotBlank((String) edu.get("degree")) &&
+                    !validationService.isValidDegree(userToken, (String) edu.get("degree"))) {
+                errList.add("Invalid degree value");
+            }
+
+            if (StringUtils.isNotBlank((String) edu.get("institutionName")) &&
+                    !validationService.isValidInstitution(userToken, (String) edu.get("institutionName"))) {
+                errList.add("Invalid institution value");
+            }
+        }
+    }
+
+    public void validateServiceHistoryMasterData(Map<String, Object> requestData,
+                                                  String userToken,
+                                                  List<String> errList) {
+
+        List<Map<String, Object>> serviceList =
+                (List<Map<String, Object>>) requestData.get(Constants.SERVICE_HISTORY);
+
+        if (serviceList == null) return;
+
+        for (Map<String, Object> service : serviceList) {
+
+            if (StringUtils.isNotBlank((String) service.get(Constants.ORG_NAME)) &&
+                    !validateUsingSearchApi(
+                            serverConfig.getLearnerServiceHost(),
+                            serverConfig.getOrgSearchUrl(),
+                            serverConfig.getOrgSearchTemplate(),
+                            Constants.ORG_NAME,
+                            (String) service.get(Constants.ORG_NAME))) {
+                errList.add("Invalid organisation value");
+            }
+
+            if (StringUtils.isNotBlank((String) service.get(Constants.DESIGNATION)) &&
+                    !validateUsingSearchApi(
+                            serverConfig.getCbPoresServiceHost(),
+                            serverConfig.getDesignationSearchApi(),
+                            serverConfig.getDesignationSearchTemplate(),
+                            Constants.DESIGNATION,
+                            (String) service.get(Constants.DESIGNATION))) {
+                errList.add("Invalid designation value");
+            }
+
+            if (StringUtils.isNotBlank((String) service.get(Constants.ORG_STATE)) &&
+                    !isValidState((String) service.get(Constants.ORG_STATE), userToken)) {
+                errList.add("Invalid state value");
+            }
+
+            if (StringUtils.isNotBlank((String) service.get(Constants.ORG_DISTRICT)) &&
+                    !isValidDistrict((String) service.get(Constants.ORG_STATE), (String) service.get(Constants.ORG_DISTRICT), userToken)) {
+                errList.add("Invalid district value");
+            }
+        }
+    }
+
+    public boolean validateUsingSearchApi(String host,
+                                           String apiPath,
+                                           String template,
+                                           String fieldName,
+                                           String value) {
+
+        try {
+            String url = host + apiPath;
+
+            String requestBodyString = String.format(template, value);
+            ObjectMapper mapper = new ObjectMapper();
+            Map<String, Object> requestBody =
+                    mapper.readValue(requestBodyString, Map.class);
+
+            Map<String, String> headers = new HashMap<>();
+
+            Map<String, Object> response =
+                    outboundRequestHandlerService.fetchResultUsingPost(url, requestBody, headers);
+
+            if (response == null || !response.containsKey(Constants.RESULT))
+                return false;
+
+            Map result = (Map) response.get(Constants.RESULT);
+
+            if (result.containsKey(Constants.RESPONSE)) {
+                Map resp = (Map) result.get(Constants.RESPONSE);
+                List<Map> content = (List<Map>) resp.get(Constants.CONTENT);
+
+                if (content != null && !content.isEmpty()) {
+                    return content.stream().anyMatch(item ->
+                            value.equalsIgnoreCase((String) item.get(fieldName))
+                    );
+                }
+            }
+
+            if (result.containsKey(Constants.RESULT)) {
+                Map nestedResult = (Map) result.get(Constants.RESULT);
+                List<Map> data = (List<Map>) nestedResult.get(Constants.DATA);
+
+                if (data != null && !data.isEmpty()) {
+                    return data.stream().anyMatch(item ->
+                            value.equalsIgnoreCase((String) item.get(fieldName))
+                    );
+                }
+            }
+
+            return false;
+
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public boolean isValidState(String stateName, String userToken) {
+
+        ApiResponse response = extendedProfileService.getStatesList(userToken);
+
+        List<Map<String, Object>> states =
+                (List<Map<String, Object>>) response.getResult().get(Constants.STATES_LIST);
+
+        if (states == null || states.isEmpty())
+            return false;
+
+        return states.stream().anyMatch(state ->
+                stateName.equalsIgnoreCase((String) state.get(Constants.STATE_NAME))
+        );
+    }
+    public boolean isValidDistrict(String stateName, String districtName, String userToken) {
+
+        Map<String, Object> req = Map.of(Constants.CONTEXT_NAME, stateName);
+
+        ApiResponse response = extendedProfileService.getDistrictsList(userToken, req);
+
+        List<Map<String, Object>> districtsByState =
+                (List<Map<String, Object>>) response.getResult().get(Constants.DISTRICTS_LIST);
+
+        if (districtsByState == null || districtsByState.isEmpty())
+            return false;
+
+        List<String> districts =
+                (List<String>) districtsByState.get(0).get(Constants.DISTRICTS);
+
+        return districts.stream().anyMatch(d ->
+                districtName.equalsIgnoreCase(d)
+        );
+    }
+
+
 }

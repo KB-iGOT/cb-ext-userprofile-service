@@ -7,6 +7,8 @@ import org.springframework.stereotype.Component;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Component
 @Getter
@@ -190,6 +192,57 @@ public class CbServerProperties {
 
     @Value("${master.data.search.allowed.sortby.fields}")
     private String masterDataAllowedSortByFields;
+
+    @Value("${security.input.allowedTextRegex}")
+    private String allowedTextRegex;
+
+    @Value("${security.input.allowedUrlRegex}")
+    private String allowedUrlRegex;
+
+    @Value("${security.input.urlFields}")
+    private String urlFieldsConfig;
+
+    @Value("${security.input.dateFields}")
+    private String dateFieldsConfig;
+
+    @Value("${org.search.url}")
+    private String orgSearchUrl;
+
+    @Value("${org.search.request.template}")
+    private String orgSearchTemplate;
+
+    @Value("${designation.search.request.template}")
+    private String designationSearchTemplate;
+
+    @Value("${designation.search.api}")
+    private String designationSearchApi;
+
+    @Value("${cb.pores.service.host}")
+    private String cbPoresServiceHost;
+
+    @Value("${allowed.date.regex}")
+    private String allowedDateRegex;
+
+    @Value("${validation.url.fields}")
+    private String urlFieldsStr;
+
+    @Value("${validation.date.fields}")
+    private String dateFieldsStr;
+
+    private Set<String> urlFields;
+    private Set<String> dateFields;
+
+    public Set<String> getUrlFields() {
+        return Arrays.stream(urlFieldsConfig.split(","))
+                .map(String::trim)
+                .collect(Collectors.toSet());
+    }
+
+    public Set<String> getDateFields() {
+        return Arrays.stream(dateFieldsConfig.split(","))
+                .map(String::trim)
+                .collect(Collectors.toSet());
+    }
 
     public List<String> getMasterDataAllowedSortByFields() {return Arrays.asList(masterDataAllowedSortByFields.split(","));}
 
