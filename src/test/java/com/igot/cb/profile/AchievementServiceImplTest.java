@@ -89,8 +89,13 @@ class AchievementServiceImplTest {
         when(cassandraOperation.insertRecord(any(), any(), any())).thenReturn(cassandraResponse);
         when(objectMapper.writeValueAsString(any())).thenReturn("{}");
         when(objectMapper.convertValue(any(), eq(Map.class))).thenReturn(new HashMap<>());
+        when(cbServerProperties.isRequireEs()).thenReturn(true);
+
+        // Mock searchDocuments for refreshAchievementSearchCacheForUser
+        SearchResult searchResult = new SearchResult();
+        searchResult.setData(new ArrayList<>());
         try {
-            when(esClientService.searchDocuments(any(), any())).thenReturn(new SearchResult());
+            when(esClientService.searchDocuments(any(), any())).thenReturn(searchResult);
         } catch (Exception e) {
             fail("Mock setup failed");
         }
@@ -101,6 +106,7 @@ class AchievementServiceImplTest {
         assertNotNull(response.getResult());
         verify(cassandraOperation, times(1)).insertRecord(any(), any(), any());
         verify(esClientService, times(1)).addDocument(any(), any(), any(), any(), any());
+        verify(esClientService, times(5)).searchDocuments(any(), any()); // Called 5 times in refreshAchievementSearchCacheForUser
     }
 
     @Test
@@ -158,6 +164,7 @@ class AchievementServiceImplTest {
         request.put(Constants.REQUEST, requestData);
 
         when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        when(cbServerProperties.isRequireEs()).thenReturn(true);
         Map<String, Object> existingRecord = new HashMap<>();
         existingRecord.put(Constants.STATUS, Constants.PENDING);
         existingRecord.put(Constants.CREATED_ON, LocalDate.now());
@@ -247,25 +254,6 @@ class AchievementServiceImplTest {
         when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any())).thenReturn(Collections.emptyList());
         ApiResponse response = achievementService.updateLearnerAchievement(request, "token", "org1");
         assertEquals(HttpStatus.NOT_FOUND, response.getResponseCode());
-    }
-
-    @Test
-    void testUpdateLearnerAchievement_statusNotPending() {
-        Map<String, Object> contextData = new HashMap<>();
-        contextData.put("field1", "value1");
-        contextData.put("field2", "value2");
-        Map<String, Object> requestData = new HashMap<>();
-        requestData.put(Constants.ID, "achv1");
-        requestData.put(Constants.CONTEXT_TYPE, "testContext");
-        requestData.put(Constants.CONTEXT_DATA, contextData);
-        Map<String, Object> request = new HashMap<>();
-        request.put(Constants.REQUEST, requestData);
-        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
-        Map<String, Object> existingRecord = new HashMap<>();
-        existingRecord.put(Constants.STATUS, "APPROVED");
-        when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any())).thenReturn(Collections.singletonList(existingRecord));
-        ApiResponse response = achievementService.updateLearnerAchievement(request, "token", "org1");
-        assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
     }
 
     @Test

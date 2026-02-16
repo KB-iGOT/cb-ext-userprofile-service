@@ -140,6 +140,8 @@ public class AchievementServiceImpl implements AchievementService{
         response.setResponse(achievementRecord);
         // Refresh search cache for this user after creation
         refreshAchievementSearchCacheForUser(userId);
+        // Refresh user achievements cache after creation
+        fetchAndCacheUserAchievements(userId);
         return response;
     }
 
@@ -226,6 +228,8 @@ public class AchievementServiceImpl implements AchievementService{
         response.setResponse(existingRecord);
         // Refresh search cache for this user after update
         refreshAchievementSearchCacheForUser(userId);
+        // Refresh user achievements cache after update
+        fetchAndCacheUserAchievements(userId);
         return response;
     }
 
@@ -307,6 +311,8 @@ public class AchievementServiceImpl implements AchievementService{
         response.getResult().put("message", "Achievement deleted successfully");
         // Refresh search cache for this user after deletion
         refreshAchievementSearchCacheForUser(userId);
+        // Refresh user achievements cache after deletion
+        fetchAndCacheUserAchievements(userId);
         return response;
     }
 
@@ -777,5 +783,89 @@ public class AchievementServiceImpl implements AchievementService{
             log.error("Exception while refreshing achievement search cache for userId: {}", userId, e);
             throw new RuntimeException("Failed to refresh achievement search cache for userId: " + userId, e);
         }
+    }
+
+    @Override
+    public ApiResponse getUserAchievements(String authToken) {
+        log.info("AchievementService::getUserAchievements");
+        ApiResponse response = ProjectUtil.createDefaultResponse(Constants.API_ACHIEVEMENT_LIST);
+        String userId = accessTokenValidator.fetchUserIdFromAccessToken(authToken);
+        if (StringUtils.isBlank(userId)) {
+            ProjectUtil.errorResponse(response, "Invalid or missing access token", HttpStatus.UNAUTHORIZED);
+            return response;
+        }
+        try {
+            String cacheKey = Constants.ACHIEVEMENTS_REDIS_KEY + userId;
+            String cachedJson = cacheService.getCache(cacheKey);
+            if (StringUtils.isNotBlank(cachedJson)) {
+                log.info("AchievementServiceImpl::getUserAchievements: fetched from redis");
+                Map<String, Object> cachedSearchResults = objectMapper.readValue(cachedJson, Map.class);
+                response.getResult().put(Constants.SEARCH_RESULTS, cachedSearchResults);
+                response.setResponseCode(HttpStatus.OK);
+                return response;
+            } else {
+                Map<String, Object> searchResults = fetchAndCacheUserAchievements(userId);
+                response.getResult().put(Constants.SEARCH_RESULTS, searchResults);
+                response.setResponseCode(HttpStatus.OK);
+            }
+        } catch (Exception e) {
+            log.error("Exception while fetching user achievements for userId: {}", userId, e);
+            ProjectUtil.errorResponse(response, "Failed to fetch achievements: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+        return response;
+    }
+
+    private Map<String, Object> fetchAndCacheUserAchievements(String userId) {
+        Map<String, Object> searchResults = new HashMap<>();
+        Map<String, Object> propertyMap = new HashMap<>();
+        propertyMap.put(Constants.USER_ID_LOWER, userId);
+        propertyMap.put(Constants.FIELD_CONTEXT_TYPE, Constants.ACHIEVEMENTS);
+        List<Map<String, Object>> achievements = cassandraOperation.getRecordsByPropertiesWithoutFiltering(
+                Constants.KEYSPACE_SUNBIRD,
+                Constants.LEARNER_ACHIEVEMENT_TABLE,
+                propertyMap,
+                null,
+                cbServerProperties.getCassandraFetchLimit()
+        );
+        if (CollectionUtils.isNotEmpty(achievements)) {
+            for (Map<String, Object> achievement : achievements) {
+                // Ensure contextData is always an object
+                Object contextDataObj = achievement.get(Constants.CONTEXT_DATA);
+                if (contextDataObj instanceof String) {
+                    try {
+                        Map<String, Object> contextDataMap = objectMapper.readValue((String) contextDataObj, Map.class);
+                        achievement.put(Constants.CONTEXT_DATA, contextDataMap);
+                    } catch (Exception e) {
+                        log.warn("Failed to parse contextData string to Map for achievement", e);
+                        achievement.put(Constants.CONTEXT_DATA, new HashMap<>());
+                    }
+                }
+                // Ensure createdOn is always a String
+                Object createdOnObj = achievement.get(Constants.CREATED_ON);
+                if (createdOnObj instanceof LocalDate) {
+                    achievement.put(Constants.CREATED_ON, createdOnObj.toString());
+                } else if (createdOnObj instanceof java.time.LocalDateTime) {
+                    achievement.put(Constants.CREATED_ON, createdOnObj.toString());
+                }
+                // Ensure updatedOn is always a String if present
+                Object updatedOnObj = achievement.get(Constants.UPDATED_ON);
+                if (updatedOnObj instanceof LocalDate) {
+                    achievement.put(Constants.UPDATED_ON, updatedOnObj.toString());
+                } else if (updatedOnObj instanceof java.time.LocalDateTime) {
+                    achievement.put(Constants.UPDATED_ON, updatedOnObj.toString());
+                }
+                // Ensure approvedon is always a String if present
+                Object approvedOnObj = achievement.get(Constants.FIELD_APPROVED_ON);
+                if (approvedOnObj instanceof LocalDate) {
+                    achievement.put(Constants.FIELD_APPROVED_ON, approvedOnObj.toString());
+                } else if (approvedOnObj instanceof java.time.LocalDateTime) {
+                    achievement.put(Constants.FIELD_APPROVED_ON, approvedOnObj.toString());
+                }
+            }
+        }
+        searchResults.put(Constants.DATA, achievements);
+        searchResults.put(Constants.TOTAL_COUNT, CollectionUtils.isNotEmpty(achievements) ? achievements.size() : 0);
+        cacheService.putCache(Constants.ACHIEVEMENTS_REDIS_KEY + userId, searchResults);
+        return searchResults;
     }
 }
