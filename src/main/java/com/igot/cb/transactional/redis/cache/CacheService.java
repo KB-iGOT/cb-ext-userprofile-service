@@ -32,9 +32,11 @@ public class CacheService {
     @Autowired
     CbServerProperties serverProperties;
 
+    @Autowired
+    private ObjectMapper objectMapper;
+
     private static final Logger logger = LoggerFactory.getLogger(CacheService.class);
 
-    ObjectMapper objectMapper = new ObjectMapper();
 
     public String hget(String key, int index, String field, int ttlInSeconds) {
         try (Jedis jedis = jedisDataPopulationPool.getResource()) {
