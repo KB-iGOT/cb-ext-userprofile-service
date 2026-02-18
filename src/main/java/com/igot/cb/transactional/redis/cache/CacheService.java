@@ -32,9 +32,11 @@ public class CacheService {
     @Autowired
     CbServerProperties serverProperties;
 
+    @Autowired
+    private ObjectMapper objectMapper;
+
     private static final Logger logger = LoggerFactory.getLogger(CacheService.class);
 
-    ObjectMapper objectMapper = new ObjectMapper();
 
     public String hget(String key, int index, String field, int ttlInSeconds) {
         try (Jedis jedis = jedisDataPopulationPool.getResource()) {
@@ -114,5 +116,29 @@ public class CacheService {
             log.error("Error in getCourseMetadataAsJsonString: ", e);
         }
         return result;
+    }
+
+    public void removeCache(String key) {
+        try (Jedis jedis = jedisPool.getResource()) {
+            jedis.del(key);
+            logger.debug("Cache key {} removed from redis", key);
+        } catch (Exception e) {
+            logger.error("Error removing cache key {}", key, e);
+        }
+    }
+
+    public List<Object> hget(List<String> keys) {
+        List<Object> resultList = new ArrayList<>();
+        try (Jedis jedis = jedisDataPopulationPool.getResource()) {
+            // Default index is 0, no need to select
+            for (String key : keys) {
+                List<String> result = jedis.hmget(key, key);
+                String value = org.springframework.util.StringUtils.isEmpty(result) ? null : result.get(0);
+                resultList.add(value);
+            }
+        } catch (Exception e) {
+            logger.error("Error in hget: ", e);
+        }
+        return resultList;
     }
 }
