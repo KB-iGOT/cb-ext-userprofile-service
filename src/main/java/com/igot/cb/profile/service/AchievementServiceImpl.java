@@ -25,9 +25,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDate;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
+import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
@@ -89,7 +87,7 @@ public class AchievementServiceImpl implements AchievementService{
         Map<String, Object> requestData = (Map<String, Object>) request.get(Constants.REQUEST);
         String userId = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
         if (StringUtils.isEmpty(userId)) {
-            ProjectUtil.errorResponse(response, "UserId not Found", HttpStatus.BAD_REQUEST);
+            ProjectUtil.errorResponse(response, "User Id not Found", HttpStatus.BAD_REQUEST);
             return response;
         }
         String validationError = validateRequetData(requestData);
@@ -103,7 +101,7 @@ public class AchievementServiceImpl implements AchievementService{
                 (Map<String, Object>) requestData.get(Constants.CONTEXT_DATA);
 
         String id = UUID.randomUUID().toString();
-        LocalDate createdOn = LocalDate.now();
+        java.time.Instant createdOnTimestamp = java.time.Instant.now();
 
         Map<String, Object> achievementRecord = new HashMap<>();
         achievementRecord.put(Constants.USER_ID_RQST, userId);
@@ -113,7 +111,7 @@ public class AchievementServiceImpl implements AchievementService{
         achievementRecord.put(Constants.SOURCE, source);
         achievementRecord.put(Constants.CONTEXT_DATA, contextData);
         achievementRecord.put(Constants.STATUS, Constants.APPROVED);
-        achievementRecord.put(Constants.CREATED_ON, createdOn);
+        achievementRecord.put(Constants.CREATED_ON, createdOnTimestamp);
 
         // Save into Cassandra
         boolean isSaved = saveAchievementToCassandra(achievementRecord);
@@ -123,13 +121,12 @@ public class AchievementServiceImpl implements AchievementService{
                     HttpStatus.INTERNAL_SERVER_ERROR);
             return response;
         }
-        // Format createdOn for ES as yyyy-MM-dd'T'HH:mm:ss.SSSZ
         if (cbServerProperties.isRequireEs()) {
-            String createdOnFormatted = getCurrentUtcTimestampFormatted();
             Map<String, Object> esRecord = new HashMap<>(achievementRecord);
-            esRecord.put(Constants.CREATED_ON, createdOnFormatted);
             Map<String, Object> map = objectMapper.convertValue(esRecord, Map.class);
             esClientService.addDocument(Constants.LEARNER_ACHIEVEMENT_INDEX, Constants.INDEX_TYPE, id, map, cbServerProperties.getAchievementEsRequiredFieldsMappingPath());
+            // Refresh search cache for this user after creation
+            refreshAchievementSearchCacheForUser(userId);
         }
         // Cache record
         cacheService.putCache(
@@ -138,8 +135,6 @@ public class AchievementServiceImpl implements AchievementService{
         );
         response.setResponseCode(HttpStatus.OK);
         response.setResponse(achievementRecord);
-        // Refresh search cache for this user after creation
-        refreshAchievementSearchCacheForUser(userId);
         // Refresh user achievements cache after creation
         fetchAndCacheUserAchievements(userId);
         return response;
@@ -156,79 +151,38 @@ public class AchievementServiceImpl implements AchievementService{
         }
         String userId = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
         if (StringUtils.isEmpty(userId)) {
-            ProjectUtil.errorResponse(response, "UserId not Found", HttpStatus.BAD_REQUEST);
+            ProjectUtil.errorResponse(response, "User Id not Found", HttpStatus.BAD_REQUEST);
             return response;
         }
-        // Validate mandatory fields
+
         String id = (String) requestData.get(Constants.ID);
         String contextType = (String) requestData.get(Constants.CONTEXT_TYPE);
+        Map<String, Object> newContextData = (Map<String, Object>) requestData.get(Constants.CONTEXT_DATA);
 
-        if (StringUtils.isBlank(id) || StringUtils.isBlank(contextType)) {
-            ProjectUtil.errorResponse(response, "id and contextType are mandatory", HttpStatus.BAD_REQUEST);
-            return response;
-        }
-        Map<String, Object> newContextData =
-                (Map<String, Object>) requestData.get(Constants.CONTEXT_DATA);
-
-        if (MapUtils.isEmpty(newContextData)) {
-            ProjectUtil.errorResponse(response, "contextData is mandatory for update", HttpStatus.BAD_REQUEST);
-            return response;
+        ApiResponse validationResponse = validateUpdateRequest(response, id, contextType, newContextData);
+        if (validationResponse != null) {
+            return validationResponse;
         }
 
-        //  Fetch existing record
-        Map<String, Object> existingRecord =
-                getAchievementFromCassandra(userId, contextType, id);
-
+        Map<String, Object> existingRecord = getAchievementFromCassandra(userId, contextType, id);
         if (existingRecord == null) {
             ProjectUtil.errorResponse(response, "Achievement records not found", HttpStatus.NOT_FOUND);
             return response;
         }
+        java.time.Instant updateOnTimestamp = java.time.Instant.now();
 
-        existingRecord.put(Constants.CONTEXT_DATA, newContextData);
-        existingRecord.put(Constants.UPDATED_BY, userId);
-        existingRecord.put(Constants.UPDATED_ON, LocalDate.now()); // For Cassandra, keep as LocalDate
+        updateExistingRecord(existingRecord, newContextData, userId, updateOnTimestamp);
         boolean isSaved = saveAchievementToCassandra(existingRecord);
         if (!isSaved) {
-            ProjectUtil.errorResponse(response,
-                    "Failed to update learner achievement",
-                    HttpStatus.INTERNAL_SERVER_ERROR);
+            ProjectUtil.errorResponse(response, "Failed to update learner achievement", HttpStatus.INTERNAL_SERVER_ERROR);
             return response;
         }
-        // For ES, use formatted createdOn and updatedOn
         if (cbServerProperties.isRequireEs()) {
-            Map<String, Object> esDoc = esClientService.readDocument(Constants.LEARNER_ACHIEVEMENT_INDEX, id);
-            String createdOnFormatted = null;
-            if (MapUtils.isNotEmpty(esDoc) && esDoc.get(Constants.CREATED_ON) instanceof String) {
-                createdOnFormatted = (String) esDoc.get(Constants.CREATED_ON);
-            } else {
-                // fallback to existingRecord if ES not found
-                Object createdOnObj = existingRecord.get(Constants.CREATED_ON);
-                if (createdOnObj instanceof String) {
-                    createdOnFormatted = (String) createdOnObj;
-                } else if (createdOnObj instanceof LocalDate) {
-                    createdOnFormatted = ((LocalDate) createdOnObj)
-                            .atStartOfDay(ZoneId.of("UTC"))
-                            .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ"));
-                }
-            }
-            // Set updatedOn to current timestamp in required format (for ES only)
-            String updatedOnFormatted = getCurrentUtcTimestampFormatted();
-            Map<String, Object> esRecord = new HashMap<>(existingRecord);
-            esRecord.put(Constants.CREATED_ON, createdOnFormatted);
-            esRecord.put(Constants.UPDATED_ON, updatedOnFormatted);
-            esRecord.put(Constants.UPDATED_BY, userId);
-            Map<String, Object> map = objectMapper.convertValue(esRecord, Map.class);
-            esClientService.updateDocument(Constants.LEARNER_ACHIEVEMENT_INDEX, Constants.INDEX_TYPE, id, map, cbServerProperties.getAchievementEsRequiredFieldsMappingPath());
+            updateAchievementInElasticsearch(id, existingRecord, userId, updateOnTimestamp);
         }
-        cacheService.putCache(
-                buildCacheKey("user:achievement", userId, contextType, id),
-                existingRecord
-        );
+        cacheService.putCache(buildCacheKey("user:achievement", userId, contextType, id), existingRecord);
         response.setResponseCode(HttpStatus.OK);
         response.setResponse(existingRecord);
-        // Refresh search cache for this user after update
-        refreshAchievementSearchCacheForUser(userId);
-        // Refresh user achievements cache after update
         fetchAndCacheUserAchievements(userId);
         return response;
     }
@@ -303,14 +257,14 @@ public class AchievementServiceImpl implements AchievementService{
         if (cbServerProperties.isRequireEs()) {
             try {
                 esClientService.deleteDocument(achievementId, Constants.LEARNER_ACHIEVEMENT_INDEX);
+                // Refresh search cache for this user after deletion
+                refreshAchievementSearchCacheForUser(userId);
             } catch (Exception e) {
                 log.warn("Failed to delete achievement from ES for id {}", achievementId, e);
             }
         }
         response.setResponseCode(HttpStatus.OK);
         response.getResult().put("message", "Achievement deleted successfully");
-        // Refresh search cache for this user after deletion
-        refreshAchievementSearchCacheForUser(userId);
         // Refresh user achievements cache after deletion
         fetchAndCacheUserAchievements(userId);
         return response;
@@ -356,8 +310,8 @@ public class AchievementServiceImpl implements AchievementService{
             updateAttributes.put(FIELD_REASON, reqMap.get(FIELD_REASON));
             updateAttributes.put(Constants.FIELD_APPROVED_BY, userIdFromToken);
             // Store approvedon as date (yyyy-MM-dd) for Cassandra
-            String approvedOnDate = java.time.LocalDate.now().toString();
-            updateAttributes.put(Constants.FIELD_APPROVED_ON, approvedOnDate);
+            java.time.Instant approvedOnTimestamp = java.time.Instant.now();
+            updateAttributes.put(Constants.FIELD_APPROVED_ON, approvedOnTimestamp);
             String approvedOnDateEs = getCurrentUtcTimestampFormatted();
             Map<String, Object> cassandraResponse = cassandraOperation.updateRecordByCompositeKey(
                 Constants.KEYSPACE_SUNBIRD,
@@ -369,7 +323,7 @@ public class AchievementServiceImpl implements AchievementService{
                 ProjectUtil.errorResponse(response, String.valueOf(cassandraResponse.get(Constants.ERROR_MESSAGE)), HttpStatus.INTERNAL_SERVER_ERROR);
                 return response;
             }
-            updateAchievementInES(records, reqMap, userIdFromToken, approvedOnDateEs);
+            updateAchievementInES(records, reqMap, userIdFromToken, approvedOnTimestamp);
             response.getResult().put("message", "Achievement status updated successfully");
         } catch (Exception e) {
             log.error("Exception in statusUpdateLearnerAchievement", e);
@@ -378,7 +332,7 @@ public class AchievementServiceImpl implements AchievementService{
         return response;
     }
 
-    private void updateAchievementInES(List<Map<String, Object>> records, Map<String, Object> reqMap, String userIdFromToken, String approvedOnDate) {
+    private void updateAchievementInES(List<Map<String, Object>> records, Map<String, Object> reqMap, String userIdFromToken, java.time.Instant approvedOnTimestamp) {
         try {
             Map<String, Object> esUpdateMap = new HashMap<>();
             if (CollectionUtils.isNotEmpty(records)) {
@@ -432,7 +386,7 @@ public class AchievementServiceImpl implements AchievementService{
             esUpdateMap.put(Constants.STATUS, reqMap.get(Constants.STATUS));
             esUpdateMap.put(FIELD_REASON, reqMap.get(FIELD_REASON));
             esUpdateMap.put(Constants.FIELD_APPROVED_BY_ES, userIdFromToken);
-            esUpdateMap.put(Constants.FIELD_APPROVED_ON_ES, approvedOnDate);
+            esUpdateMap.put(Constants.FIELD_APPROVED_ON_ES, approvedOnTimestamp);
             esClientService.updateDocument(
                 Constants.LEARNER_ACHIEVEMENT_INDEX,
                 null,
@@ -815,57 +769,162 @@ public class AchievementServiceImpl implements AchievementService{
         return response;
     }
 
+
     private Map<String, Object> fetchAndCacheUserAchievements(String userId) {
-        Map<String, Object> searchResults = new HashMap<>();
-        Map<String, Object> propertyMap = new HashMap<>();
-        propertyMap.put(Constants.USER_ID_LOWER, userId);
-        propertyMap.put(Constants.FIELD_CONTEXT_TYPE, Constants.ACHIEVEMENTS);
-        List<Map<String, Object>> achievements = cassandraOperation.getRecordsByPropertiesWithoutFiltering(
-                Constants.KEYSPACE_SUNBIRD,
-                Constants.LEARNER_ACHIEVEMENT_TABLE,
-                propertyMap,
-                null,
-                cbServerProperties.getCassandraFetchLimit()
+
+        Map<String, Object> propertyMap = Map.of(
+                Constants.USER_ID_LOWER, userId,
+                Constants.FIELD_CONTEXT_TYPE, Constants.ACHIEVEMENTS
         );
-        if (CollectionUtils.isNotEmpty(achievements)) {
-            for (Map<String, Object> achievement : achievements) {
-                // Ensure contextData is always an object
-                Object contextDataObj = achievement.get(Constants.CONTEXT_DATA);
-                if (contextDataObj instanceof String) {
-                    try {
-                        Map<String, Object> contextDataMap = objectMapper.readValue((String) contextDataObj, Map.class);
-                        achievement.put(Constants.CONTEXT_DATA, contextDataMap);
-                    } catch (Exception e) {
-                        log.warn("Failed to parse contextData string to Map for achievement", e);
-                        achievement.put(Constants.CONTEXT_DATA, new HashMap<>());
-                    }
-                }
-                // Ensure createdOn is always a String
-                Object createdOnObj = achievement.get(Constants.CREATED_ON);
-                if (createdOnObj instanceof LocalDate) {
-                    achievement.put(Constants.CREATED_ON, createdOnObj.toString());
-                } else if (createdOnObj instanceof java.time.LocalDateTime) {
-                    achievement.put(Constants.CREATED_ON, createdOnObj.toString());
-                }
-                // Ensure updatedOn is always a String if present
-                Object updatedOnObj = achievement.get(Constants.UPDATED_ON);
-                if (updatedOnObj instanceof LocalDate) {
-                    achievement.put(Constants.UPDATED_ON, updatedOnObj.toString());
-                } else if (updatedOnObj instanceof java.time.LocalDateTime) {
-                    achievement.put(Constants.UPDATED_ON, updatedOnObj.toString());
-                }
-                // Ensure approvedon is always a String if present
-                Object approvedOnObj = achievement.get(Constants.FIELD_APPROVED_ON);
-                if (approvedOnObj instanceof LocalDate) {
-                    achievement.put(Constants.FIELD_APPROVED_ON, approvedOnObj.toString());
-                } else if (approvedOnObj instanceof java.time.LocalDateTime) {
-                    achievement.put(Constants.FIELD_APPROVED_ON, approvedOnObj.toString());
-                }
-            }
-        }
-        searchResults.put(Constants.DATA, achievements);
-        searchResults.put(Constants.TOTAL_COUNT, CollectionUtils.isNotEmpty(achievements) ? achievements.size() : 0);
+
+        List<Map<String, Object>> achievements =
+                cassandraOperation.getRecordsByPropertiesWithoutFiltering(
+                        Constants.KEYSPACE_SUNBIRD,
+                        Constants.LEARNER_ACHIEVEMENT_TABLE,
+                        propertyMap,
+                        null,
+                        cbServerProperties.getCassandraFetchLimit()
+                );
+
+        List<Map<String, Object>> processedAchievements =
+                Optional.ofNullable(achievements)
+                        .orElse(List.of())
+                        .stream()
+                        .map(this::processAchievement)
+                        .sorted(Comparator.comparing(
+                                achievement -> parseCreatedOn(achievement.get(Constants.CREATED_ON)),
+                                Comparator.nullsLast(Comparator.reverseOrder())
+                        ))
+                        .toList();
+
+        Map<String, Object> searchResults = Map.of(
+                Constants.DATA, processedAchievements,
+                Constants.TOTAL_COUNT, processedAchievements.size()
+        );
+
         cacheService.putCache(Constants.ACHIEVEMENTS_REDIS_KEY + userId, searchResults);
+
         return searchResults;
     }
+
+
+
+    /**
+     * Validates update request fields for updateLearnerAchievement
+     * @return ApiResponse if validation fails, null if validation passes
+     */
+    private ApiResponse validateUpdateRequest(ApiResponse response, String id, String contextType, Map<String, Object> newContextData) {
+        if (StringUtils.isBlank(id) || StringUtils.isBlank(contextType)) {
+            ProjectUtil.errorResponse(response, "id and contextType are mandatory", HttpStatus.BAD_REQUEST);
+            return response;
+        }
+        if (MapUtils.isEmpty(newContextData)) {
+            ProjectUtil.errorResponse(response, "contextData is mandatory for update", HttpStatus.BAD_REQUEST);
+            return response;
+        }
+        return null;
+    }
+
+    /**
+     * Updates the existing record with new context data and metadata
+     */
+    private void updateExistingRecord(Map<String, Object> existingRecord, Map<String, Object> newContextData, String userId,java.time.Instant updateOnTimestamp) {
+        existingRecord.put(Constants.CONTEXT_DATA, newContextData);
+        existingRecord.put(Constants.UPDATED_BY, userId);
+        existingRecord.put(Constants.UPDATED_ON, updateOnTimestamp);
+    }
+
+    /**
+     * Updates achievement in Elasticsearch with formatted timestamps
+     */
+    private void updateAchievementInElasticsearch(String id, Map<String, Object> existingRecord, String userId, java.time.Instant updateOnTimestamp) {
+        Map<String, Object> esDoc = esClientService.readDocument(Constants.LEARNER_ACHIEVEMENT_INDEX, id);
+        String createdOnFormatted = getFormattedCreatedOn(esDoc, existingRecord);
+
+        Map<String, Object> esRecord = new HashMap<>(existingRecord);
+        esRecord.put(Constants.CREATED_ON, createdOnFormatted);
+        esRecord.put(Constants.UPDATED_ON, updateOnTimestamp);
+        esRecord.put(Constants.UPDATED_BY, userId);
+
+        Map<String, Object> map = objectMapper.convertValue(esRecord, Map.class);
+        esClientService.updateDocument(Constants.LEARNER_ACHIEVEMENT_INDEX, Constants.INDEX_TYPE, id, map, cbServerProperties.getAchievementEsRequiredFieldsMappingPath());
+        refreshAchievementSearchCacheForUser((String) existingRecord.get(Constants.USER_ID_RQST));
+    }
+
+    /**
+     * Retrieves formatted createdOn timestamp from ES document or existing record
+     */
+    private String getFormattedCreatedOn(Map<String, Object> esDoc, Map<String, Object> existingRecord) {
+        if (MapUtils.isNotEmpty(esDoc) && esDoc.get(Constants.CREATED_ON) instanceof String) {
+            return (String) esDoc.get(Constants.CREATED_ON);
+        }
+
+        Object createdOnObj = existingRecord.get(Constants.CREATED_ON);
+        if (createdOnObj instanceof String) {
+            return (String) createdOnObj;
+        }
+        if (createdOnObj instanceof LocalDate) {
+            return ((LocalDate) createdOnObj)
+                    .atStartOfDay(ZoneId.of("UTC"))
+                    .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ"));
+        }
+        return null;
+    }
+
+    private Map<String, Object> processAchievement(Map<String, Object> achievement) {
+
+        normalizeContextData(achievement);
+
+        normalizeDateField(achievement, Constants.CREATED_ON);
+        normalizeDateField(achievement, Constants.UPDATED_ON);
+        normalizeDateField(achievement, Constants.FIELD_APPROVED_ON);
+
+        return achievement;
+    }
+
+    private void normalizeContextData(Map<String, Object> achievement) {
+
+        Object contextData = achievement.get(Constants.CONTEXT_DATA);
+
+        if (contextData instanceof String contextStr) {
+            try {
+                Map<String, Object> parsed =
+                        objectMapper.readValue(contextStr, Map.class);
+                achievement.put(Constants.CONTEXT_DATA, parsed);
+            } catch (Exception e) {
+                log.warn("Failed to parse contextData", e);
+                achievement.put(Constants.CONTEXT_DATA, Map.of());
+            }
+        }
+    }
+
+    private void normalizeDateField(Map<String, Object> achievement, String fieldName) {
+
+        Object value = achievement.get(fieldName);
+
+        if (value instanceof LocalDate localDate) {
+            achievement.put(fieldName, localDate.toString());
+        } else if (value instanceof LocalDateTime localDateTime) {
+            achievement.put(fieldName, localDateTime.toString());
+        } else if (value instanceof Instant instant) {
+            achievement.put(fieldName, instant.toString());
+        }
+    }
+
+    private Instant parseCreatedOn(Object value) {
+
+        if (value instanceof Instant instant) {
+            return instant;
+        }
+        if (value instanceof String str) {
+            try {
+                return Instant.parse(str);
+            } catch (Exception ignored) {
+            }
+        }
+
+        return null;
+    }
+
+
 }

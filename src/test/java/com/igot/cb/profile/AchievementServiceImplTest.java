@@ -696,6 +696,8 @@ class AchievementServiceImplTest {
         when(accessTokenValidator.fetchUserIdFromAccessToken(anyString()))
                 .thenReturn("user123");
 
+        when(cbServerProperties.isRequireEs()).thenReturn(true);
+
         // Cassandra insert success
         ApiResponse cassandraResponse = new ApiResponse();
         cassandraResponse.put(Constants.RESPONSE, Constants.SUCCESS);
@@ -870,6 +872,8 @@ class AchievementServiceImplTest {
         when(accessTokenValidator.fetchUserIdFromAccessToken(anyString()))
                 .thenReturn("user123");
 
+        when(cbServerProperties.isRequireEs()).thenReturn(true);
+
         ApiResponse cassandraResponse = new ApiResponse();
         cassandraResponse.put(Constants.RESPONSE, Constants.SUCCESS);
         when(cassandraOperation.insertRecord(any(), any(), any()))
@@ -884,13 +888,16 @@ class AchievementServiceImplTest {
         when(esClientService.searchDocuments(any(), any()))
                 .thenReturn(searchResult);
 
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(cbServerProperties.getSearchResultRedisTtl()).thenReturn(3600L);
+
         achievementService.createLearnerAchievement(
                 buildValidRequest(),
                 "token",
                 "org"
         );
 
-        verify(redisTemplate.opsForValue(), atLeastOnce())
+        verify(valueOperations, atLeastOnce())
                 .set(anyString(), any(), anyLong(), any());
     }
 
