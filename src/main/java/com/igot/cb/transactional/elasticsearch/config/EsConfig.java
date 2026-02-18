@@ -18,17 +18,17 @@ import java.util.List;
 @Configuration
 @Slf4j
 public class EsConfig {
-    @Value("${elasticsearch.sbESClient.host}")
-    private String sbESClientHost;
+    @Value("${elasticsearch.userEsClient.host}")
+    private String userEsClientHost;
 
-    @Value("${elasticsearch.sbESClient.port}")
-    private String sbESClientPort;
+    @Value("${elasticsearch.userEsClient.port}")
+    private String userEsClientPort;
 
-    @Value("${elasticsearch.sbESClient.username}")
-    private String sbESClientUsername;
+    @Value("${elasticsearch.userEsClient.username}")
+    private String userEsClientUsername;
 
-    @Value("${elasticsearch.sbESClient.password}")
-    private String sbESClientPassword;
+    @Value("${elasticsearch.userEsClient.password}")
+    private String userEsClientPassword;
 
     @Value("${elasticsearch.igotESClient.host}")
     private String igotESClientHost;
@@ -42,10 +42,10 @@ public class EsConfig {
     @Value("${elasticsearch.igotESClient.password}")
     private String igotESClientPassword;
 
-    @Bean(name = "sbESClient")
+    @Bean(name = "userEsClient")
     @Primary
-    public RestHighLevelClient sbESClient() {
-        return createRestHighLevelClient(sbESClientHost, sbESClientPort);
+    public RestHighLevelClient userEsClient() {
+        return createRestHighLevelClient(userEsClientHost, userEsClientPort);
     }
 
     @Bean(name = "igotESClient")
