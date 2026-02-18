@@ -24,19 +24,19 @@ import java.util.*;
 @Slf4j
 public class EsUtilServiceImpl implements EsUtilService {
 
-    private final RestHighLevelClient sbESClient;
+    private final RestHighLevelClient userEsClient;
     private final RestHighLevelClient igotESClient;
     private final CbServerProperties cbProperties;
     private final ObjectMapper objectMapper;
 
     @Autowired
     public EsUtilServiceImpl(
-            @Qualifier("sbESClient") RestHighLevelClient sbESClient,
+            @Qualifier("userEsClient") RestHighLevelClient userEsClient,
             @Qualifier("igotESClient") RestHighLevelClient igotESClient,
             CbServerProperties cbProperties,
             ObjectMapper objectMapper) {
 
-        this.sbESClient = sbESClient;
+        this.userEsClient = userEsClient;
         this.igotESClient = igotESClient;
         this.cbProperties = cbProperties;
         this.objectMapper = objectMapper;
@@ -52,7 +52,7 @@ public class EsUtilServiceImpl implements EsUtilService {
                     .docAsUpsert(true)
                     .retryOnConflict(5);
 
-            sbESClient.update(updateRequest, RequestOptions.DEFAULT);
+            userEsClient.update(updateRequest, RequestOptions.DEFAULT);
             log.info("Updated orgCustomFields for userId: {} orgId: {}", userId, orgId);
             return true;
         } catch (Exception e) {
