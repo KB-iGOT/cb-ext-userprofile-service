@@ -60,11 +60,17 @@ public class EsConfig {
         String[] portArr = portsStr.split(",");
         List<String> hosts = new ArrayList<>(Arrays.asList(hostArr));
         for (String val : portArr) {
-            ports.add(Integer.parseInt(val));
+            ports.add(Integer.parseInt(val.trim()));
         }
         HttpHost[] httpHosts = new HttpHost[hosts.size()];
         for (int i = 0; i < hosts.size(); i++) {
-            httpHosts[i] = new HttpHost(hosts.get(i), ports.get(i));
+            int portIndex = ports.size() == 1 ? 0 : i;
+            if (portIndex >= ports.size()) {
+                throw new IllegalArgumentException(
+                    String.format("Mismatch between hosts (%d) and ports (%d). Either provide one port for all hosts, or matching number of ports.",
+                        hosts.size(), ports.size()));
+            }
+            httpHosts[i] = new HttpHost(hosts.get(i).trim(), ports.get(portIndex));
         }
 
         RestClientBuilder builder = RestClient.builder(httpHosts)
