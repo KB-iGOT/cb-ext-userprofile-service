@@ -2,7 +2,11 @@ package com.igot.cb.transactional.elasticsearch.config;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.http.HttpHost;
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.client.CredentialsProvider;
 import org.apache.http.client.config.RequestConfig;
+import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.RestHighLevelClient;
@@ -18,23 +22,17 @@ import java.util.List;
 @Configuration
 @Slf4j
 public class EsConfig {
-    @Value("${elasticsearch.sbESClient.host}")
-    private String sbESClientHost;
+    @Value("${elasticsearch.userEsClient.host}")
+    private String userEsClientHost;
 
-    @Value("${elasticsearch.sbESClient.port}")
-    private String sbESClientPort;
+    @Value("${elasticsearch.userEsClient.username}")
+    private String userEsClientUsername;
 
-    @Value("${elasticsearch.sbESClient.username}")
-    private String sbESClientUsername;
-
-    @Value("${elasticsearch.sbESClient.password}")
-    private String sbESClientPassword;
+    @Value("${elasticsearch.userEsClient.password}")
+    private String userEsClientPassword;
 
     @Value("${elasticsearch.igotESClient.host}")
     private String igotESClientHost;
-
-    @Value("${elasticsearch.igotESClient.port}")
-    private String igotESClientPort;
 
     @Value("${elasticsearch.igotESClient.username}")
     private String igotESClientUsername;
@@ -42,29 +40,34 @@ public class EsConfig {
     @Value("${elasticsearch.igotESClient.password}")
     private String igotESClientPassword;
 
-    @Bean(name = "sbESClient")
+    public String[] getUserEsHostList() {
+        return userEsClientHost.split(",", -1);
+    }
+
+    public String[] getIgotESClientHostList() {
+        return igotESClientHost.split(",", -1);
+    }
+
+    @Bean(name = "userEsClient")
     @Primary
-    public RestHighLevelClient sbESClient() {
-        return createRestHighLevelClient(sbESClientHost, sbESClientPort);
+    public RestHighLevelClient userEsClient() {
+        return createRestHighLevelClient(getUserEsHostList(), userEsClientUsername, userEsClientPassword);
     }
 
     @Bean(name = "igotESClient")
     public RestHighLevelClient igotESClient() {
-        return createRestHighLevelClient(igotESClientHost, igotESClientPort);
+        return createRestHighLevelClient(getIgotESClientHostList(), igotESClientUsername, igotESClientPassword);
     }
 
-    private RestHighLevelClient createRestHighLevelClient(String hostsStr, String portsStr) {
+    private RestHighLevelClient createRestHighLevelClient(String[] hosts, String user, String password) {
+        final CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+        credentialsProvider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials(user, password));
 
-        List<Integer> ports = new ArrayList<>();
-        String[] hostArr = hostsStr.split(",");
-        String[] portArr = portsStr.split(",");
-        List<String> hosts = new ArrayList<>(Arrays.asList(hostArr));
-        for (String val : portArr) {
-            ports.add(Integer.parseInt(val));
-        }
-        HttpHost[] httpHosts = new HttpHost[hosts.size()];
-        for (int i = 0; i < hosts.size(); i++) {
-            httpHosts[i] = new HttpHost(hosts.get(i), ports.get(i));
+        HttpHost[] httpHosts = new HttpHost[hosts.length];
+        for (int i = 0; i < httpHosts.length; i++) {
+            String hostIp = hosts[i].split(":")[0];
+            String hostPort = hosts[i].split(":")[1];
+            httpHosts[i] = new HttpHost(hostIp, Integer.parseInt(hostPort));
         }
 
         RestClientBuilder builder = RestClient.builder(httpHosts)

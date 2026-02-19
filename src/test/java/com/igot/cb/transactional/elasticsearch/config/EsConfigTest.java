@@ -10,17 +10,16 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 class EsConfigTest {
 
     @Test
-    void testSbESClient_fullCoverage() throws Exception {
+    void testUserEsClient_fullCoverage() throws Exception {
         EsConfig esConfig = new EsConfig();
 
-        // Inject values via Reflection
-        setField(esConfig, "sbESClientHost", "localhost,127.0.0.1");
-        setField(esConfig, "sbESClientPort", "9200,9201");
-        setField(esConfig, "sbESClientUsername", "testuser");
-        setField(esConfig, "sbESClientPassword", "testpass");
+        // Inject values via Reflection (host includes port in format "host:port")
+        setField(esConfig, "userEsClientHost", "localhost:9200,127.0.0.1:9201");
+        setField(esConfig, "userEsClientUsername", "testuser");
+        setField(esConfig, "userEsClientPassword", "testpass");
 
         // Invoke the method
-        RestHighLevelClient client = esConfig.sbESClient();
+        RestHighLevelClient client = esConfig.userEsClient();
 
         assertNotNull(client);
 
