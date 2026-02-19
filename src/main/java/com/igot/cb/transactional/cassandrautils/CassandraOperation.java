@@ -49,4 +49,6 @@ public interface CassandraOperation {
 
         public List<Map<String, Object>> getAllRecordsByPrimaryKey(String keyspaceName, String tableName,
                         Map<String, Object> primaryKey, List<String> fields, int pageSize);
+
+        public Map<String, Object> deleteRecordByCompositeKey(String keyspaceName, String tableName, Map<String, Object> compositeKey);
 }

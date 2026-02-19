@@ -243,10 +243,21 @@ public class CbServerProperties {
                 .map(String::trim)
                 .collect(Collectors.toSet());
     }
+    @Value("${achievement.status.update.required.fields}")
+    private String requiredFieldsProperty;
+
+    @Value("${elastic.required.field.achievement.json.path}")
+    private String achievementEsRequiredFieldsMappingPath;
+
+    @Value("${cassandra.fetch.limit}")
+    private int cassandraFetchLimit;
 
     public List<String> getMasterDataAllowedSortByFields() {return Arrays.asList(masterDataAllowedSortByFields.split(","));}
 
     public List<String> getMasterDataAllowedType() {
         return Arrays.asList(masterDataAllowedType.split(","));
     }
+
+    @Value("${achievement.require-es}")
+    private boolean requireEs;
 }

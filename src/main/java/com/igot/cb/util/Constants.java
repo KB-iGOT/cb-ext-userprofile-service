@@ -471,6 +471,38 @@ public class Constants {
     public static final String DESCRIPTION_KEYWORD = "description.keyword";
     public static final String ORG_STATE = "orgState";
     public static final String ORG_DISTRICT = "orgDistrict";
+    public static final String ACHIEVEMENT_ID = "achievementId";
+    public static final String REJECTED = "REJECTED";
+    public static final String FIELD_CONTEXT_TYPE = "contexttype";
+    public static final String FIELD_APPROVED_BY = "approvedby";
+    public static final String FIELD_APPROVED_ON = "approvedon";
+    public static final String CONTEXT_TYPE_ACHIEVEMENTS = "achievements";
+    public static final String API_ACHIEVEMENT_STATUS_UPDATE = "api.achievement.status.update";
+    public static final int CASSANDRA_FETCH_LIMIT = 1;
+    public static final String LEARNER_ACHIEVEMENT_TABLE ="learner_achievements_v2";
+    public static final String LEARNER_ACHIEVEMENT_INDEX = "achievement_entity";
+    public static final String PENDING = "PENDING";
+    public static final String API_ACHIEVEMENT_SEARCH = "api.achievement.search";
+    public static final String USER_ID_LOWER = "userid";
+    public static final String CONTEXT_TYPE_KEY = "contextType";
+    public static final String SEARCH_RESULT_REDIS_TEMPLATE = "searchResultRedisTemplate";
+    public static final String SEARCH_RESULTS = "search_results";
+    public static final String MINIMUM_CHARACTERS_NEEDED= "Minimum 3 characters are required to search";
+    public static final String USER_PREFIX = "user:" ;
+    public static final String USER_ID_KEY = "user_id";
+    public static final String USER_TABLE = "user";
+    public static final String FIRST_NAME_KEY = "first_name";
+    public static final String FIRST_NAME_CAMEL_CASE = "firstName";
+    public static final String APPROVED_KEY = "APPROVED";
+    public static final String FIELD_APPROVED_BY_ES= "approvedBy";
+    public static final String FIELD_APPROVED_ON_ES = "approvedOn";
+    public static final int ACHIEVEMENT_SEARCH_CACHE_PAGES = 5;
+    public static final int DEFAULT_PAGE_SIZE = 100;
+    public static final String DEFAULT_ORDER_BY = CREATED_ON;
+    public static final String DEFAULT_ORDER_DIRECTION = "desc";
+    public static final String API_ACHIEVEMENT_LIST = "api.achievement.list";
+    public static final String ACHIEVEMENTS_REDIS_KEY = "achievements:user:";
+
     private Constants() {
     }
 }
