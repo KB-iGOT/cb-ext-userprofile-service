@@ -13,9 +13,8 @@ class EsConfigTest {
     void testUserEsClient_fullCoverage() throws Exception {
         EsConfig esConfig = new EsConfig();
 
-        // Inject values via Reflection
-        setField(esConfig, "userEsClientHost", "localhost,127.0.0.1");
-        setField(esConfig, "userEsClientPort", "9200,9201");
+        // Inject values via Reflection (host includes port in format "host:port")
+        setField(esConfig, "userEsClientHost", "localhost:9200,127.0.0.1:9201");
         setField(esConfig, "userEsClientUsername", "testuser");
         setField(esConfig, "userEsClientPassword", "testpass");
 
