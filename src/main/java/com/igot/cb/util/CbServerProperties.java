@@ -208,4 +208,7 @@ public class CbServerProperties {
 
     @Value("${achievement.require-es}")
     private boolean requireEs;
+
+    @Value("${user.competency.mapping.event}")
+    public String userCompetencyTopicName;
 }

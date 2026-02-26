@@ -5,6 +5,8 @@ import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.authentication.util.AccessTokenValidator;
+import com.igot.cb.common.KafkaEventPublisher;
+import com.igot.cb.profile.model.CompetencyAcquiredEvent;
 import com.igot.cb.transactional.cassandrautils.CassandraOperation;
 import com.igot.cb.transactional.elasticsearch.dto.SearchCriteria;
 import com.igot.cb.transactional.elasticsearch.dto.SearchResult;
@@ -15,12 +17,11 @@ import com.igot.cb.util.CbServerProperties;
 import com.igot.cb.util.Constants;
 import com.igot.cb.util.ProjectUtil;
 import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -28,12 +29,12 @@ import org.springframework.stereotype.Service;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class AchievementServiceImpl implements AchievementService{
 
     private List<String> requiredFields;
@@ -54,26 +55,9 @@ public class AchievementServiceImpl implements AchievementService{
 
     private static final String FIELD_LEARNER_ID = "learnerId";
 
-    @Autowired
-    private CacheService cacheService;
+    private final CacheService cacheService;
 
-    @Autowired
-    public AchievementServiceImpl(
-            AccessTokenValidator accessTokenValidator,
-            CbServerProperties cbServerProperties,
-            CassandraOperation cassandraOperation,
-            EsClientService esClientService,
-            ObjectMapper objectMapper,
-            @Qualifier(Constants.SEARCH_RESULT_REDIS_TEMPLATE) RedisTemplate<String, SearchResult> redisTemplate,
-            CacheService cacheService) {
-        this.accessTokenValidator = accessTokenValidator;
-        this.cbServerProperties = cbServerProperties;
-        this.cassandraOperation = cassandraOperation;
-        this.esClientService = esClientService;
-        this.objectMapper = objectMapper;
-        this.redisTemplate = redisTemplate;
-        this.cacheService = cacheService;
-    }
+    private final KafkaEventPublisher kafkaEventPublisher ;
 
     @PostConstruct
     private void initRequiredFields() {
@@ -133,6 +117,7 @@ public class AchievementServiceImpl implements AchievementService{
                 buildCacheKey("user:achievement", userId, contextType, id),
                 achievementRecord
         );
+        publishSingleCompetencyEvent(userId, id, contextType);
         response.setResponseCode(HttpStatus.OK);
         response.setResponse(achievementRecord);
         // Refresh user achievements cache after creation
@@ -924,6 +909,41 @@ public class AchievementServiceImpl implements AchievementService{
         }
 
         return null;
+    }
+
+    /**
+     * Publishes a single competency acquired event to Kafka
+     *
+     * @param userId The user ID
+     * @param achievementId The achievement ID
+     * @param contextType The context type
+     *
+     */
+
+    private void publishSingleCompetencyEvent(String userId, String achievementId,
+                                              String contextType) {
+        try {
+            // Build the Kafka event
+            CompetencyAcquiredEvent event =
+                    CompetencyAcquiredEvent.builder()
+                            .eventType(Constants.EVENT_TYPE_COMPETENCY_ACQUIRED)
+                            .userId(userId)
+                            .contentId(achievementId)
+                            .batchId("")
+                            .contextType(contextType)
+                            .build();
+
+            // Publish to Kafka using generic event publisher
+            kafkaEventPublisher.publish(
+                    cbServerProperties.getUserCompetencyTopicName(),
+                    event,
+                    String.format("userId: %s, contentId: %s", userId, achievementId)
+            );
+
+        } catch (Exception e) {
+            log.error("Failed to publish single competency event for userId: {} achievementId: {}",
+                    userId, achievementId, e);
+        }
     }
 
 

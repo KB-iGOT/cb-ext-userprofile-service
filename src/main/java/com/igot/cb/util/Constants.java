@@ -500,6 +500,7 @@ public class Constants {
     public static final String DEFAULT_ORDER_DIRECTION = "desc";
     public static final String API_ACHIEVEMENT_LIST = "api.achievement.list";
     public static final String ACHIEVEMENTS_REDIS_KEY = "achievements:user:";
+    public static final String EVENT_TYPE_COMPETENCY_ACQUIRED = "COMPETENCY_ACQUIRED";
 
     private Constants() {
     }
