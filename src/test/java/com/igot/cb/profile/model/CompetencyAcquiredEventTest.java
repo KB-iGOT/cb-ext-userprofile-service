@@ -9,19 +9,6 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/**
- * Comprehensive test cases for CompetencyAcquiredEvent
- * <p>
- * Tests cover:
- * - Constructor (no-arg and all-args)
- * - Builder pattern
- * - Getters and setters
- * - Equals and HashCode
- * - ToString
- * - JSON serialization and deserialization
- * - Null handling
- * - Field validation
- */
 @DisplayName("CompetencyAcquiredEvent Tests")
 class CompetencyAcquiredEventTest {
 

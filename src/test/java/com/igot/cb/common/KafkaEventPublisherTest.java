@@ -15,17 +15,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-/**
- * Comprehensive test suite for KafkaEventPublisher
- *
- * Tests cover:
- * - All three publish method overloads
- * - Success scenarios
- * - Exception handling
- * - Argument verification
- * - Non-blocking behavior
- * - Edge cases
- */
+
 @ExtendWith(MockitoExtension.class)
 @DisplayName("KafkaEventPublisher Tests")
 class KafkaEventPublisherTest {

@@ -5,29 +5,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
-/**
- * Generic service for publishing events to Kafka topics
- * This service can be reused for any type of event publishing across the application
- * <p>
- * Features:
- * - Supports any event type (generic Object)
- * - Configurable topic names
- * - Automatic error handling and logging
- * - Non-blocking (failures don't propagate to caller)
- * <p>
- * Usage Example:
- * <pre>
- * {@code
- * @Autowired
- * private KafkaEventPublisher kafkaEventPublisher;
- *
- * public void publishEvent() {
- *     MyEvent event = new MyEvent(...);
- *     kafkaEventPublisher.publish("my-topic", "key", event, "userId");
- * }
- * }
- * </pre>
- */
 @Service
 @Slf4j
 @RequiredArgsConstructor
