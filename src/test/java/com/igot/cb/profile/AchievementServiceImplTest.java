@@ -2,6 +2,7 @@ package com.igot.cb.profile;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.authentication.util.AccessTokenValidator;
+import com.igot.cb.common.KafkaEventPublisher;
 import com.igot.cb.profile.service.AchievementServiceImpl;
 import com.igot.cb.transactional.cassandrautils.CassandraOperation;
 import com.igot.cb.transactional.elasticsearch.dto.SearchCriteria;
@@ -45,6 +46,8 @@ class AchievementServiceImplTest {
     private ValueOperations<String, SearchResult> valueOperations;
     @Mock
     private CacheService cacheService;
+    @Mock
+    private KafkaEventPublisher kafkaEventPublisher;
 
     @InjectMocks
     private AchievementServiceImpl achievementService;
@@ -57,11 +60,12 @@ class AchievementServiceImplTest {
             when(cbServerProperties.getAchievementsMandatoryFields()).thenReturn("field1,field2");
             when(cbServerProperties.getAchievementEsRequiredFieldsMappingPath()).thenReturn("/tmp/mapping.json");
             when(cbServerProperties.getSearchResultRedisTtl()).thenReturn(1000L);
+            when(cbServerProperties.getUserCompetencyTopicName()).thenReturn("user-competency-mapping-event");
             when(redisTemplate.opsForValue()).thenReturn(valueOperations);
 
             achievementService = new AchievementServiceImpl(
                     accessTokenValidator, cbServerProperties, cassandraOperation,
-                    esClientService, objectMapper, redisTemplate, cacheService
+                    esClientService, objectMapper, redisTemplate, cacheService, kafkaEventPublisher
             );
             java.lang.reflect.Method initMethod = AchievementServiceImpl.class.getDeclaredMethod("initRequiredFields");
             initMethod.setAccessible(true);
@@ -1273,6 +1277,186 @@ class AchievementServiceImplTest {
         List<Map<String, Object>> resultData = (List<Map<String, Object>>) searchResults.get(Constants.DATA);
         assertEquals(1, resultData.size());
         assertEquals("achv1", resultData.get(0).get(Constants.ID));
+    }
+
+    // ==================== KAFKA EVENT PUBLISHING TESTS ====================
+
+    @Test
+    void testCreateLearnerAchievement_withCompetencies_publishesKafkaEvent() throws Exception {
+        // Arrange
+        Map<String, Object> contextData = new HashMap<>();
+        contextData.put("field1", "value1");
+        contextData.put("field2", "value2");
+        List<Map<String, Object>> competencies = new ArrayList<>();
+        Map<String, Object> competency = new HashMap<>();
+        competency.put("competencyAreaId", "area1");
+        competencies.add(competency);
+        contextData.put(Constants.COMPETENCIES, competencies);
+
+        Map<String, Object> requestData = new HashMap<>();
+        requestData.put(Constants.CONTEXT_TYPE, "testContext");
+        requestData.put(Constants.SOURCE, "source");
+        requestData.put(Constants.CONTEXT_DATA, contextData);
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestData);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        ApiResponse cassandraResponse = new ApiResponse();
+        cassandraResponse.put(Constants.RESPONSE, Constants.SUCCESS);
+        when(cassandraOperation.insertRecord(any(), any(), any())).thenReturn(cassandraResponse);
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+        when(objectMapper.convertValue(any(), eq(Map.class))).thenReturn(new HashMap<>());
+        when(cbServerProperties.isRequireEs()).thenReturn(true);
+
+        SearchResult searchResult = new SearchResult();
+        searchResult.setData(new ArrayList<>());
+        when(esClientService.searchDocuments(any(), any())).thenReturn(searchResult);
+
+        // Act
+        ApiResponse response = achievementService.createLearnerAchievement(request, "token", "org1");
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        verify(kafkaEventPublisher, times(1)).publish(anyString(), (Object) any(), anyString());
+    }
+
+    @Test
+    void testCreateLearnerAchievement_withoutCompetencies_doesNotPublishKafkaEvent() throws Exception {
+        // Arrange
+        Map<String, Object> contextData = new HashMap<>();
+        contextData.put("field1", "value1");
+        contextData.put("field2", "value2");
+        // No competencies added
+
+        Map<String, Object> requestData = new HashMap<>();
+        requestData.put(Constants.CONTEXT_TYPE, "testContext");
+        requestData.put(Constants.SOURCE, "source");
+        requestData.put(Constants.CONTEXT_DATA, contextData);
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestData);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        ApiResponse cassandraResponse = new ApiResponse();
+        cassandraResponse.put(Constants.RESPONSE, Constants.SUCCESS);
+        when(cassandraOperation.insertRecord(any(), any(), any())).thenReturn(cassandraResponse);
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+        when(objectMapper.convertValue(any(), eq(Map.class))).thenReturn(new HashMap<>());
+        when(cbServerProperties.isRequireEs()).thenReturn(true);
+
+        SearchResult searchResult = new SearchResult();
+        searchResult.setData(new ArrayList<>());
+        when(esClientService.searchDocuments(any(), any())).thenReturn(searchResult);
+
+        // Act
+        ApiResponse response = achievementService.createLearnerAchievement(request, "token", "org1");
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        // Kafka event is always published regardless of competencies
+        verify(kafkaEventPublisher, times(1)).publish(anyString(), (Object) any(), anyString());
+    }
+
+    @Test
+    void testCreateLearnerAchievement_withEmptyCompetenciesList_publishesKafkaEvent() throws Exception {
+        // Arrange
+        Map<String, Object> contextData = new HashMap<>();
+        contextData.put("field1", "value1");
+        contextData.put("field2", "value2");
+        contextData.put(Constants.COMPETENCIES, new ArrayList<>()); // Empty list
+
+        Map<String, Object> requestData = new HashMap<>();
+        requestData.put(Constants.CONTEXT_TYPE, "testContext");
+        requestData.put(Constants.SOURCE, "source");
+        requestData.put(Constants.CONTEXT_DATA, contextData);
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestData);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        ApiResponse cassandraResponse = new ApiResponse();
+        cassandraResponse.put(Constants.RESPONSE, Constants.SUCCESS);
+        when(cassandraOperation.insertRecord(any(), any(), any())).thenReturn(cassandraResponse);
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+        when(objectMapper.convertValue(any(), eq(Map.class))).thenReturn(new HashMap<>());
+        when(cbServerProperties.isRequireEs()).thenReturn(true);
+
+        SearchResult searchResult = new SearchResult();
+        searchResult.setData(new ArrayList<>());
+        when(esClientService.searchDocuments(any(), any())).thenReturn(searchResult);
+
+        // Act
+        ApiResponse response = achievementService.createLearnerAchievement(request, "token", "org1");
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        // Kafka event is always published regardless of competencies list content
+        verify(kafkaEventPublisher, times(1)).publish(anyString(), (Object) any(), anyString());
+    }
+
+    @Test
+    void testCreateLearnerAchievement_kafkaPublishingFails_achievementStillCreated() throws Exception {
+        // Arrange
+        Map<String, Object> contextData = new HashMap<>();
+        contextData.put("field1", "value1");
+        contextData.put("field2", "value2");
+        List<Map<String, Object>> competencies = new ArrayList<>();
+        Map<String, Object> competency = new HashMap<>();
+        competency.put("competencyAreaId", "area1");
+        competencies.add(competency);
+        contextData.put(Constants.COMPETENCIES, competencies);
+
+        Map<String, Object> requestData = new HashMap<>();
+        requestData.put(Constants.CONTEXT_TYPE, "testContext");
+        requestData.put(Constants.SOURCE, "source");
+        requestData.put(Constants.CONTEXT_DATA, contextData);
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestData);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        ApiResponse cassandraResponse = new ApiResponse();
+        cassandraResponse.put(Constants.RESPONSE, Constants.SUCCESS);
+        when(cassandraOperation.insertRecord(any(), any(), any())).thenReturn(cassandraResponse);
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+        when(objectMapper.convertValue(any(), eq(Map.class))).thenReturn(new HashMap<>());
+        when(cbServerProperties.isRequireEs()).thenReturn(true);
+
+        SearchResult searchResult = new SearchResult();
+        searchResult.setData(new ArrayList<>());
+        when(esClientService.searchDocuments(any(), any())).thenReturn(searchResult);
+
+        // Kafka publishing throws exception
+        doThrow(new RuntimeException("Kafka error"))
+                .when(kafkaEventPublisher).publish(anyString(), (Object) any(), anyString());
+
+        // Act
+        ApiResponse response = achievementService.createLearnerAchievement(request, "token", "org1");
+
+        // Assert - Achievement creation should still succeed
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        assertNotNull(response.getResult());
+        verify(cassandraOperation, times(1)).insertRecord(any(), any(), any());
+        verify(esClientService, times(1)).addDocument(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void testCreateLearnerAchievement_withNullContextData_doesNotPublishKafkaEvent() throws Exception {
+        // Arrange
+        Map<String, Object> requestData = new HashMap<>();
+        requestData.put(Constants.CONTEXT_TYPE, "testContext");
+        requestData.put(Constants.SOURCE, "source");
+        requestData.put(Constants.CONTEXT_DATA, null); // Null context data
+
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestData);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+
+        // Act
+        ApiResponse response = achievementService.createLearnerAchievement(request, "token", "org1");
+
+        // Assert
+        // Should fail validation before reaching Kafka publishing
+        assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
+        verify(kafkaEventPublisher, never()).publish(anyString(), (Object) any(), anyString());
     }
 
 }

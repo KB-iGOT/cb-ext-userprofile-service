@@ -208,4 +208,7 @@ public class CbServerProperties {
 
     @Value("${achievement.require-es}")
     private boolean requireEs;
+
+    @Value("${achievement.user.competency.topic.name}")
+    public String userCompetencyTopicName;
 }
