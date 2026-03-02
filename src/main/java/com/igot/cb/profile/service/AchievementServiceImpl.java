@@ -1,8 +1,8 @@
 package com.igot.cb.profile.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.authentication.util.AccessTokenValidator;
 import com.igot.cb.common.KafkaEventPublisher;
@@ -59,6 +59,16 @@ public class AchievementServiceImpl implements AchievementService{
 
     private final KafkaEventPublisher kafkaEventPublisher ;
 
+    /**
+     * Inner class to represent competency delta
+     * Contains lists of unchanged, added, and removed competencies
+     */
+    private static class CompetencyDelta {
+        List<Map<String, String>> unchanged = List.of();
+        List<Map<String, String>> added = List.of();
+        List<Map<String, String>> removed = List.of();
+    }
+
     @PostConstruct
     private void initRequiredFields() {
         requiredFields = Arrays.asList(cbServerProperties.getRequiredFieldsProperty().split(","));
@@ -79,27 +89,11 @@ public class AchievementServiceImpl implements AchievementService{
             ProjectUtil.errorResponse(response, validationError, HttpStatus.BAD_REQUEST);
             return response;
         }
-        String contextType = (String) requestData.get(Constants.CONTEXT_TYPE);
-        String source = (String) requestData.get(Constants.SOURCE);
-        Map<String, Object> contextData =
-                (Map<String, Object>) requestData.get(Constants.CONTEXT_DATA);
-
         String id = UUID.randomUUID().toString();
-        java.time.Instant createdOnTimestamp = java.time.Instant.now();
-
-        Map<String, Object> achievementRecord = new HashMap<>();
-        achievementRecord.put(Constants.USER_ID_RQST, userId);
-        achievementRecord.put(Constants.CONTEXT_TYPE, contextType);
-        achievementRecord.put(Constants.ID, id);
-        achievementRecord.put(Constants.ORG_ID, orgId);
-        achievementRecord.put(Constants.SOURCE, source);
-        achievementRecord.put(Constants.CONTEXT_DATA, contextData);
-        achievementRecord.put(Constants.STATUS, Constants.APPROVED);
-        achievementRecord.put(Constants.CREATED_ON, createdOnTimestamp);
+        Map<String, Object> achievementRecord = formAchievementRecord(orgId, userId, requestData, id);
 
         // Save into Cassandra
-        boolean isSaved = saveAchievementToCassandra(achievementRecord);
-        if (!isSaved) {
+        if (!saveAchievementToCassandra(achievementRecord)) {
             ProjectUtil.errorResponse(response,
                     "Failed to save learner achievement info",
                     HttpStatus.INTERNAL_SERVER_ERROR);
@@ -114,15 +108,29 @@ public class AchievementServiceImpl implements AchievementService{
         }
         // Cache record
         cacheService.putCache(
-                buildCacheKey("user:achievement", userId, contextType, id),
+                buildCacheKey("user:achievement", userId, (String) requestData.get(Constants.CONTEXT_TYPE), id),
                 achievementRecord
         );
-        publishSingleCompetencyEvent(userId, id, contextType);
+        // Publish competency event for creation
+        publishCompetencyEvent(userId, id, (String) requestData.get(Constants.CONTEXT_TYPE),
+                (Map<String, Object>) requestData.get(Constants.CONTEXT_DATA), "");
         response.setResponseCode(HttpStatus.OK);
         response.setResponse(achievementRecord);
-        // Refresh user achievements cache after creation
         fetchAndCacheUserAchievements(userId);
         return response;
+    }
+
+    private Map<String, Object> formAchievementRecord(String orgId, String userId, Map<String, Object> requestData, String id) {
+        Map<String, Object> achievementRecord = new HashMap<>();
+        achievementRecord.put(Constants.USER_ID_RQST, userId);
+        achievementRecord.put(Constants.CONTEXT_TYPE, requestData.get(Constants.CONTEXT_TYPE));
+        achievementRecord.put(Constants.ID, id);
+        achievementRecord.put(Constants.ORG_ID, orgId);
+        achievementRecord.put(Constants.SOURCE, requestData.get(Constants.SOURCE));
+        achievementRecord.put(Constants.CONTEXT_DATA, requestData.get(Constants.CONTEXT_DATA));
+        achievementRecord.put(Constants.STATUS, Constants.APPROVED);
+        achievementRecord.put(Constants.CREATED_ON, Instant.now());
+        return achievementRecord;
     }
 
     @Override
@@ -156,6 +164,9 @@ public class AchievementServiceImpl implements AchievementService{
         }
         java.time.Instant updateOnTimestamp = java.time.Instant.now();
 
+        // Compute delta-based comparison for competencies
+        CompetencyDelta competencyDelta = computeCompetencyDelta(existingRecord, newContextData);
+
         updateExistingRecord(existingRecord, newContextData, userId, updateOnTimestamp);
         boolean isSaved = saveAchievementToCassandra(existingRecord);
         if (!isSaved) {
@@ -166,6 +177,11 @@ public class AchievementServiceImpl implements AchievementService{
             updateAchievementInElasticsearch(id, existingRecord, userId, updateOnTimestamp);
         }
         cacheService.putCache(buildCacheKey("user:achievement", userId, contextType, id), existingRecord);
+
+        // Publish competency update event only if there are actual changes (added or removed)
+        if (hasCompetencyChanges(competencyDelta)) {
+            publishCompetencyDeltaEvent(userId, id, contextType, competencyDelta, Constants.UPDATE);
+        }
         response.setResponseCode(HttpStatus.OK);
         response.setResponse(existingRecord);
         fetchAndCacheUserAchievements(userId);
@@ -221,6 +237,10 @@ public class AchievementServiceImpl implements AchievementService{
             ProjectUtil.errorResponse(response, "UserId not Found", HttpStatus.BAD_REQUEST);
             return response;
         }
+
+        // Fetch the achievement record before deletion to get competency details for Kafka event
+        Map<String, Object> existingRecord = getAchievementFromCassandra(userId, contextType, achievementId);
+
         // Delete from Cassandra
         Map<String, Object> compositeKey = new HashMap<>();
         compositeKey.put(Constants.ID, achievementId);
@@ -248,6 +268,16 @@ public class AchievementServiceImpl implements AchievementService{
                 log.warn("Failed to delete achievement from ES for id {}", achievementId, e);
             }
         }
+
+        // Publish competency delete event only if competencies_v6 is present and non-empty
+        Map<String, Object> contextData = extractContextData(existingRecord);
+        Object competenciesObj = contextData.get(Constants.COMPETENCIES_V6);
+
+        // Check if competencies_v6 exists and is a non-empty List
+        if (competenciesObj instanceof List && CollectionUtils.isNotEmpty((List<?>) competenciesObj)) {
+            publishCompetencyEvent(userId, achievementId, contextType, contextData, Constants.DELETE);
+        }
+
         response.setResponseCode(HttpStatus.OK);
         response.getResult().put("message", "Achievement deleted successfully");
         // Refresh user achievements cache after deletion
@@ -912,39 +942,356 @@ public class AchievementServiceImpl implements AchievementService{
     }
 
     /**
-     * Publishes a single competency acquired event to Kafka
+     * Publishes competency delta event to Kafka with ONLY changed competencies (added and removed)
+     * Unchanged competencies are NOT included in the event as per review feedback
+     * The event includes action field for each competency that was added or removed
      *
-     * @param userId The user ID
+     * @param userId        The user ID
      * @param achievementId The achievement ID
-     * @param contextType The context type
-     *
+     * @param contextType   The context type
+     * @param delta         The CompetencyDelta containing unchanged, added, and removed competencies
+     * @param action        The main action type (UPDATE, DELETE, etc.)
      */
-
-    private void publishSingleCompetencyEvent(String userId, String achievementId,
-                                              String contextType) {
+    private void publishCompetencyDeltaEvent(String userId,
+                                             String achievementId,
+                                             String contextType,
+                                             CompetencyDelta delta,
+                                             String action) {
         try {
-            // Build the Kafka event
-            CompetencyAcquiredEvent event =
+            // ONLY include changed competencies (added and removed), NOT unchanged
+            List<Map<String, String>> changedCompetencies = new ArrayList<>();
+            changedCompetencies.addAll(delta.added);
+            changedCompetencies.addAll(delta.removed);
+
+            if (changedCompetencies.isEmpty()) {
+                log.debug("No changed competencies to publish for achievementId: {}", achievementId);
+                return;
+            }
+
+            CompetencyAcquiredEvent event = CompetencyAcquiredEvent.builder()
+                    .eventType(Constants.EVENT_TYPE_COMPETENCY_ACQUIRED)
+                    .userId(userId)
+                    .contentId(achievementId)
+                    .batchId("")
+                    .contextType(contextType)
+                    .action(StringUtils.isNotBlank(action) ? action : null)
+                    .competencyIds(changedCompetencies)
+                    .build();
+
+            kafkaEventPublisher.publish(
+                    cbServerProperties.getUserCompetencyTopicName(),
+                    event,
+                    String.format("userId: %s, contentId: %s, action: %s, added: %d, removed: %d",
+                            userId,
+                            achievementId,
+                            action,
+                            delta.added.size(),
+                            delta.removed.size())
+            );
+
+            log.info("Published competency delta event for achievementId: {} with {} added, {} removed (unchanged excluded)",
+                    achievementId, delta.added.size(), delta.removed.size());
+
+        } catch (Exception e) {
+            log.error("Failed to publish competency delta event", e);
+        }
+    }
+
+    /**
+     * Consolidated method to publish competency events to Kafka for create, update, and delete operations
+     * This method handles all three operations by parameterizing the action type
+     * Both action and competency fields are only included in the event if they have non-empty values
+     *
+     * @param userId        The user ID
+     * @param achievementId The achievement ID (content ID)
+     * @param contextType   The context type
+     * @param contextData   The context data containing competency information
+     * @param action        The action type: "create", "update", or "delete" (optional)
+     */
+    private void publishCompetencyEvent(String userId,
+                                        String achievementId,
+                                        String contextType,
+                                        Map<String, Object> contextData,
+                                        String action) {
+
+        try {
+
+            CompetencyAcquiredEvent.CompetencyAcquiredEventBuilder eventBuilder =
                     CompetencyAcquiredEvent.builder()
                             .eventType(Constants.EVENT_TYPE_COMPETENCY_ACQUIRED)
                             .userId(userId)
                             .contentId(achievementId)
                             .batchId("")
-                            .contextType(contextType)
-                            .build();
+                            .contextType(contextType);
 
-            // Publish to Kafka using generic event publisher
+            if (StringUtils.isNotBlank(action)) {
+                eventBuilder.action(action);
+            }
+
+            // Only for update/delete
+            if (Constants.UPDATE.equalsIgnoreCase(action)
+                    || Constants.DELETE.equalsIgnoreCase(action)) {
+
+                List<Map<String, String>> competencies =
+                        extractCompetencies(contextData);
+
+                eventBuilder.competencyIds(competencies);
+            }
+
+            CompetencyAcquiredEvent event = eventBuilder.build();
+
             kafkaEventPublisher.publish(
                     cbServerProperties.getUserCompetencyTopicName(),
                     event,
-                    String.format("userId: %s, contentId: %s", userId, achievementId)
+                    String.format("userId: %s, contentId: %s, action: %s",
+                            userId,
+                            achievementId,
+                            action)
             );
 
         } catch (Exception e) {
-            log.error("Failed to publish single competency event for userId: {} achievementId: {}",
-                    userId, achievementId, e);
+            log.error("Failed to publish competency event", e);
         }
     }
+
+    /**
+     * Computes delta-based comparison for competencies between existing and new context data
+     * Returns a CompetencyDelta object containing unchanged, added, and removed competencies
+     *
+     * @param existingRecord The existing achievement record
+     * @param newContextData The new context data from request
+     * @return CompetencyDelta object with unchanged, added, and removed competencies
+     */
+    private CompetencyDelta computeCompetencyDelta(Map<String, Object> existingRecord, Map<String, Object> newContextData) {
+        if (existingRecord == null || newContextData == null) {
+            return new CompetencyDelta();
+        }
+
+        // Extract existing competency from context data
+        Object existingContextObj = existingRecord.get(Constants.CONTEXT_DATA);
+        Map<String, Object> existingContextData = null;
+
+        if (existingContextObj instanceof Map<?, ?> map) {
+            existingContextData = convertToStringObjectMap(map);
+        } else if (existingContextObj instanceof String json) {
+            try {
+                existingContextData = objectMapper.readValue(json, Map.class);
+            } catch (Exception e) {
+                log.warn("Failed to parse existing context data", e);
+                return new CompetencyDelta();
+            }
+        }
+
+        if (existingContextData == null) {
+            existingContextData = new HashMap<>();
+        }
+
+        // Extract competencies_v6 from both datasets
+        List<Map<String, Object>> existingCompetencies = extractCompetenciesV6List(existingContextData);
+        List<Map<String, Object>> newCompetencies = extractCompetenciesV6List(newContextData);
+
+        // Convert to maps for set-based comparison
+        Map<String, Map<String, Object>> existingCompetencyMap = competenciesListToMap(existingCompetencies);
+        Map<String, Map<String, Object>> newCompetencyMap = competenciesListToMap(newCompetencies);
+
+        // Compute delta
+        return computeDelta(existingCompetencyMap, newCompetencyMap);
+    }
+
+    /**
+     * Extracts competencies_v6 list from context data
+     *
+     * @param contextData The context data map
+     * @return List of competency maps
+     */
+    private List<Map<String, Object>> extractCompetenciesV6List(Map<String, Object> contextData) {
+        if (contextData == null) {
+            return List.of();
+        }
+        Object competenciesObj = contextData.get(Constants.COMPETENCIES_V6);
+        if (competenciesObj instanceof List<?> list) {
+            return list.stream()
+                    .filter(item -> item instanceof Map)
+                    .map(item -> (Map<String, Object>) item)
+                    .toList();
+        }
+        return List.of();
+    }
+
+    /**
+     * Converts competencies list to a map keyed by unique competency identifier
+     * Key format: areaId|themeId|subThemeId (case-insensitive)
+     *
+     * @param competencies List of competency maps
+     * @return Map with unique key as key and competency map as value
+     */
+    private Map<String, Map<String, Object>> competenciesListToMap(List<Map<String, Object>> competencies) {
+        return competencies.stream()
+                .collect(Collectors.toMap(
+                        this::buildCompetencyKey,
+                        competency -> competency,
+                        (existing, duplicate) -> existing,
+                        LinkedHashMap::new
+                ));
+    }
+
+    /**
+     * Builds unique competency key from a competency map
+     * Format: areaId|themeId|subThemeId (all lowercase for case-insensitive comparison)
+     *
+     * @param competency The competency map
+     * @return Unique key string
+     */
+    private String buildCompetencyKey(Map<String, Object> competency) {
+        String areaId = getStringValueFromObject(competency.get(Constants.COMPETENCY_AREA_IDENTIFIER)).toLowerCase();
+        String themeId = getStringValueFromObject(competency.get(Constants.COMPETENCY_THEME_IDENTIFIER)).toLowerCase();
+        String subThemeId = getStringValueFromObject(competency.get(Constants.COMPETENCY_SUB_THEME_IDENTIFIER)).toLowerCase();
+        return String.join("|", areaId, themeId, subThemeId);
+    }
+
+    /**
+     * Computes delta between existing and new competency maps
+     * Uses Set-based comparison to identify unchanged, added, and removed competencies
+     *
+     * @param existingMap Map of existing competencies
+     * @param newMap      Map of new competencies
+     * @return CompetencyDelta containing the differences
+     */
+    private CompetencyDelta computeDelta(Map<String, Map<String, Object>> existingMap,
+                                         Map<String, Map<String, Object>> newMap) {
+        CompetencyDelta delta = new CompetencyDelta();
+
+        Set<String> existingKeys = existingMap.keySet();
+        Set<String> newKeys = newMap.keySet();
+
+        // Unchanged: keys present in both
+        delta.unchanged = existingKeys.stream()
+                .filter(newKeys::contains)
+                .map(key -> buildCompetencyIdMap(newMap.get(key), null))
+                .collect(Collectors.toList());
+
+        // Added: keys in new but not in existing
+        delta.added = newKeys.stream()
+                .filter(key -> !existingKeys.contains(key))
+                .map(key -> buildCompetencyIdMap(newMap.get(key), Constants.ADDED))
+                .collect(Collectors.toList());
+
+        // Removed: keys in existing but not in new
+        delta.removed = existingKeys.stream()
+                .filter(key -> !newKeys.contains(key))
+                .map(key -> buildCompetencyIdMap(existingMap.get(key), Constants.REMOVED))
+                .collect(Collectors.toList());
+
+        return delta;
+    }
+
+    /**
+     * Builds a competency ID map with extracted fields
+     *
+     * @param competency The competency map
+     * @param action     The action type (null for unchanged, "added", or "removed")
+     * @return Map with competencyAreaId, competencyThemeId, competencySubThemeId, and optional action
+     */
+    private Map<String, String> buildCompetencyIdMap(Map<String, Object> competency, String action) {
+        Map<String, String> competencyIdMap = new LinkedHashMap<>();
+        competencyIdMap.put(Constants.COMPETENCY_AREA_ID,
+                getStringValueFromObject(competency.get(Constants.COMPETENCY_AREA_IDENTIFIER)));
+        competencyIdMap.put(Constants.COMPETENCY_THEME_ID,
+                getStringValueFromObject(competency.get(Constants.COMPETENCY_THEME_IDENTIFIER)));
+        competencyIdMap.put(Constants.COMPETENCY_SUB_THEME_ID,
+                getStringValueFromObject(competency.get(Constants.COMPETENCY_SUB_THEME_IDENTIFIER)));
+
+        if (StringUtils.isNotBlank(action)) {
+            competencyIdMap.put(Constants.ACTION, action);
+        }
+        return competencyIdMap;
+    }
+
+    /**
+     * Checks if there are any competency changes (added or removed)
+     *
+     * @param delta The CompetencyDelta object
+     * @return true if there are changes, false otherwise
+     */
+    private boolean hasCompetencyChanges(CompetencyDelta delta) {
+        return !delta.added.isEmpty() || !delta.removed.isEmpty();
+    }
+
+    /**
+     * Extracts context data from an achievement record
+     * Handles both Map and JSON String formats
+     *
+     * @param achievementRecord The achievement record
+     * @return The extracted context data as a map, or empty map if parsing fails
+     */
+    private Map<String, Object> extractContextData(Map<String, Object> achievementRecord) {
+        if (achievementRecord == null) {
+            return new HashMap<>();
+        }
+
+        Object contextDataObj = achievementRecord.get(Constants.CONTEXT_DATA);
+
+        if (contextDataObj instanceof Map) {
+            return (Map<String, Object>) contextDataObj;
+        } else if (contextDataObj instanceof String) {
+            try {
+                return objectMapper.readValue((String) contextDataObj, Map.class);
+            } catch (Exception e) {
+                log.warn("Failed to parse context data from achievement record", e);
+                return new HashMap<>();
+            }
+        }
+
+        return new HashMap<>();
+    }
+
+    private List<Map<String, String>> extractCompetencies(Map<String, Object> contextData) {
+        List<Map<String, String>> competencyList = new ArrayList<>();
+
+        Object competenciesObj = contextData != null
+                ? contextData.get(Constants.COMPETENCIES_V6)
+                : null;
+
+        if (competenciesObj instanceof List<?> list) {
+
+            for (Object obj : list) {
+                if (obj instanceof Map<?, ?> map) {
+                    Map<String, String> competencyMap = new HashMap<>();
+
+                    competencyMap.put(Constants.COMPETENCY_AREA_ID,
+                            getStringValueFromObject(map.get(Constants.COMPETENCY_AREA_IDENTIFIER)));
+
+                    competencyMap.put(Constants.COMPETENCY_THEME_ID,
+                            getStringValueFromObject(map.get(Constants.COMPETENCY_THEME_IDENTIFIER)));
+
+                    competencyMap.put(Constants.COMPETENCY_SUB_THEME_ID,
+                            getStringValueFromObject(map.get(Constants.COMPETENCY_SUB_THEME_IDENTIFIER)));
+
+                    competencyList.add(competencyMap);
+                }
+            }
+        }
+        return competencyList;
+    }
+
+    private String getStringValueFromObject(Object value) {
+        if (value instanceof String str) {
+            return str;
+        }
+        return "";
+    }
+
+    private Map<String, Object> convertToStringObjectMap(Map<?, ?> source) {
+        Map<String, Object> result = new HashMap<>();
+        for (Map.Entry<?, ?> entry : source.entrySet()) {
+            if (entry.getKey() instanceof String key) {
+                result.put(key, entry.getValue());
+            }
+        }
+        return result;
+    }
+
+
 
 
 }

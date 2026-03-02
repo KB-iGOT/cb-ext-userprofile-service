@@ -7,6 +7,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+import java.util.Map;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 @DisplayName("CompetencyAcquiredEvent Tests")
@@ -42,20 +45,32 @@ class CompetencyAcquiredEventTest {
         @Test
         @DisplayName("Should create instance using all-args constructor")
         void testAllArgsConstructor() {
-            CompetencyAcquiredEvent event = new CompetencyAcquiredEvent(
+            List<Map<String, String>> competencyIdsList = new java.util.ArrayList<>();
+            Map<String, String> competencyMap = new java.util.HashMap<>();
+            competencyMap.put("competencyAreaId", "area123");
+            competencyMap.put("competencyThemeId", "theme456");
+            competencyMap.put("competencySubThemeId", "subtheme789");
+            competencyIdsList.add(competencyMap);
+
+            CompetencyAcquiredEvent eventObj = new CompetencyAcquiredEvent(
                     "competency.acquired",
                     "user123",
                     "content456",
                     "batch789",
-                    "self-declaration"
+                    "self-declaration",
+                    "UPDATE",
+                    competencyIdsList
             );
 
-            assertNotNull(event);
-            assertEquals("competency.acquired", event.getEventType());
-            assertEquals("user123", event.getUserId());
-            assertEquals("content456", event.getContentId());
-            assertEquals("batch789", event.getBatchId());
-            assertEquals("self-declaration", event.getContextType());
+            assertNotNull(eventObj);
+            assertEquals("competency.acquired", eventObj.getEventType());
+            assertEquals("user123", eventObj.getUserId());
+            assertEquals("content456", eventObj.getContentId());
+            assertEquals("batch789", eventObj.getBatchId());
+            assertEquals("self-declaration", eventObj.getContextType());
+            assertEquals("UPDATE", eventObj.getAction());
+            assertNotNull(eventObj.getCompetencyIds());
+            assertEquals(1, eventObj.getCompetencyIds().size());
         }
 
         @Test
@@ -66,6 +81,8 @@ class CompetencyAcquiredEventTest {
                     "user123",
                     "content456",
                     "",
+                    null,
+                    null,
                     null
             );
 
@@ -74,6 +91,8 @@ class CompetencyAcquiredEventTest {
             assertEquals("content456", event.getContentId());
             assertEquals("", event.getBatchId());
             assertNull(event.getContextType());
+            assertNull(event.getAction());
+            assertNull(event.getCompetencyIds());
         }
     }
 
@@ -188,19 +207,46 @@ class CompetencyAcquiredEventTest {
         }
 
         @Test
+        @DisplayName("Should set and get action")
+        void testActionGetterSetter() {
+            event.setAction("UPDATE");
+            assertEquals("UPDATE", event.getAction());
+        }
+
+        @Test
+        @DisplayName("Should set and get competencyIds")
+        void testCompetencyIdsGetterSetter() {
+            List<Map<String, String>> competencyIdsList = new java.util.ArrayList<>();
+            Map<String, String> competencyMap = new java.util.HashMap<>();
+            competencyMap.put("competencyAreaId", "area123");
+            competencyMap.put("competencyThemeId", "theme456");
+            event.setCompetencyIds(competencyIdsList);
+            assertEquals(competencyIdsList, event.getCompetencyIds());
+        }
+
+        @Test
         @DisplayName("Should set all fields and retrieve them")
         void testAllGettersSetters() {
+            List<Map<String, String>> competencyIdsList = new java.util.ArrayList<>();
+            Map<String, String> competencyMap = new java.util.HashMap<>();
+            competencyMap.put("competencyAreaId", "area123");
+            competencyIdsList.add(competencyMap);
+
             event.setEventType("competency.acquired");
             event.setUserId("user123");
             event.setContentId("content456");
             event.setBatchId("batch789");
             event.setContextType("self-declaration");
+            event.setAction("UPDATE");
+            event.setCompetencyIds(competencyIdsList);
 
             assertEquals("competency.acquired", event.getEventType());
             assertEquals("user123", event.getUserId());
             assertEquals("content456", event.getContentId());
             assertEquals("batch789", event.getBatchId());
             assertEquals("self-declaration", event.getContextType());
+            assertEquals("UPDATE", event.getAction());
+            assertEquals(competencyIdsList, event.getCompetencyIds());
         }
 
         @Test
@@ -211,12 +257,16 @@ class CompetencyAcquiredEventTest {
             event.setContentId(null);
             event.setBatchId(null);
             event.setContextType(null);
+            event.setAction(null);
+            event.setCompetencyIds(null);
 
             assertNull(event.getEventType());
             assertNull(event.getUserId());
             assertNull(event.getContentId());
             assertNull(event.getBatchId());
             assertNull(event.getContextType());
+            assertNull(event.getAction());
+            assertNull(event.getCompetencyIds());
         }
 
         @Test
@@ -251,6 +301,7 @@ class CompetencyAcquiredEventTest {
                     .contentId("content456")
                     .batchId("batch789")
                     .contextType("self-declaration")
+                    .action("UPDATE")
                     .build();
 
             CompetencyAcquiredEvent event2 = CompetencyAcquiredEvent.builder()
@@ -259,6 +310,7 @@ class CompetencyAcquiredEventTest {
                     .contentId("content456")
                     .batchId("batch789")
                     .contextType("self-declaration")
+                    .action("UPDATE")
                     .build();
 
             assertEquals(event1, event2);
@@ -319,12 +371,14 @@ class CompetencyAcquiredEventTest {
                     .eventType("competency.acquired")
                     .userId("user123")
                     .contentId("content456")
+                    .action("UPDATE")
                     .build();
 
             CompetencyAcquiredEvent event2 = CompetencyAcquiredEvent.builder()
                     .eventType("competency.acquired")
                     .userId("user123")
                     .contentId("content456")
+                    .action("UPDATE")
                     .build();
 
             assertEquals(event1.hashCode(), event2.hashCode());
@@ -409,11 +463,13 @@ class CompetencyAcquiredEventTest {
             CompetencyAcquiredEvent event = CompetencyAcquiredEvent.builder()
                     .userId("user123")
                     .contentId("content456")
+                    .action("UPDATE")
                     .build();
 
             String toString = event.toString();
             assertTrue(toString.contains("user123"));
             assertTrue(toString.contains("content456"));
+            assertTrue(toString.contains("UPDATE"));
         }
 
         @Test
@@ -453,15 +509,22 @@ class CompetencyAcquiredEventTest {
         @Test
         @DisplayName("Should serialize to JSON with all fields")
         void testSerializeWithAllFields() throws JsonProcessingException {
-            CompetencyAcquiredEvent event = CompetencyAcquiredEvent.builder()
+            List<Map<String, String>> competencyIdsList = new java.util.ArrayList<>();
+            Map<String, String> competencyMap = new java.util.HashMap<>();
+            competencyMap.put("competencyAreaId", "area123");
+            competencyIdsList.add(competencyMap);
+
+            CompetencyAcquiredEvent eventToSerialize = CompetencyAcquiredEvent.builder()
                     .eventType("competency.acquired")
                     .userId("user123")
                     .contentId("content456")
                     .batchId("batch789")
                     .contextType("self-declaration")
+                    .action("UPDATE")
+                    .competencyIds(competencyIdsList)
                     .build();
 
-            String json = objectMapper.writeValueAsString(event);
+            String json = objectMapper.writeValueAsString(eventToSerialize);
             assertNotNull(json);
             assertNotBlank(json);
             assertTrue(json.contains("eventType"));
@@ -474,6 +537,9 @@ class CompetencyAcquiredEventTest {
             assertTrue(json.contains("batch789"));
             assertTrue(json.contains("contextType"));
             assertTrue(json.contains("self-declaration"));
+            assertTrue(json.contains("action"));
+            assertTrue(json.contains("UPDATE"));
+            assertTrue(json.contains("competencyIds"));
         }
 
         @Test
@@ -494,7 +560,8 @@ class CompetencyAcquiredEventTest {
         @DisplayName("Should deserialize from JSON with all fields")
         void testDeserializeWithAllFields() throws JsonProcessingException {
             String json = "{\"eventType\":\"competency.acquired\",\"userId\":\"user123\"," +
-                    "\"contentId\":\"content456\",\"batchId\":\"batch789\",\"contextType\":\"self-declaration\"}";
+                    "\"contentId\":\"content456\",\"batchId\":\"batch789\",\"contextType\":\"self-declaration\"," +
+                    "\"action\":\"UPDATE\"}";
 
             CompetencyAcquiredEvent event = objectMapper.readValue(json, CompetencyAcquiredEvent.class);
 
@@ -504,6 +571,7 @@ class CompetencyAcquiredEventTest {
             assertEquals("content456", event.getContentId());
             assertEquals("batch789", event.getBatchId());
             assertEquals("self-declaration", event.getContextType());
+            assertEquals("UPDATE", event.getAction());
         }
 
         @Test
@@ -530,6 +598,7 @@ class CompetencyAcquiredEventTest {
                     .contentId("content456")
                     .batchId("batch789")
                     .contextType("self-declaration")
+                    .action("UPDATE")
                     .build();
 
             String json = objectMapper.writeValueAsString(original);
@@ -541,6 +610,7 @@ class CompetencyAcquiredEventTest {
             assertEquals(original.getContentId(), deserialized.getContentId());
             assertEquals(original.getBatchId(), deserialized.getBatchId());
             assertEquals(original.getContextType(), deserialized.getContextType());
+            assertEquals(original.getAction(), deserialized.getAction());
         }
 
         @Test
@@ -762,6 +832,7 @@ class CompetencyAcquiredEventTest {
                     .contentId("95f8a7c5-4e3b-4d2c-9b1a-8f7e6d5c4b3a")
                     .batchId("d47c2e3f-8a1b-4c9d-9e2f-5a6b7c8d9e0f")
                     .contextType("self-declaration")
+                    .action("UPDATE")
                     .build();
 
             assertNotNull(event);
@@ -769,6 +840,7 @@ class CompetencyAcquiredEventTest {
             assertTrue(event.getUserId().contains("-"));
             assertTrue(event.getContentId().contains("-"));
             assertEquals("self-declaration", event.getContextType());
+            assertEquals("UPDATE", event.getAction());
         }
 
         @Test
@@ -781,6 +853,7 @@ class CompetencyAcquiredEventTest {
                     .contentId("content456")
                     .batchId("batch789")
                     .contextType("self-declaration")
+                    .action("UPDATE")
                     .build();
 
             // Serialize
@@ -796,6 +869,7 @@ class CompetencyAcquiredEventTest {
             assertEquals(original.getContentId(), restored.getContentId());
             assertEquals(original.getBatchId(), restored.getBatchId());
             assertEquals(original.getContextType(), restored.getContextType());
+            assertEquals(original.getAction(), restored.getAction());
         }
 
         @Test
