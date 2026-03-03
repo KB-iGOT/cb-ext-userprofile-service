@@ -22,7 +22,7 @@ public class AchievementController {
     public ResponseEntity<?> createLearnerAchievement(
             @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken,
             @RequestHeader(value = Constants.X_AUTH_USER_ORG_ID, required = true) String rootOrgId,
-            @RequestBody Map<String, Object> request) throws Exception {
+            @RequestBody Map<String, Object> request){
         ApiResponse response = achievementService.createLearnerAchievement(request, authToken, rootOrgId);
         return new ResponseEntity<>(response, response.getResponseCode());
     }
@@ -31,7 +31,7 @@ public class AchievementController {
     public ResponseEntity<?> updateLearnerAchievement(
             @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken,
             @RequestHeader(value = Constants.X_AUTH_USER_ORG_ID, required = true) String rootOrgId,
-            @RequestBody Map<String, Object> request) throws Exception {
+            @RequestBody Map<String, Object> request) {
         ApiResponse response = achievementService.updateLearnerAchievement(request, authToken, rootOrgId);
         return new ResponseEntity<>(response, response.getResponseCode());
     }

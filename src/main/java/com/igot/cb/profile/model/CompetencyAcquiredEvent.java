@@ -6,6 +6,9 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+import java.util.Map;
+
 /**
  * Represents a Competency Acquired event to be published to Kafka
  */
@@ -29,5 +32,13 @@ public class CompetencyAcquiredEvent {
 
     @JsonProperty("contextType")
     private String contextType;
+
+    @JsonProperty("action")
+    private String action;
+
+    @JsonProperty("competencyIds")
+    private List<Map<String, String>> competencyIds;
+
+
 }
 

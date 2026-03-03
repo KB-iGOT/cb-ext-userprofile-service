@@ -501,6 +501,16 @@ public class Constants {
     public static final String API_ACHIEVEMENT_LIST = "api.achievement.list";
     public static final String ACHIEVEMENTS_REDIS_KEY = "achievements:user:";
     public static final String EVENT_TYPE_COMPETENCY_ACQUIRED = "COMPETENCY_ACQUIRED";
+    public static final String DELETE = "DELETE";
+    public static final String COMPETENCY_AREA_IDENTIFIER = "competencyAreaIdentifier";
+    public static final String COMPETENCY_THEME_IDENTIFIER = "competencyThemeIdentifier";
+    public static final String COMPETENCY_SUB_THEME_IDENTIFIER = "competencySubThemeIdentifier";
+    public static final String COMPETENCY_AREA_ID = "competencyAreaId";
+    public static final String COMPETENCY_THEME_ID = "competencyThemeId";
+    public static final String COMPETENCY_SUB_THEME_ID = "competencySubThemeId";
+    public static final String ADDED = "added";
+    public static final String REMOVED = "removed";
+    public static final String ACTION = "action";
 
     private Constants() {
     }

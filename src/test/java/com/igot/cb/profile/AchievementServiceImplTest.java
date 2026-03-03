@@ -1459,4 +1459,297 @@ class AchievementServiceImplTest {
         verify(kafkaEventPublisher, never()).publish(anyString(), (Object) any(), anyString());
     }
 
+    // ==================== COMPETENCY CHANGE DETECTION TESTS ====================
+
+    @Test
+    void testUpdateLearnerAchievement_withChangedCompetencies_publishesKafkaEvent() throws Exception {
+        // Arrange: Setup competencies_v6 with changes
+        List<Map<String, String>> newCompetencies = new ArrayList<>();
+        Map<String, String> newCompetency = new HashMap<>();
+        newCompetency.put(Constants.COMPETENCY_AREA_IDENTIFIER, "kcmfinal_fw_competencyarea_area1");
+        newCompetency.put(Constants.COMPETENCY_THEME_IDENTIFIER, "kcmfinal_fw_theme_theme1");
+        newCompetency.put(Constants.COMPETENCY_SUB_THEME_IDENTIFIER, "kcmfinal_fw_subtheme_sub1");
+        newCompetencies.add(newCompetency);
+
+        Map<String, Object> newContextData = new HashMap<>();
+        newContextData.put("field1", "value1");
+        newContextData.put("field2", "value2");
+        newContextData.put(Constants.COMPETENCIES_V6, newCompetencies);
+
+        Map<String, Object> requestData = new HashMap<>();
+        requestData.put(Constants.ID, "achv1");
+        requestData.put(Constants.CONTEXT_TYPE, "testContext");
+        requestData.put(Constants.CONTEXT_DATA, newContextData);
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestData);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        when(cbServerProperties.isRequireEs()).thenReturn(true);
+
+        // Existing record with different competencies
+        Map<String, Object> existingRecord = new HashMap<>();
+        existingRecord.put(Constants.STATUS, Constants.PENDING);
+        existingRecord.put(Constants.CREATED_ON, LocalDate.now());
+        existingRecord.put(Constants.USER_ID_RQST, "user123");
+
+        List<Map<String, String>> existingCompetencies = new ArrayList<>();
+        Map<String, String> existingCompetency = new HashMap<>();
+        existingCompetency.put(Constants.COMPETENCY_AREA_IDENTIFIER, "kcmfinal_fw_competencyarea_different");
+        existingCompetency.put(Constants.COMPETENCY_THEME_IDENTIFIER, "kcmfinal_fw_theme_different");
+        existingCompetency.put(Constants.COMPETENCY_SUB_THEME_IDENTIFIER, "kcmfinal_fw_subtheme_different");
+        existingCompetencies.add(existingCompetency);
+
+        Map<String, Object> existingContextData = new HashMap<>();
+        existingContextData.put("field1", "old");
+        existingContextData.put(Constants.COMPETENCIES_V6, existingCompetencies);
+        existingRecord.put(Constants.CONTEXT_DATA, existingContextData);
+
+        when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
+                .thenReturn(Collections.singletonList(existingRecord));
+        ApiResponse cassandraResponse = new ApiResponse();
+        cassandraResponse.put(Constants.RESPONSE, Constants.SUCCESS);
+        when(cassandraOperation.insertRecord(any(), any(), any())).thenReturn(cassandraResponse);
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+        when(objectMapper.convertValue(any(), eq(Map.class))).thenReturn(new HashMap<>());
+        when(objectMapper.readValue(anyString(), eq(Map.class))).thenReturn(existingContextData);
+
+        Map<String, Object> esDoc = new HashMap<>();
+        esDoc.put(Constants.CREATED_ON, "2024-01-01T00:00:00.000+0000");
+        when(esClientService.readDocument(any(), any())).thenReturn(esDoc);
+
+        SearchResult searchResult = new SearchResult();
+        searchResult.setData(new ArrayList<>());
+        when(esClientService.searchDocuments(any(), any())).thenReturn(searchResult);
+
+        // Act
+        ApiResponse response = achievementService.updateLearnerAchievement(request, "token", "org1");
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        verify(kafkaEventPublisher, times(1)).publish(anyString(), (Object) any(), anyString());
+    }
+
+    @Test
+    void testUpdateLearnerAchievement_withNoCompetencyChange_doesNotPublishKafkaEvent() throws Exception {
+        // Arrange: Same competencies
+        List<Map<String, String>> competencies = new ArrayList<>();
+        Map<String, String> competency = new HashMap<>();
+        competency.put(Constants.COMPETENCY_AREA_IDENTIFIER, "kcmfinal_fw_competencyarea_same");
+        competency.put(Constants.COMPETENCY_THEME_IDENTIFIER, "kcmfinal_fw_theme_same");
+        competency.put(Constants.COMPETENCY_SUB_THEME_IDENTIFIER, "kcmfinal_fw_subtheme_same");
+        competencies.add(competency);
+
+        Map<String, Object> contextData = new HashMap<>();
+        contextData.put("field1", "value1");
+        contextData.put("field2", "value2");
+        contextData.put(Constants.COMPETENCIES_V6, competencies);
+
+        Map<String, Object> requestData = new HashMap<>();
+        requestData.put(Constants.ID, "achv1");
+        requestData.put(Constants.CONTEXT_TYPE, "testContext");
+        requestData.put(Constants.CONTEXT_DATA, contextData);
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestData);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        when(cbServerProperties.isRequireEs()).thenReturn(true);
+
+        Map<String, Object> existingRecord = new HashMap<>();
+        existingRecord.put(Constants.STATUS, Constants.PENDING);
+        existingRecord.put(Constants.CREATED_ON, LocalDate.now());
+        existingRecord.put(Constants.USER_ID_RQST, "user123");
+        existingRecord.put(Constants.CONTEXT_DATA, contextData);
+
+        when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
+                .thenReturn(Collections.singletonList(existingRecord));
+        ApiResponse cassandraResponse = new ApiResponse();
+        cassandraResponse.put(Constants.RESPONSE, Constants.SUCCESS);
+        when(cassandraOperation.insertRecord(any(), any(), any())).thenReturn(cassandraResponse);
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+        when(objectMapper.convertValue(any(), eq(Map.class))).thenReturn(new HashMap<>());
+        when(objectMapper.readValue(anyString(), eq(Map.class))).thenReturn(contextData);
+
+        Map<String, Object> esDoc = new HashMap<>();
+        esDoc.put(Constants.CREATED_ON, "2024-01-01T00:00:00.000+0000");
+        when(esClientService.readDocument(any(), any())).thenReturn(esDoc);
+
+        SearchResult searchResult = new SearchResult();
+        searchResult.setData(new ArrayList<>());
+        when(esClientService.searchDocuments(any(), any())).thenReturn(searchResult);
+
+        // Act
+        ApiResponse response = achievementService.updateLearnerAchievement(request, "token", "org1");
+
+        // Assert - No Kafka event should be published if competencies haven't changed
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        verify(kafkaEventPublisher, never()).publish(anyString(), (Object) any(), anyString());
+    }
+
+    @Test
+    void testDeleteLearnerAchievement_withCompetencies_publishesDeleteKafkaEvent() throws Exception {
+        // Arrange
+        List<Map<String, String>> competencies = new ArrayList<>();
+        Map<String, String> competency = new HashMap<>();
+        competency.put(Constants.COMPETENCY_AREA_IDENTIFIER, "area1");
+        competency.put(Constants.COMPETENCY_THEME_IDENTIFIER, "theme1");
+        competency.put(Constants.COMPETENCY_SUB_THEME_IDENTIFIER, "sub1");
+        competencies.add(competency);
+
+        Map<String, Object> contextData = new HashMap<>();
+        contextData.put(Constants.COMPETENCIES_V6, competencies);
+
+        Map<String, Object> reqMap = new HashMap<>();
+        reqMap.put(Constants.ID, "achv1");
+        reqMap.put(Constants.CONTEXT_TYPE, "testContext");
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, reqMap);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+
+        Map<String, Object> existingRecord = new HashMap<>();
+        existingRecord.put(Constants.CONTEXT_DATA, contextData);
+        existingRecord.put(Constants.USER_ID_RQST, "user123");
+
+        when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
+                .thenReturn(Collections.singletonList(existingRecord));
+
+        Map<String, Object> cassandraResponse = new HashMap<>();
+        cassandraResponse.put(Constants.RESPONSE, Constants.SUCCESS);
+        when(cassandraOperation.deleteRecordByCompositeKey(any(), any(), any())).thenReturn(cassandraResponse);
+
+        when(cbServerProperties.isRequireEs()).thenReturn(true);
+        SearchResult searchResult = new SearchResult();
+        searchResult.setData(new ArrayList<>());
+        when(esClientService.searchDocuments(any(), any())).thenReturn(searchResult);
+
+        // Act
+        ApiResponse response = achievementService.deleteLearnerAchievement(request, "token");
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        verify(kafkaEventPublisher, times(1)).publish(anyString(), (Object) any(), anyString());
+    }
+
+    @Test
+    void testDeleteLearnerAchievement_withoutCompetencies_doesNotPublishKafkaEvent() {
+        // Arrange: No competencies in context data
+        Map<String, Object> contextData = new HashMap<>();
+        contextData.put("field1", "value1");
+        // No competencies_v6
+
+        Map<String, Object> reqMap = new HashMap<>();
+        reqMap.put(Constants.ID, "achv1");
+        reqMap.put(Constants.CONTEXT_TYPE, "testContext");
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, reqMap);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+
+        Map<String, Object> existingRecord = new HashMap<>();
+        existingRecord.put(Constants.CONTEXT_DATA, contextData);
+        existingRecord.put(Constants.USER_ID_RQST, "user123");
+
+        when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
+                .thenReturn(Collections.singletonList(existingRecord));
+
+        Map<String, Object> cassandraResponse = new HashMap<>();
+        cassandraResponse.put(Constants.RESPONSE, Constants.SUCCESS);
+        when(cassandraOperation.deleteRecordByCompositeKey(any(), any(), any())).thenReturn(cassandraResponse);
+
+        when(cbServerProperties.isRequireEs()).thenReturn(true);
+        SearchResult searchResult = new SearchResult();
+        searchResult.setData(new ArrayList<>());
+        try {
+            when(esClientService.searchDocuments(any(), any())).thenReturn(searchResult);
+        } catch (Exception e) {
+            fail("Mock setup failed");
+        }
+
+        // Act
+        ApiResponse response = achievementService.deleteLearnerAchievement(request, "token");
+
+        // Assert - No Kafka event should be published if no competencies
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        verify(kafkaEventPublisher, never()).publish(anyString(), (Object) any(), anyString());
+    }
+
+
+    // ==================== CASE-INSENSITIVE COMPARISON TESTS ====================
+
+    @Test
+    void testUpdateLearnerAchievement_caseInsensitiveCompetencyComparison() throws Exception {
+        // Arrange: Same competencies but different case
+        List<Map<String, String>> newCompetencies = new ArrayList<>();
+        Map<String, String> newCompetency = new HashMap<>();
+        newCompetency.put(Constants.COMPETENCY_AREA_IDENTIFIER, "KCMFINAL_FW_COMPETENCYAREA_SAME");
+        newCompetency.put(Constants.COMPETENCY_THEME_IDENTIFIER, "KCMFINAL_FW_THEME_SAME");
+        newCompetency.put(Constants.COMPETENCY_SUB_THEME_IDENTIFIER, "KCMFINAL_FW_SUBTHEME_SAME");
+        newCompetencies.add(newCompetency);
+
+        Map<String, Object> newContextData = new HashMap<>();
+        newContextData.put("field1", "value1");
+        newContextData.put("field2", "value2");
+        newContextData.put(Constants.COMPETENCIES_V6, newCompetencies);
+
+        Map<String, Object> requestData = new HashMap<>();
+        requestData.put(Constants.ID, "achv1");
+        requestData.put(Constants.CONTEXT_TYPE, "testContext");
+        requestData.put(Constants.CONTEXT_DATA, newContextData);
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestData);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        when(cbServerProperties.isRequireEs()).thenReturn(true);
+
+        // Existing record with lowercase competencies
+        Map<String, Object> existingRecord = new HashMap<>();
+        existingRecord.put(Constants.STATUS, Constants.PENDING);
+        existingRecord.put(Constants.CREATED_ON, LocalDate.now());
+        existingRecord.put(Constants.USER_ID_RQST, "user123");
+
+        List<Map<String, String>> existingCompetencies = new ArrayList<>();
+        Map<String, String> existingCompetency = new HashMap<>();
+        existingCompetency.put(Constants.COMPETENCY_AREA_IDENTIFIER, "kcmfinal_fw_competencyarea_same");
+        existingCompetency.put(Constants.COMPETENCY_THEME_IDENTIFIER, "kcmfinal_fw_theme_same");
+        existingCompetency.put(Constants.COMPETENCY_SUB_THEME_IDENTIFIER, "kcmfinal_fw_subtheme_same");
+        existingCompetencies.add(existingCompetency);
+
+        Map<String, Object> existingContextData = new HashMap<>();
+        existingContextData.put("field1", "value1");
+        existingContextData.put("field2", "value2");
+        existingContextData.put(Constants.COMPETENCIES_V6, existingCompetencies);
+        existingRecord.put(Constants.CONTEXT_DATA, existingContextData);
+
+        when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
+                .thenReturn(Collections.singletonList(existingRecord));
+        ApiResponse cassandraResponse = new ApiResponse();
+        cassandraResponse.put(Constants.RESPONSE, Constants.SUCCESS);
+        when(cassandraOperation.insertRecord(any(), any(), any())).thenReturn(cassandraResponse);
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+        when(objectMapper.convertValue(any(), eq(Map.class))).thenReturn(new HashMap<>());
+        when(objectMapper.readValue(anyString(), eq(Map.class))).thenReturn(existingContextData);
+
+        Map<String, Object> esDoc = new HashMap<>();
+        esDoc.put(Constants.CREATED_ON, "2024-01-01T00:00:00.000+0000");
+        when(esClientService.readDocument(any(), any())).thenReturn(esDoc);
+
+        SearchResult searchResult = new SearchResult();
+        searchResult.setData(new ArrayList<>());
+        try {
+            when(esClientService.searchDocuments(any(), any())).thenReturn(searchResult);
+        } catch (Exception e) {
+            fail("Mock setup failed");
+        }
+
+        // Act
+        ApiResponse response = achievementService.updateLearnerAchievement(request, "token", "org1");
+
+        // Assert - Should not publish Kafka event since competencies are same (case-insensitive)
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        assertNotNull(response.getResult());
+        verify(kafkaEventPublisher, never()).publish(anyString(), (Object) any(), anyString());
+    }
+
 }
+
+
