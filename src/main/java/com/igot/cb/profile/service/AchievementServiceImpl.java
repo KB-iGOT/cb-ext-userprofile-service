@@ -578,6 +578,12 @@ public class AchievementServiceImpl implements AchievementService{
     }
 
     private String validateRequetData(Map<String, Object> requestData) {
+        //  check that every field in the whole request body is an allowed field
+        String allowedFieldsError = validateAllowedFields(requestData);
+        if (StringUtils.isNotBlank(allowedFieldsError)) {
+            return allowedFieldsError;
+        }
+
         String requestContextType = (String) requestData.get(Constants.CONTEXT_TYPE);
         String[] configuredContextType = cbServerProperties.getContextType();
         if (StringUtils.isBlank(requestContextType)) {
@@ -1302,7 +1308,62 @@ public class AchievementServiceImpl implements AchievementService{
         return result;
     }
 
+    /**
+     * Validates that every field present in the entire request body (including nested maps and
+     * list elements) is present in the configured allowed-fields list.
+     * If an unknown field is found a human-readable error message is returned; otherwise null.
+     *
+     * @param requestBody the full request body map received from the caller
+     * @return validation error message or null when all fields are allowed
+     */
+    private String validateAllowedFields(Map<String, Object> requestBody) {
+        String allowedFieldsConfig = cbServerProperties.getAchievementsAllowedFields();
+        if (StringUtils.isBlank(allowedFieldsConfig)) {
+            // config not set – skip this check
+            return null;
+        }
+        Set<String> allowedFields = Arrays.stream(allowedFieldsConfig.split(","))
+                .map(String::trim)
+                .filter(StringUtils::isNotBlank)
+                .collect(Collectors.toSet());
 
+        return validateFieldsRecursively(requestBody, allowedFields);
+    }
 
+    /**
+     * Recursively walks through a request node (Map, List, or scalar) and checks that
+     * every Map key is present in {@code allowedFields}.
+     *
+     * @param node          the current node being inspected
+     * @param allowedFields the set of permitted field names loaded from config
+     * @return the first invalid field error found, or null if all fields are allowed
+     */
+    private String validateFieldsRecursively(Object node, Set<String> allowedFields) {
+        if (node == null) {
+            return null;
+        }
+        if (node instanceof Map<?, ?> map) {
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                if (!(entry.getKey() instanceof String key)) {
+                    continue;
+                }
+                if (!allowedFields.contains(key)) {
+                    return "Invalid field in request: '" + key + "'. Only configured fields are allowed.";
+                }
+                String childError = validateFieldsRecursively(entry.getValue(), allowedFields);
+                if (StringUtils.isNotBlank(childError)) {
+                    return childError;
+                }
+            }
+        } else if (node instanceof List<?> list) {
+            for (Object item : list) {
+                String childError = validateFieldsRecursively(item, allowedFields);
+                if (StringUtils.isNotBlank(childError)) {
+                    return childError;
+                }
+            }
+        }
+        return null;
+    }
 
 }

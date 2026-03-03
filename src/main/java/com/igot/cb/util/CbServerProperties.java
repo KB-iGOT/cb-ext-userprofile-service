@@ -211,4 +211,8 @@ public class CbServerProperties {
 
     @Value("${user.competency.mapping.event}")
     public String userCompetencyTopicName;
+
+    @Value("${validation.allowed-fields.achievement}")
+    private String achievementsAllowedFields;
+
 }
