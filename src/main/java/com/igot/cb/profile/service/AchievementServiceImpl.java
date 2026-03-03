@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.authentication.util.AccessTokenValidator;
 import com.igot.cb.common.KafkaEventPublisher;
 import com.igot.cb.profile.model.CompetencyAcquiredEvent;
+import com.igot.cb.profile.model.CompetencyEventWrapper;
 import com.igot.cb.transactional.cassandrautils.CassandraOperation;
 import com.igot.cb.transactional.elasticsearch.dto.SearchCriteria;
 import com.igot.cb.transactional.elasticsearch.dto.SearchResult;
@@ -978,9 +979,14 @@ public class AchievementServiceImpl implements AchievementService{
                     .competencyIds(changedCompetencies)
                     .build();
 
+            // Wrap the event in edata structure
+            CompetencyEventWrapper wrapper = CompetencyEventWrapper.builder()
+                    .edata(event)
+                    .build();
+
             kafkaEventPublisher.publish(
                     cbServerProperties.getUserCompetencyTopicName(),
-                    event,
+                    wrapper,
                     String.format("userId: %s, contentId: %s, action: %s, added: %d, removed: %d",
                             userId,
                             achievementId,
@@ -1040,9 +1046,14 @@ public class AchievementServiceImpl implements AchievementService{
 
             CompetencyAcquiredEvent event = eventBuilder.build();
 
+            // Wrap the event in edata structure
+            CompetencyEventWrapper wrapper = CompetencyEventWrapper.builder()
+                    .edata(event)
+                    .build();
+
             kafkaEventPublisher.publish(
                     cbServerProperties.getUserCompetencyTopicName(),
-                    event,
+                    wrapper,
                     String.format("userId: %s, contentId: %s, action: %s",
                             userId,
                             achievementId,
