@@ -72,17 +72,19 @@ class CacheServiceTest {
         Object obj = Map.of("a", 1);
         when(objectMapper.writeValueAsString(obj)).thenReturn("{\"a\":1}");
         cacheService.putCache("key", obj, 123);
-        verify(jedis).set("key", "{\"a\":1}");
-        verify(jedis).expire("key", 123);
+        verify(jedis).setex("key", 123, "{\"a\":1}");
+        verify(jedis).close();
     }
 
     @Test
     void putCache_UsesDefaultTTL() throws Exception {
         Object obj = Map.of("a", 1);
         when(objectMapper.writeValueAsString(obj)).thenReturn("{\"a\":1}");
+
         cacheService.putCache("key", obj);
-        verify(jedis).set("key", "{\"a\":1}");
-        verify(jedis).expire("key", 84600);
+
+        verify(jedis).setex("key", 84600, "{\"a\":1}");
+        verify(jedis).close();
     }
 
     @Test
