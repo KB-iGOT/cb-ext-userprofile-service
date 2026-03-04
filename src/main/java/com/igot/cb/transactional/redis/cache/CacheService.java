@@ -70,8 +70,7 @@ public class CacheService {
     public void putCache(String key, Object object, int ttl) {
         try (Jedis jedis = jedisPool.getResource()) {
             String data = objectMapper.writeValueAsString(object);
-            jedis.set(key, data);
-            jedis.expire(key, ttl);
+            jedis.setex(key, ttl, data);
             logger.debug("Cache_key_value " + key + " is saved in redis");
         } catch (Exception e) {
             logger.error("Error in putCache", e);
@@ -133,7 +132,7 @@ public class CacheService {
             // Default index is 0, no need to select
             for (String key : keys) {
                 List<String> result = jedis.hmget(key, key);
-                String value = org.springframework.util.StringUtils.isEmpty(result) ? null : result.get(0);
+                String value = CollectionUtils.isEmpty(result) ? null : result.get(0);
                 resultList.add(value);
             }
         } catch (Exception e) {

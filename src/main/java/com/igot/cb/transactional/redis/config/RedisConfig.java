@@ -42,7 +42,7 @@ public class RedisConfig {
         poolConfig.setTestOnReturn(cbProperties.getRedisTestOnReturn());
         poolConfig.setTestWhileIdle(cbProperties.getRedisTestWhileIdle());
         poolConfig.setMinEvictableIdleTimeMillis(cbProperties.getRedisMinEvictableIdleTimeMillis());
-        poolConfig.setTimeBetweenEvictionRunsMillis(cbProperties.getRedisNumTestsPerEvictionRun());
+        poolConfig.setTimeBetweenEvictionRunsMillis(cbProperties.getRedisTimeBetweenEvictionRunsMillis());
         poolConfig.setNumTestsPerEvictionRun(cbProperties.getRedisNumTestsPerEvictionRun());
         poolConfig.setBlockWhenExhausted(cbProperties.getRedisBlockWhenExhausted());
         return poolConfig;
