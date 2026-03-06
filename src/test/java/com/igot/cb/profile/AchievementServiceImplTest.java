@@ -1466,9 +1466,9 @@ class AchievementServiceImplTest {
         // Arrange: Setup competencies_v6 with changes
         List<Map<String, String>> newCompetencies = new ArrayList<>();
         Map<String, String> newCompetency = new HashMap<>();
-        newCompetency.put(Constants.COMPETENCY_AREA_IDENTIFIER, "kcmfinal_fw_competencyarea_area1");
-        newCompetency.put(Constants.COMPETENCY_THEME_IDENTIFIER, "kcmfinal_fw_theme_theme1");
-        newCompetency.put(Constants.COMPETENCY_SUB_THEME_IDENTIFIER, "kcmfinal_fw_subtheme_sub1");
+        newCompetency.put(Constants.COMPETENCY_AREA_REF_ID, "kcmfinal_fw_competencyarea_area1");
+        newCompetency.put(Constants.COMPETENCY_THEME_REF_ID, "kcmfinal_fw_theme_theme1");
+        newCompetency.put(Constants.COMPETENCY_SUB_THEME_REF_ID, "kcmfinal_fw_subtheme_sub1");
         newCompetencies.add(newCompetency);
 
         Map<String, Object> newContextData = new HashMap<>();
@@ -1494,9 +1494,9 @@ class AchievementServiceImplTest {
 
         List<Map<String, String>> existingCompetencies = new ArrayList<>();
         Map<String, String> existingCompetency = new HashMap<>();
-        existingCompetency.put(Constants.COMPETENCY_AREA_IDENTIFIER, "kcmfinal_fw_competencyarea_different");
-        existingCompetency.put(Constants.COMPETENCY_THEME_IDENTIFIER, "kcmfinal_fw_theme_different");
-        existingCompetency.put(Constants.COMPETENCY_SUB_THEME_IDENTIFIER, "kcmfinal_fw_subtheme_different");
+        existingCompetency.put(Constants.COMPETENCY_AREA_REF_ID, "kcmfinal_fw_competencyarea_different");
+        existingCompetency.put(Constants.COMPETENCY_THEME_REF_ID, "kcmfinal_fw_theme_different");
+        existingCompetency.put(Constants.COMPETENCY_SUB_THEME_REF_ID, "kcmfinal_fw_subtheme_different");
         existingCompetencies.add(existingCompetency);
 
         Map<String, Object> existingContextData = new HashMap<>();
@@ -1534,9 +1534,9 @@ class AchievementServiceImplTest {
         // Arrange: Same competencies
         List<Map<String, String>> competencies = new ArrayList<>();
         Map<String, String> competency = new HashMap<>();
-        competency.put(Constants.COMPETENCY_AREA_IDENTIFIER, "kcmfinal_fw_competencyarea_same");
-        competency.put(Constants.COMPETENCY_THEME_IDENTIFIER, "kcmfinal_fw_theme_same");
-        competency.put(Constants.COMPETENCY_SUB_THEME_IDENTIFIER, "kcmfinal_fw_subtheme_same");
+        competency.put(Constants.COMPETENCY_AREA_REF_ID, "kcmfinal_fw_competencyarea_same");
+        competency.put(Constants.COMPETENCY_THEME_REF_ID, "kcmfinal_fw_theme_same");
+        competency.put(Constants.COMPETENCY_SUB_THEME_REF_ID, "kcmfinal_fw_subtheme_same");
         competencies.add(competency);
 
         Map<String, Object> contextData = new HashMap<>();
@@ -1590,9 +1590,9 @@ class AchievementServiceImplTest {
         // Arrange
         List<Map<String, String>> competencies = new ArrayList<>();
         Map<String, String> competency = new HashMap<>();
-        competency.put(Constants.COMPETENCY_AREA_IDENTIFIER, "area1");
-        competency.put(Constants.COMPETENCY_THEME_IDENTIFIER, "theme1");
-        competency.put(Constants.COMPETENCY_SUB_THEME_IDENTIFIER, "sub1");
+        competency.put(Constants.COMPETENCY_AREA_REF_ID, "area1");
+        competency.put(Constants.COMPETENCY_THEME_REF_ID, "theme1");
+        competency.put(Constants.COMPETENCY_SUB_THEME_REF_ID, "sub1");
         competencies.add(competency);
 
         Map<String, Object> contextData = new HashMap<>();
@@ -1681,9 +1681,9 @@ class AchievementServiceImplTest {
         // Arrange: Same competencies but different case
         List<Map<String, String>> newCompetencies = new ArrayList<>();
         Map<String, String> newCompetency = new HashMap<>();
-        newCompetency.put(Constants.COMPETENCY_AREA_IDENTIFIER, "KCMFINAL_FW_COMPETENCYAREA_SAME");
-        newCompetency.put(Constants.COMPETENCY_THEME_IDENTIFIER, "KCMFINAL_FW_THEME_SAME");
-        newCompetency.put(Constants.COMPETENCY_SUB_THEME_IDENTIFIER, "KCMFINAL_FW_SUBTHEME_SAME");
+        newCompetency.put(Constants.COMPETENCY_AREA_REF_ID, "KCMFINAL_FW_COMPETENCYAREA_SAME");
+        newCompetency.put(Constants.COMPETENCY_THEME_REF_ID, "KCMFINAL_FW_THEME_SAME");
+        newCompetency.put(Constants.COMPETENCY_SUB_THEME_REF_ID, "KCMFINAL_FW_SUBTHEME_SAME");
         newCompetencies.add(newCompetency);
 
         Map<String, Object> newContextData = new HashMap<>();
@@ -1709,9 +1709,9 @@ class AchievementServiceImplTest {
 
         List<Map<String, String>> existingCompetencies = new ArrayList<>();
         Map<String, String> existingCompetency = new HashMap<>();
-        existingCompetency.put(Constants.COMPETENCY_AREA_IDENTIFIER, "kcmfinal_fw_competencyarea_same");
-        existingCompetency.put(Constants.COMPETENCY_THEME_IDENTIFIER, "kcmfinal_fw_theme_same");
-        existingCompetency.put(Constants.COMPETENCY_SUB_THEME_IDENTIFIER, "kcmfinal_fw_subtheme_same");
+        existingCompetency.put(Constants.COMPETENCY_AREA_REF_ID, "kcmfinal_fw_competencyarea_same");
+        existingCompetency.put(Constants.COMPETENCY_THEME_REF_ID, "kcmfinal_fw_theme_same");
+        existingCompetency.put(Constants.COMPETENCY_SUB_THEME_REF_ID, "kcmfinal_fw_subtheme_same");
         existingCompetencies.add(existingCompetency);
 
         Map<String, Object> existingContextData = new HashMap<>();
