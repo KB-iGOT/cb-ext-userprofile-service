@@ -1160,9 +1160,9 @@ public class AchievementServiceImpl implements AchievementService{
      * @return Unique key string
      */
     private String buildCompetencyKey(Map<String, Object> competency) {
-        String areaId = getStringValueFromObject(competency.get(Constants.COMPETENCY_AREA_IDENTIFIER)).toLowerCase();
-        String themeId = getStringValueFromObject(competency.get(Constants.COMPETENCY_THEME_IDENTIFIER)).toLowerCase();
-        String subThemeId = getStringValueFromObject(competency.get(Constants.COMPETENCY_SUB_THEME_IDENTIFIER)).toLowerCase();
+        String areaId = getStringValueFromObject(competency.get(Constants.COMPETENCY_AREA_REF_ID)).toLowerCase();
+        String themeId = getStringValueFromObject(competency.get(Constants.COMPETENCY_THEME_REF_ID)).toLowerCase();
+        String subThemeId = getStringValueFromObject(competency.get(Constants.COMPETENCY_SUB_THEME_REF_ID)).toLowerCase();
         return String.join("|", areaId, themeId, subThemeId);
     }
 
@@ -1212,11 +1212,11 @@ public class AchievementServiceImpl implements AchievementService{
     private Map<String, String> buildCompetencyIdMap(Map<String, Object> competency, String action) {
         Map<String, String> competencyIdMap = new LinkedHashMap<>();
         competencyIdMap.put(Constants.COMPETENCY_AREA_ID,
-                getStringValueFromObject(competency.get(Constants.COMPETENCY_AREA_IDENTIFIER)));
+                getStringValueFromObject(competency.get(Constants.COMPETENCY_AREA_REF_ID)));
         competencyIdMap.put(Constants.COMPETENCY_THEME_ID,
-                getStringValueFromObject(competency.get(Constants.COMPETENCY_THEME_IDENTIFIER)));
+                getStringValueFromObject(competency.get(Constants.COMPETENCY_THEME_REF_ID)));
         competencyIdMap.put(Constants.COMPETENCY_SUB_THEME_ID,
-                getStringValueFromObject(competency.get(Constants.COMPETENCY_SUB_THEME_IDENTIFIER)));
+                getStringValueFromObject(competency.get(Constants.COMPETENCY_SUB_THEME_REF_ID)));
 
         if (StringUtils.isNotBlank(action)) {
             competencyIdMap.put(Constants.ACTION, action);
@@ -1276,13 +1276,13 @@ public class AchievementServiceImpl implements AchievementService{
                     Map<String, String> competencyMap = new HashMap<>();
 
                     competencyMap.put(Constants.COMPETENCY_AREA_ID,
-                            getStringValueFromObject(map.get(Constants.COMPETENCY_AREA_IDENTIFIER)));
+                            getStringValueFromObject(map.get(Constants.COMPETENCY_AREA_REF_ID)));
 
                     competencyMap.put(Constants.COMPETENCY_THEME_ID,
-                            getStringValueFromObject(map.get(Constants.COMPETENCY_THEME_IDENTIFIER)));
+                            getStringValueFromObject(map.get(Constants.COMPETENCY_THEME_REF_ID)));
 
                     competencyMap.put(Constants.COMPETENCY_SUB_THEME_ID,
-                            getStringValueFromObject(map.get(Constants.COMPETENCY_SUB_THEME_IDENTIFIER)));
+                            getStringValueFromObject(map.get(Constants.COMPETENCY_SUB_THEME_REF_ID)));
 
                     competencyList.add(competencyMap);
                 }
