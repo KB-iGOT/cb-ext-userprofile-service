@@ -168,7 +168,7 @@ public class AchievementServiceImpl implements AchievementService{
         // Compute delta-based comparison for competencies
         CompetencyDelta competencyDelta = computeCompetencyDelta(existingRecord, newContextData);
 
-        updateExistingRecord(existingRecord, newContextData, userId, updateOnTimestamp);
+        updateExistingRecord(existingRecord, requestData, userId, updateOnTimestamp);
         boolean isSaved = saveAchievementToCassandra(existingRecord);
         if (!isSaved) {
             ProjectUtil.errorResponse(response, "Failed to update learner achievement", HttpStatus.INTERNAL_SERVER_ERROR);
@@ -850,8 +850,39 @@ public class AchievementServiceImpl implements AchievementService{
     /**
      * Updates the existing record with new context data and metadata
      */
-    private void updateExistingRecord(Map<String, Object> existingRecord, Map<String, Object> newContextData, String userId,java.time.Instant updateOnTimestamp) {
-        existingRecord.put(Constants.CONTEXT_DATA, newContextData);
+    private void updateExistingRecord(Map<String, Object> existingRecord, Map<String, Object> requestData, String userId, java.time.Instant updateOnTimestamp) {
+        if (Objects.isNull(existingRecord) || Objects.isNull(requestData)) {
+            return;
+        }
+        requestData.forEach((key, value) -> {
+            // ignore null values
+            if (Objects.isNull(value)) {
+                return;
+            }
+            // merge contextData instead of replacing
+            if (Constants.CONTEXT_DATA.equals(key) && value instanceof Map<?, ?> newContextMap) {
+
+                Map<String, Object> existingContext =
+                        (Map<String, Object>) existingRecord.get(Constants.CONTEXT_DATA);
+
+                if (Objects.isNull(existingContext)) {
+                    existingContext = new HashMap<>();
+                }
+                final Map<String, Object> finalExistingContext = existingContext;
+
+                newContextMap.forEach((ctxKey, ctxValue) -> {
+                    if (Objects.nonNull(ctxValue)) {
+                        finalExistingContext.put(ctxKey.toString(), ctxValue);
+                    }
+                });
+                existingRecord.put(Constants.CONTEXT_DATA, finalExistingContext);
+            } else {
+                // normal update (contextType, source etc.)
+                existingRecord.put(key, value);
+            }
+
+        });
+        // update metadata
         existingRecord.put(Constants.UPDATED_BY, userId);
         existingRecord.put(Constants.UPDATED_ON, updateOnTimestamp);
     }
