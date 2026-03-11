@@ -1367,13 +1367,21 @@ public class AchievementServiceImpl implements AchievementService{
     }
 
     @Override
-    public ApiResponse getUserAchievementsByUserIds(String authToken, List<String> achievementIds) {
+    public ApiResponse getUserAchievementsByUserIds(String authToken, Map<String, Object> request) {
         log.info("AchievementService::getUserAchievementsByAchievementIds");
-        ApiResponse response = ProjectUtil.createDefaultResponse(Constants.API_ACHIEVEMENT_BULK_LIST);
+        ApiResponse response = ProjectUtil.createDefaultResponse(Constants.API_ACHIEVEMENT_V2_LIST);
         String userId = accessTokenValidator.fetchUserIdFromAccessToken(authToken);
         if (StringUtils.isBlank(userId)) {
             ProjectUtil.errorResponse(response, "Invalid or missing access token", HttpStatus.UNAUTHORIZED);
             return response;
+        }
+        List<String> achievementIds = null;
+        if (request.get(Constants.REQUEST) instanceof Map<?, ?> requestMap &&
+                requestMap.get(Constants.ACHIEVEMENT_IDS) instanceof List<?> ids) {
+
+            achievementIds = ids.stream()
+                    .map(Object::toString)
+                    .toList();
         }
         if (CollectionUtils.isEmpty(achievementIds)) {
             ProjectUtil.errorResponse(response, "achievementIds list is mandatory and cannot be empty", HttpStatus.BAD_REQUEST);

@@ -511,7 +511,7 @@ public class Constants {
     public static final String ADDED = "added";
     public static final String REMOVED = "removed";
     public static final String ACTION = "action";
-    public static final String API_ACHIEVEMENT_BULK_LIST = "api.achievement.v2.list";
+    public static final String API_ACHIEVEMENT_V2_LIST = "api.achievement.v2.list";
     public static final String ACHIEVEMENT_IDS = "achievementIds";
 
     private Constants() {

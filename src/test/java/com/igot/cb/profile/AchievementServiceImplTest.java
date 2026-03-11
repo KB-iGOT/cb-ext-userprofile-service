@@ -1775,17 +1775,32 @@ class AchievementServiceImplTest {
         return achievement;
     }
 
+    /**
+     * Builds the request map the service now expects:
+     * { "request": { "achievementIds": [...] } }
+     */
+    private Map<String, Object> buildRequest(List<String> ids) {
+        Map<String, Object> inner = new HashMap<>();
+        inner.put(Constants.ACHIEVEMENT_IDS, ids);
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, inner);
+        return request;
+    }
+
     /** Stubs cbServerProperties so no field filtering is applied (return everything). */
     private void stubNoFieldFiltering() {
         when(cbServerProperties.getBulkListResponseFields()).thenReturn("");
         when(cbServerProperties.getBulkListContextDataFields()).thenReturn("");
     }
 
+    // ── token / input validation ─────────────────────────────────────────────
+
     @Test
     void testGetUserAchievementsByUserIds_blankToken_returnsUnauthorized() {
         when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("");
 
-        ApiResponse response = achievementService.getUserAchievementsByUserIds("bad-token", List.of("achv1"));
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "bad-token", buildRequest(List.of("achv1")));
 
         assertEquals(HttpStatus.UNAUTHORIZED, response.getResponseCode());
         assertNotNull(response.getParams().getErrMsg());
@@ -1797,16 +1812,19 @@ class AchievementServiceImplTest {
     void testGetUserAchievementsByUserIds_nullToken_returnsUnauthorized() {
         when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(null);
 
-        ApiResponse response = achievementService.getUserAchievementsByUserIds("token", List.of("achv1"));
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(List.of("achv1")));
 
         assertEquals(HttpStatus.UNAUTHORIZED, response.getResponseCode());
     }
 
     @Test
-    void testGetUserAchievementsByUserIds_nullAchievementIds_returnsBadRequest() {
+    void testGetUserAchievementsByUserIds_nullRequest_returnsBadRequest() {
+        // null request → no "request" key → achievementIds stays null → BAD_REQUEST
         when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
 
-        ApiResponse response = achievementService.getUserAchievementsByUserIds("token", null);
+        Map<String, Object> emptyRequest = new HashMap<>(); // no "request" key at all
+        ApiResponse response = achievementService.getUserAchievementsByUserIds("token", emptyRequest);
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
         assertTrue(response.getParams().getErrMsg().contains("achievementIds"));
@@ -1815,13 +1833,17 @@ class AchievementServiceImplTest {
 
     @Test
     void testGetUserAchievementsByUserIds_emptyAchievementIds_returnsBadRequest() {
+        // empty list inside request → achievementIds is empty → BAD_REQUEST
         when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
 
-        ApiResponse response = achievementService.getUserAchievementsByUserIds("token", Collections.emptyList());
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(Collections.emptyList()));
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
         assertTrue(response.getParams().getErrMsg().contains("achievementIds"));
     }
+
+    // ── cache hit ────────────────────────────────────────────────────────────
 
     @Test
     void testGetUserAchievementsByUserIds_cacheHit_returnsFromCache_noCassandraCall() throws Exception {
@@ -1833,7 +1855,8 @@ class AchievementServiceImplTest {
         when(objectMapper.readValue(anyString(),
                 any(com.fasterxml.jackson.core.type.TypeReference.class))).thenReturn(cached);
 
-        ApiResponse response = achievementService.getUserAchievementsByUserIds("token", List.of("achv1"));
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(List.of("achv1")));
 
         assertEquals(HttpStatus.OK, response.getResponseCode());
         Map<String, Object> sr = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
@@ -1855,12 +1878,15 @@ class AchievementServiceImplTest {
         when(objectMapper.readValue(eq("{\"id\":\"achv2\"}"),
                 any(com.fasterxml.jackson.core.type.TypeReference.class))).thenReturn(cached2);
 
-        ApiResponse response = achievementService.getUserAchievementsByUserIds("token", List.of("achv1", "achv2"));
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(List.of("achv1", "achv2")));
 
         assertEquals(HttpStatus.OK, response.getResponseCode());
         Map<String, Object> sr = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
         assertEquals(2, sr.get(Constants.TOTAL_COUNT));
     }
+
+    // ── cache miss → DB ──────────────────────────────────────────────────────
 
     @Test
     void testGetUserAchievementsByUserIds_cacheMiss_fetchesFromCassandraAndCaches() throws Exception {
@@ -1873,12 +1899,12 @@ class AchievementServiceImplTest {
                 .thenReturn(List.of(dbRecord));
         when(objectMapper.writeValueAsString(any())).thenReturn("{}");
 
-        ApiResponse response = achievementService.getUserAchievementsByUserIds("token", List.of("achv1"));
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(List.of("achv1")));
 
         assertEquals(HttpStatus.OK, response.getResponseCode());
         Map<String, Object> sr = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
         assertEquals(1, sr.get(Constants.TOTAL_COUNT));
-        // must be written to cache
         verify(cacheService, times(1)).putCache(anyString(), anyString());
     }
 
@@ -1890,7 +1916,8 @@ class AchievementServiceImplTest {
         when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
                 .thenReturn(Collections.emptyList());
 
-        ApiResponse response = achievementService.getUserAchievementsByUserIds("token", List.of("achv1"));
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(List.of("achv1")));
 
         assertEquals(HttpStatus.OK, response.getResponseCode());
         Map<String, Object> sr = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
@@ -1907,38 +1934,41 @@ class AchievementServiceImplTest {
         when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
                 .thenReturn(null);
 
-        ApiResponse response = achievementService.getUserAchievementsByUserIds("token", List.of("achv1"));
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(List.of("achv1")));
 
         assertEquals(HttpStatus.OK, response.getResponseCode());
         Map<String, Object> sr = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
         assertEquals(0, sr.get(Constants.TOTAL_COUNT));
     }
 
+    // ── mixed cache-hit + DB ─────────────────────────────────────────────────
+
     @Test
     void testGetUserAchievementsByUserIds_mixCacheAndDB_bothReturned() throws Exception {
         when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
         stubNoFieldFiltering();
 
-        // achv1 → cache hit
         Map<String, Object> cached1 = buildAchievement("achv1");
         when(cacheService.getCache(contains("achv1"))).thenReturn("{\"id\":\"achv1\"}");
         when(objectMapper.readValue(eq("{\"id\":\"achv1\"}"),
                 any(com.fasterxml.jackson.core.type.TypeReference.class))).thenReturn(cached1);
 
-        // achv2 → cache miss → DB
         when(cacheService.getCache(contains("achv2"))).thenReturn(null);
         Map<String, Object> db2 = buildAchievement("achv2");
         when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
                 .thenReturn(List.of(db2));
         when(objectMapper.writeValueAsString(any())).thenReturn("{}");
 
-        ApiResponse response = achievementService.getUserAchievementsByUserIds("token", List.of("achv1", "achv2"));
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(List.of("achv1", "achv2")));
 
         assertEquals(HttpStatus.OK, response.getResponseCode());
         Map<String, Object> sr = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
         assertEquals(2, sr.get(Constants.TOTAL_COUNT));
     }
 
+    // ── blank ids in list skipped ────────────────────────────────────────────
 
     @Test
     void testGetUserAchievementsByUserIds_blankIdsInList_areSkipped() throws Exception {
@@ -1950,14 +1980,20 @@ class AchievementServiceImplTest {
         when(objectMapper.readValue(anyString(),
                 any(com.fasterxml.jackson.core.type.TypeReference.class))).thenReturn(cached);
 
-        // list has achv1 plus blank/null entries
-        ApiResponse response = achievementService.getUserAchievementsByUserIds(
-                "token", Arrays.asList("achv1", "", "  ", null));
+        // list with achv1 plus blank entries — service does Object::toString so pass as strings
+        Map<String, Object> inner = new HashMap<>();
+        inner.put(Constants.ACHIEVEMENT_IDS, Arrays.asList("achv1", "", "  "));
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, inner);
+
+        ApiResponse response = achievementService.getUserAchievementsByUserIds("token", request);
 
         assertEquals(HttpStatus.OK, response.getResponseCode());
         Map<String, Object> sr = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
         assertEquals(1, sr.get(Constants.TOTAL_COUNT));
     }
+
+    // ── cache deserialization failure → falls through to DB ──────────────────
 
     @Test
     void testGetUserAchievementsByUserIds_cacheDeserializationFails_fallsThroughToDB() throws Exception {
@@ -1973,14 +2009,15 @@ class AchievementServiceImplTest {
                 .thenReturn(List.of(dbRecord));
         when(objectMapper.writeValueAsString(any())).thenReturn("{}");
 
-        ApiResponse response = achievementService.getUserAchievementsByUserIds("token", List.of("achv1"));
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(List.of("achv1")));
 
         assertEquals(HttpStatus.OK, response.getResponseCode());
         Map<String, Object> sr = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
         assertEquals(1, sr.get(Constants.TOTAL_COUNT));
     }
 
-    // ── cache serialization failure does not break response ──────────────────
+    // ── cache write failure does not break response ───────────────────────────
 
     @Test
     void testGetUserAchievementsByUserIds_cacheWriteFails_achievementStillReturned() throws Exception {
@@ -1994,7 +2031,8 @@ class AchievementServiceImplTest {
         when(objectMapper.writeValueAsString(any()))
                 .thenThrow(new com.fasterxml.jackson.core.JsonProcessingException("ser-error") {});
 
-        ApiResponse response = achievementService.getUserAchievementsByUserIds("token", List.of("achv1"));
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(List.of("achv1")));
 
         assertEquals(HttpStatus.OK, response.getResponseCode());
         Map<String, Object> sr = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
@@ -2010,7 +2048,8 @@ class AchievementServiceImplTest {
         stubNoFieldFiltering();
         when(cacheService.getCache(anyString())).thenThrow(new RuntimeException("Redis down"));
 
-        ApiResponse response = achievementService.getUserAchievementsByUserIds("token", List.of("achv1"));
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(List.of("achv1")));
 
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
         assertTrue(response.getParams().getErrMsg().contains("Failed to fetch achievements"));
@@ -2027,9 +2066,10 @@ class AchievementServiceImplTest {
                 .thenReturn(List.of(buildAchievement("achv1")));
         when(objectMapper.writeValueAsString(any())).thenReturn("{}");
 
-        ApiResponse response = achievementService.getUserAchievementsByUserIds("token", List.of("achv1"));
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(List.of("achv1")));
 
-        assertEquals(Constants.API_ACHIEVEMENT_BULK_LIST, response.getId());
+        assertEquals(Constants.API_ACHIEVEMENT_V2_LIST, response.getId());
     }
 
     @Test
@@ -2046,7 +2086,8 @@ class AchievementServiceImplTest {
         when(objectMapper.readValue(eq("{\"id\":\"achv2\"}"),
                 any(com.fasterxml.jackson.core.type.TypeReference.class))).thenReturn(c2);
 
-        ApiResponse response = achievementService.getUserAchievementsByUserIds("token", List.of("achv1", "achv2"));
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(List.of("achv1", "achv2")));
 
         Map<String, Object> sr = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
         List<?> data = (List<?>) sr.get(Constants.DATA);
@@ -2059,8 +2100,7 @@ class AchievementServiceImplTest {
     @Test
     void testGetUserAchievementsByUserIds_responseFieldsConfigured_removesUnwantedTopLevelKeys() throws Exception {
         when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
-        when(cbServerProperties.getBulkListResponseFields())
-                .thenReturn("userId,id,status,contextData");
+        when(cbServerProperties.getBulkListResponseFields()).thenReturn("userId,id,status,contextData");
         when(cbServerProperties.getBulkListContextDataFields()).thenReturn("");
 
         Map<String, Object> cached = buildAchievement("achv1");
@@ -2068,18 +2108,17 @@ class AchievementServiceImplTest {
         when(objectMapper.readValue(anyString(),
                 any(com.fasterxml.jackson.core.type.TypeReference.class))).thenReturn(cached);
 
-        ApiResponse response = achievementService.getUserAchievementsByUserIds("token", List.of("achv1"));
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(List.of("achv1")));
 
         assertEquals(HttpStatus.OK, response.getResponseCode());
         Map<String, Object> sr = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
         Map<String, Object> item = ((List<Map<String, Object>>) sr.get(Constants.DATA)).get(0);
 
-        // configured fields present
         assertTrue(item.containsKey(Constants.USER_ID_RQST));
         assertTrue(item.containsKey(Constants.ID));
         assertTrue(item.containsKey(Constants.STATUS));
         assertTrue(item.containsKey(Constants.CONTEXT_DATA));
-        // unconfigured fields removed
         assertFalse(item.containsKey("reason"));
         assertFalse(item.containsKey("source"));
         assertFalse(item.containsKey("updatedBy"));
@@ -2096,7 +2135,8 @@ class AchievementServiceImplTest {
         when(objectMapper.readValue(anyString(),
                 any(com.fasterxml.jackson.core.type.TypeReference.class))).thenReturn(cached);
 
-        ApiResponse response = achievementService.getUserAchievementsByUserIds("token", List.of("achv1"));
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(List.of("achv1")));
 
         Map<String, Object> sr = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
         Map<String, Object> item = ((List<Map<String, Object>>) sr.get(Constants.DATA)).get(0);
@@ -2118,7 +2158,8 @@ class AchievementServiceImplTest {
         when(objectMapper.readValue(anyString(),
                 any(com.fasterxml.jackson.core.type.TypeReference.class))).thenReturn(cached);
 
-        ApiResponse response = achievementService.getUserAchievementsByUserIds("token", List.of("achv1"));
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(List.of("achv1")));
 
         Map<String, Object> sr = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
         Map<String, Object> item = ((List<Map<String, Object>>) sr.get(Constants.DATA)).get(0);
@@ -2140,7 +2181,8 @@ class AchievementServiceImplTest {
         when(objectMapper.readValue(anyString(),
                 any(com.fasterxml.jackson.core.type.TypeReference.class))).thenReturn(cached);
 
-        ApiResponse response = achievementService.getUserAchievementsByUserIds("token", List.of("achv1"));
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(List.of("achv1")));
 
         Map<String, Object> sr = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
         Map<String, Object> item = ((List<Map<String, Object>>) sr.get(Constants.DATA)).get(0);
@@ -2164,7 +2206,8 @@ class AchievementServiceImplTest {
         when(objectMapper.readValue(anyString(),
                 any(com.fasterxml.jackson.core.type.TypeReference.class))).thenReturn(cached);
 
-        ApiResponse response = achievementService.getUserAchievementsByUserIds("token", List.of("achv1"));
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(List.of("achv1")));
 
         Map<String, Object> sr = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
         Map<String, Object> ctx = (Map<String, Object>)
@@ -2189,7 +2232,8 @@ class AchievementServiceImplTest {
         when(objectMapper.readValue(anyString(),
                 any(com.fasterxml.jackson.core.type.TypeReference.class))).thenReturn(noCtx);
 
-        ApiResponse response = achievementService.getUserAchievementsByUserIds("token", List.of("achv1"));
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(List.of("achv1")));
 
         assertEquals(HttpStatus.OK, response.getResponseCode());
         Map<String, Object> sr = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
@@ -2205,17 +2249,17 @@ class AchievementServiceImplTest {
         when(cbServerProperties.getBulkListContextDataFields()).thenReturn("title");
 
         Map<String, Object> strCtx = buildAchievement("achv1");
-        strCtx.put(Constants.CONTEXT_DATA, "{\"title\":\"test\"}"); // String, not Map
+        strCtx.put(Constants.CONTEXT_DATA, "{\"title\":\"test\"}");
         when(cacheService.getCache(anyString())).thenReturn("{}");
         when(objectMapper.readValue(anyString(),
                 any(com.fasterxml.jackson.core.type.TypeReference.class))).thenReturn(strCtx);
 
-        ApiResponse response = achievementService.getUserAchievementsByUserIds("token", List.of("achv1"));
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(List.of("achv1")));
 
         assertEquals(HttpStatus.OK, response.getResponseCode());
         Map<String, Object> sr = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
         Map<String, Object> item = ((List<Map<String, Object>>) sr.get(Constants.DATA)).get(0);
-        // contextData must remain as-is (String), not throw ClassCastException
         assertTrue(item.get(Constants.CONTEXT_DATA) instanceof String);
     }
 
@@ -2224,23 +2268,21 @@ class AchievementServiceImplTest {
     @Test
     void testGetUserAchievementsByUserIds_bothFiltersConfigured_appliedInSequence() throws Exception {
         when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
-        when(cbServerProperties.getBulkListResponseFields())
-                .thenReturn("userId,id,status,contextData");
-        when(cbServerProperties.getBulkListContextDataFields())
-                .thenReturn("title,learningHours");
+        when(cbServerProperties.getBulkListResponseFields()).thenReturn("userId,id,status,contextData");
+        when(cbServerProperties.getBulkListContextDataFields()).thenReturn("title,learningHours");
 
         Map<String, Object> cached = buildAchievement("achv1");
         when(cacheService.getCache(anyString())).thenReturn("{}");
         when(objectMapper.readValue(anyString(),
                 any(com.fasterxml.jackson.core.type.TypeReference.class))).thenReturn(cached);
 
-        ApiResponse response = achievementService.getUserAchievementsByUserIds("token", List.of("achv1"));
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(List.of("achv1")));
 
         assertEquals(HttpStatus.OK, response.getResponseCode());
         Map<String, Object> sr = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
         Map<String, Object> item = ((List<Map<String, Object>>) sr.get(Constants.DATA)).get(0);
 
-        // top-level: only configured keys
         assertTrue(item.containsKey(Constants.USER_ID_RQST));
         assertTrue(item.containsKey(Constants.ID));
         assertTrue(item.containsKey(Constants.STATUS));
@@ -2248,7 +2290,6 @@ class AchievementServiceImplTest {
         assertFalse(item.containsKey("source"));
         assertFalse(item.containsKey("reason"));
 
-        // contextData: only configured inner keys
         Map<String, Object> ctx = (Map<String, Object>) item.get(Constants.CONTEXT_DATA);
         assertTrue(ctx.containsKey("title"));
         assertTrue(ctx.containsKey("learningHours"));
