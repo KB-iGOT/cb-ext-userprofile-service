@@ -1366,4 +1366,103 @@ public class AchievementServiceImpl implements AchievementService{
         return null;
     }
 
+    @Override
+    public ApiResponse getUserAchievementsByUserIds(String authToken, List<String> achievementIds) {
+        log.info("AchievementService::getUserAchievementsByAchievementIds");
+        ApiResponse response = ProjectUtil.createDefaultResponse(Constants.API_ACHIEVEMENT_BULK_LIST);
+        String userId = accessTokenValidator.fetchUserIdFromAccessToken(authToken);
+        if (StringUtils.isBlank(userId)) {
+            ProjectUtil.errorResponse(response, "Invalid or missing access token", HttpStatus.UNAUTHORIZED);
+            return response;
+        }
+        if (CollectionUtils.isEmpty(achievementIds)) {
+            ProjectUtil.errorResponse(response, "achievementIds list is mandatory and cannot be empty", HttpStatus.BAD_REQUEST);
+            return response;
+        }
+        // Load both config sets once per request
+        Set<String> responseFields    = loadConfiguredFields(cbServerProperties.getBulkListResponseFields());
+        Set<String> contextDataFields = loadConfiguredFields(cbServerProperties.getBulkListContextDataFields());
+        try {
+            List<Map<String, Object>> result = new ArrayList<>();
+            for (String achievementId : achievementIds) {
+                if (StringUtils.isBlank(achievementId)) {
+                    continue;
+                }
+                String cacheKey = buildCacheKey("user:achievement", userId, Constants.ACHIEVEMENTS, achievementId);
+                Map<String, Object> achievement = getAchievementFromCache(cacheKey);
+                if (MapUtils.isNotEmpty(achievement)) {
+                    log.info("AchievementServiceImpl::getUserAchievementsByUserIds: fetched from cache for achievementId: {}", achievementId);
+                } else {
+                    log.info("AchievementServiceImpl::getUserAchievementsByUserIds: fetching from DB for achievementId: {}", achievementId);
+                    achievement = getAndCacheAchievementFromCassandra(userId, Constants.ACHIEVEMENTS, achievementId);
+                }
+                if (MapUtils.isNotEmpty(achievement)) {
+                    result.add(applyBulkListFilters(achievement, responseFields, contextDataFields));
+                }
+            }
+            Map<String, Object> searchResults = new HashMap<>();
+            searchResults.put(Constants.DATA, result);
+            searchResults.put(Constants.TOTAL_COUNT, result.size());
+            response.getResult().put(Constants.SEARCH_RESULTS, searchResults);
+            response.setResponseCode(HttpStatus.OK);
+        } catch (Exception e) {
+            log.error("Exception while fetching achievements for userId: {}, achievementIds: {}", userId, achievementIds, e);
+            ProjectUtil.errorResponse(response, "Failed to fetch achievements: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+        return response;
+    }
+
+    /**
+     * Parses a comma-separated config string into a Set of trimmed field names.
+     * Returns an empty set if the config is blank, which means "return all fields".
+     */
+    private Set<String> loadConfiguredFields(String config) {
+        if (StringUtils.isBlank(config)) {
+            return Collections.emptySet();
+        }
+        return Arrays.stream(config.split(","))
+                .map(String::trim)
+                .filter(StringUtils::isNotBlank)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    /**
+     * Applies both filters to an achievement map:
+     *  1. Top-level field filter  – keeps only fields listed in responseFields     (if non-empty)
+     *  2. contextData field filter – keeps only fields listed in contextDataFields (if non-empty)
+     *
+     * The original cached/DB map is never mutated; a new map is always returned.
+     */
+    private Map<String, Object> applyBulkListFilters(Map<String, Object> achievement,
+                                                     Set<String> responseFields,
+                                                     Set<String> contextDataFields) {
+        // filter top-level fields
+        Map<String, Object> filtered;
+        if (CollectionUtils.isEmpty(responseFields)) {
+            filtered = new HashMap<>(achievement);   // copy so we can mutate contextData safely
+        } else {
+            filtered = new LinkedHashMap<>();
+            for (String field : responseFields) {
+                if (achievement.containsKey(field)) {
+                    filtered.put(field, achievement.get(field));
+                }
+            }
+        }
+
+        // filter contextData fields
+        if (CollectionUtils.isNotEmpty(contextDataFields) && filtered.containsKey(Constants.CONTEXT_DATA)) {
+            Object contextDataObj = filtered.get(Constants.CONTEXT_DATA);
+            if (contextDataObj instanceof Map<?, ?> rawMap) {
+                Map<String, Object> filteredContextData = new LinkedHashMap<>();
+                for (String field : contextDataFields) {
+                    if (rawMap.containsKey(field)) {
+                        filteredContextData.put(field, rawMap.get(field));
+                    }
+                }
+                filtered.put(Constants.CONTEXT_DATA, filteredContextData);
+            }
+        }
+        return filtered;
+    }
+
 }

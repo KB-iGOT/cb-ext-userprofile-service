@@ -3,6 +3,7 @@ package com.igot.cb.profile.service;
 import com.igot.cb.transactional.elasticsearch.dto.SearchCriteria;
 import com.igot.cb.util.ApiResponse;
 
+import java.util.List;
 import java.util.Map;
 
 public interface AchievementService {
@@ -20,4 +21,6 @@ public interface AchievementService {
     ApiResponse searchLearnerAchievements(SearchCriteria searchCriteria, String authToken);
 
     ApiResponse getUserAchievements(String authToken);
+
+    ApiResponse getUserAchievementsByUserIds(String authToken, List<String> achievementIds);
 }
