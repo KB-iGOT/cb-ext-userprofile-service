@@ -3,6 +3,7 @@ package com.igot.cb.profile.controller;
 import com.igot.cb.profile.service.AchievementService;
 import com.igot.cb.transactional.elasticsearch.dto.SearchCriteria;
 import com.igot.cb.util.ApiResponse;
+import com.igot.cb.util.Constants;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
@@ -11,10 +12,9 @@ import org.mockito.MockitoAnnotations;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -153,5 +153,108 @@ class AchievementControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(apiResponse, response.getBody());
         verify(achievementService).getUserAchievements("token");
+    }
+
+    // ==================== listLearnerAchievementsByUserIds TESTS ====================
+
+    @Test
+    void testListLearnerAchievementsByUserIds_success() {
+        // valid request body → forwarded as-is to service, service returns OK
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, Map.of(Constants.ACHIEVEMENT_IDS, List.of("achv-1", "achv-2")));
+        ApiResponse apiResponse = new ApiResponse();
+        apiResponse.setResponseCode(HttpStatus.OK);
+        when(achievementService.getUserAchievementsByUserIds("token", request)).thenReturn(apiResponse);
+
+        ResponseEntity<?> response =
+                achievementController.listLearnerAchievementsByUserIds("token", request);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertSame(apiResponse, response.getBody());
+        verify(achievementService).getUserAchievementsByUserIds("token", request);
+    }
+
+    @Test
+    void testListLearnerAchievementsByUserIds_invalidToken_returnsUnauthorized() {
+        // service validates the token and returns UNAUTHORIZED
+        Map<String, Object> request = new HashMap<>();
+        ApiResponse apiResponse = new ApiResponse();
+        apiResponse.setResponseCode(HttpStatus.UNAUTHORIZED);
+        when(achievementService.getUserAchievementsByUserIds(anyString(), anyMap()))
+                .thenReturn(apiResponse);
+
+        ResponseEntity<?> response =
+                achievementController.listLearnerAchievementsByUserIds("bad-token", request);
+
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
+        assertSame(apiResponse, response.getBody());
+        verify(achievementService).getUserAchievementsByUserIds("bad-token", request);
+    }
+
+    @Test
+    void testListLearnerAchievementsByUserIds_emptyRequest_returnsBadRequest() {
+        // empty request body → forwarded to service, service returns BAD_REQUEST
+        Map<String, Object> request = new HashMap<>();
+        ApiResponse apiResponse = new ApiResponse();
+        apiResponse.setResponseCode(HttpStatus.BAD_REQUEST);
+        when(achievementService.getUserAchievementsByUserIds("token", request))
+                .thenReturn(apiResponse);
+
+        ResponseEntity<?> response =
+                achievementController.listLearnerAchievementsByUserIds("token", request);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        verify(achievementService).getUserAchievementsByUserIds("token", request);
+    }
+
+    @Test
+    void testListLearnerAchievementsByUserIds_serviceReturnsInternalServerError() {
+        // service returns 500 → controller propagates it unchanged
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, Map.of(Constants.ACHIEVEMENT_IDS, List.of("achv-1")));
+        ApiResponse apiResponse = new ApiResponse();
+        apiResponse.setResponseCode(HttpStatus.INTERNAL_SERVER_ERROR);
+        when(achievementService.getUserAchievementsByUserIds(anyString(), anyMap()))
+                .thenReturn(apiResponse);
+
+        ResponseEntity<?> response =
+                achievementController.listLearnerAchievementsByUserIds("token", request);
+
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
+        assertSame(apiResponse, response.getBody());
+    }
+
+    @Test
+    void testListLearnerAchievementsByUserIds_responseBodyForwardedUnchanged() {
+        // whatever the service returns must be forwarded as-is (no wrapping / mutation)
+        Map<String, Object> request = new HashMap<>();
+        ApiResponse apiResponse = new ApiResponse();
+        apiResponse.setResponseCode(HttpStatus.OK);
+        apiResponse.put(Constants.RESULT,
+                Map.of(Constants.SEARCH_RESULTS,
+                        Map.of(Constants.DATA, List.of(), Constants.TOTAL_COUNT, 0)));
+        when(achievementService.getUserAchievementsByUserIds(anyString(), anyMap()))
+                .thenReturn(apiResponse);
+
+        ResponseEntity<?> response =
+                achievementController.listLearnerAchievementsByUserIds("token", request);
+
+        assertSame(apiResponse, response.getBody());
+    }
+
+    @Test
+    void testListLearnerAchievementsByUserIds_requestPassedDirectlyToService() {
+        // the controller must pass the exact same request map object it received — no transformation
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, Map.of(Constants.ACHIEVEMENT_IDS, List.of("achv-1")));
+        ApiResponse apiResponse = new ApiResponse();
+        apiResponse.setResponseCode(HttpStatus.OK);
+        when(achievementService.getUserAchievementsByUserIds(anyString(), anyMap()))
+                .thenReturn(apiResponse);
+
+        achievementController.listLearnerAchievementsByUserIds("token", request);
+
+        // verify the exact same map reference is passed through without any extraction/modification
+        verify(achievementService).getUserAchievementsByUserIds("token", request);
     }
 }

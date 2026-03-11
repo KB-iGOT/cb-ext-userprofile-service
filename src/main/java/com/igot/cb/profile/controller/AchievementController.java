@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -73,6 +74,14 @@ public class AchievementController {
             @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken) {
         ApiResponse response = achievementService.getUserAchievements(authToken);
         return new ResponseEntity<>(response, response.getResponseCode());
+    }
+
+    @PostMapping("/v2/list")
+    public ResponseEntity<?> listLearnerAchievementsByUserIds(
+            @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken,
+            @RequestBody Map<String, Object> request) {
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(authToken, request);
+        return ResponseEntity.status(response.getResponseCode()).body(response);
     }
 
 }
