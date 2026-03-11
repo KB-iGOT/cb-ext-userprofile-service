@@ -1380,7 +1380,7 @@ public class AchievementServiceImpl implements AchievementService{
             return response;
         }
         // Load both config sets once per request
-        Set<String> responseFields    = loadConfiguredFields(cbServerProperties.getBulkListResponseFields());
+        Set<String> responseFields = loadConfiguredFields(cbServerProperties.getBulkListResponseFields());
         Set<String> contextDataFields = loadConfiguredFields(cbServerProperties.getBulkListContextDataFields());
         try {
             List<Map<String, Object>> result = new ArrayList<>();
@@ -1428,9 +1428,9 @@ public class AchievementServiceImpl implements AchievementService{
 
     /**
      * Applies both filters to an achievement map:
-     *  1. Top-level field filter  – keeps only fields listed in responseFields     (if non-empty)
-     *  2. contextData field filter – keeps only fields listed in contextDataFields (if non-empty)
-     *
+     * 1. Top-level field filter  – keeps only fields listed in responseFields     (if non-empty)
+     * 2. contextData field filter – keeps only fields listed in contextDataFields (if non-empty)
+     * <p>
      * The original cached/DB map is never mutated; a new map is always returned.
      */
     private Map<String, Object> applyBulkListFilters(Map<String, Object> achievement,
