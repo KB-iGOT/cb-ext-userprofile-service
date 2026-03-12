@@ -221,4 +221,7 @@ public class CbServerProperties {
     @Value("${achievement.bulk.list.response.fields:}")
     private String bulkListResponseFields;
 
+    @Value("${achievement.cache.ttl}")
+    private int achievementCacheTtl;
+
 }
