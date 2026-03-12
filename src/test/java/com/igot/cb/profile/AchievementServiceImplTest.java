@@ -1905,7 +1905,7 @@ class AchievementServiceImplTest {
         assertEquals(HttpStatus.OK, response.getResponseCode());
         Map<String, Object> sr = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
         assertEquals(1, sr.get(Constants.TOTAL_COUNT));
-        verify(cacheService, times(1)).putCache(anyString(), anyString());
+        verify(cacheService, times(1)).putCache(anyString(), anyString(), anyInt());
     }
 
     @Test
@@ -2037,7 +2037,7 @@ class AchievementServiceImplTest {
         assertEquals(HttpStatus.OK, response.getResponseCode());
         Map<String, Object> sr = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
         assertEquals(1, sr.get(Constants.TOTAL_COUNT));
-        verify(cacheService, never()).putCache(anyString(), anyString());
+        verify(cacheService, never()).putCache(anyString(), anyString(), anyInt());
     }
 
     // ── unexpected exception → INTERNAL_SERVER_ERROR ─────────────────────────

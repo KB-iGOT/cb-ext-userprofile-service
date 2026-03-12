@@ -110,7 +110,7 @@ public class AchievementServiceImpl implements AchievementService{
         // Cache record
         cacheService.putCache(
                 buildCacheKey("user:achievement", userId, (String) requestData.get(Constants.CONTEXT_TYPE), id),
-                achievementRecord
+                achievementRecord, cbServerProperties.getAchievementCacheTtl()
         );
         // Publish competency event for creation
         publishCompetencyEvent(userId, id, (String) requestData.get(Constants.CONTEXT_TYPE),
@@ -177,7 +177,7 @@ public class AchievementServiceImpl implements AchievementService{
         if (cbServerProperties.isRequireEs()) {
             updateAchievementInElasticsearch(id, existingRecord, userId, updateOnTimestamp);
         }
-        cacheService.putCache(buildCacheKey("user:achievement", userId, contextType, id), existingRecord);
+        cacheService.putCache(buildCacheKey("user:achievement", userId, contextType, id), existingRecord,cbServerProperties.getAchievementCacheTtl());
 
         // Publish competency update event only if there are actual changes (added or removed)
         if (hasCompetencyChanges(competencyDelta)) {
@@ -699,7 +699,7 @@ public class AchievementServiceImpl implements AchievementService{
         if (achievement != null && StringUtils.isNotBlank(contextType)) {
             try {
                 String achievementJson = objectMapper.writeValueAsString(achievement);
-                cacheService.putCache(buildCacheKey("user:achievement", userId, contextType, achievementId), achievementJson);
+                cacheService.putCache(buildCacheKey("user:achievement", userId, contextType, achievementId), achievementJson,cbServerProperties.getAchievementCacheTtl());
             } catch (Exception e) {
                 log.error("Failed to serialize achievement for caching", e);
             }
