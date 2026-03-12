@@ -1495,7 +1495,7 @@ public class ProfileServiceImpl implements ProfileService {
 
         try {
             String cachedValue = cacheService.getCache(redisKey);
-            if (cachedValue != null) {
+            if (StringUtils.isNotBlank(cachedValue)) {
                 return Integer.parseInt(cachedValue);
             }
 
