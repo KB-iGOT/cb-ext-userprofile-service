@@ -4,9 +4,11 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.authentication.util.AccessTokenValidator;
 import com.igot.cb.profile.service.ProfileServiceImpl;
+import com.igot.cb.transactional.cassandrautils.CassandraOperation;
 import com.igot.cb.transactional.redis.cache.CacheService;
 import com.igot.cb.util.ApiResponse;
 import com.igot.cb.util.CbServerProperties;
+import com.igot.cb.util.Constants;
 import com.igot.cb.util.UserUtility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -36,6 +38,8 @@ class ProfileServiceImplPrivateMethodTest {
     private AccessTokenValidator accessTokenValidator;
     @Mock
     private CacheService cacheService;
+    @Mock
+    private CassandraOperation cassandraOperation;
     @Mock
     private ObjectMapper mapper;
     @Mock
@@ -76,7 +80,7 @@ class ProfileServiceImplPrivateMethodTest {
         when(serverConfig.getBasicProfileFields()).thenReturn(Arrays.asList("field1", "field2"));
 
         // Mock DB call for missing field
-        Map<String, Object> dbData = Map.of("field2", "value2");
+        Map<String, Object> dbData = new HashMap<>(Map.of("field2", "value2"));
         ProfileServiceImpl spyService = Mockito.spy(profileService);
         doReturn(dbData).when(spyService).readUserDataFromDB(eq(userId), anyList());
 
@@ -85,7 +89,8 @@ class ProfileServiceImplPrivateMethodTest {
             mockedUtility.when(() -> UserUtility.decryptSpecificUserData(anyMap(), anyList())).then(inv -> null);
 
             ApiResponse response = spyService.getBasicProfile(userId, userToken);
-            assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
+            // Cache hit with difference list merges missing fields from DB and returns successfully
+            assertEquals(HttpStatus.OK, response.getResponseCode());
         }
     }
 
@@ -125,7 +130,8 @@ class ProfileServiceImplPrivateMethodTest {
             mockedUtility.when(() -> UserUtility.decryptSpecificUserData(anyMap(), anyList())).then(inv -> null);
 
             ApiResponse response = spyService.getBasicProfile(userId, userToken);
-            assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
+            // Non-self user path calls sanitizeProfile but still returns 200 OK on success
+            assertEquals(HttpStatus.OK, response.getResponseCode());
         }
     }
 
@@ -136,6 +142,117 @@ class ProfileServiceImplPrivateMethodTest {
 
         ApiResponse response = profileService.getBasicProfile("user123", "token123");
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
+    }
+
+    @Test
+    void testGetUserBadgeCount_CacheHit_ReturnsCount() {
+        String userId = "user123";
+        String redisKey = "user:badgeCount_" + userId;
+
+        when(cacheService.getCache(redisKey)).thenReturn("5");
+
+        int result = (int) ReflectionTestUtils.invokeMethod(profileService, "getUserBadgeCount", userId);
+
+        assertEquals(5, result);
+    }
+
+    @Test
+    void testGetUserBadgeCount_CacheMiss_RecordsFound_ReturnsTotalPoints() {
+        String userId = "user456";
+        String redisKey = "user:badgeCount_" + userId;
+
+        when(cacheService.getCache(redisKey)).thenReturn(null);
+
+        List<Map<String, Object>> records = Arrays.asList(
+                Map.of(Constants.COURSE_ID, "course1"),
+                Map.of(Constants.COURSE_ID, "course2"),
+                Map.of(Constants.COURSE_ID, "course3")
+        );
+        when(cassandraOperation.getRecordsByPropertiesByKey(
+                (Constants.KEYSPACE_SUNBIRD_COURSES),
+                (Constants.USER_BADGE_LOOKUP_TABLE),
+                (Map.of(Constants.USERID_KEY, userId)),
+                (List.of(Constants.COURSE_ID)),
+                (userId)
+        )).thenReturn(records);
+
+        int result = (int) ReflectionTestUtils.invokeMethod(profileService, "getUserBadgeCount", userId);
+
+        assertEquals(3, result);
+        Mockito.verify(cacheService).putCache(redisKey, 3);
+    }
+
+    @Test
+    void testGetUserBadgeCount_CacheMiss_NoRecords_ReturnsZero() {
+        String userId = "user789";
+        String redisKey = "user:badgeCount_" + userId;
+
+        when(cacheService.getCache(redisKey)).thenReturn(null);
+
+        when(cassandraOperation.getRecordsByPropertiesByKey(
+                (Constants.KEYSPACE_SUNBIRD_COURSES),
+                (Constants.USER_BADGE_LOOKUP_TABLE),
+                (Map.of(Constants.USERID_KEY, userId)),
+                (List.of(Constants.COURSE_ID)),
+                (userId)
+        )).thenReturn(Collections.emptyList());
+
+        int result = (int) ReflectionTestUtils.invokeMethod(profileService, "getUserBadgeCount", userId);
+
+        assertEquals(0, result);
+        Mockito.verify(cacheService).putCache(redisKey, 0);
+    }
+
+    @Test
+    void testGetUserBadgeCount_CacheMiss_NullRecords_ReturnsZero() {
+        String userId = "userNull";
+        String redisKey = "user:badgeCount_" + userId;
+
+        when(cacheService.getCache(redisKey)).thenReturn(null);
+
+        when(cassandraOperation.getRecordsByPropertiesByKey(
+                (Constants.KEYSPACE_SUNBIRD_COURSES),
+                (Constants.USER_BADGE_LOOKUP_TABLE),
+                (Map.of(Constants.USERID_KEY, userId)),
+                (List.of(Constants.COURSE_ID)),
+                (userId)
+        )).thenReturn(null);
+
+        int result = (int) ReflectionTestUtils.invokeMethod(profileService, "getUserBadgeCount", userId);
+
+        assertEquals(0, result);
+        Mockito.verify(cacheService).putCache(redisKey, 0);
+    }
+
+    @Test
+    void testGetUserBadgeCount_CacheServiceThrowsException_ReturnsZero() {
+        String userId = "userError";
+        String redisKey = "user:badgeCount_" + userId;
+
+        when(cacheService.getCache(redisKey)).thenThrow(new RuntimeException("Redis unavailable"));
+
+        int result = (int) ReflectionTestUtils.invokeMethod(profileService, "getUserBadgeCount", userId);
+
+        assertEquals(0, result);
+    }
+
+    @Test
+    void testGetUserBadgeCount_CassandraThrowsException_ReturnsZero() {
+        String userId = "userCassandraError";
+        String redisKey = "user:badgeCount_" + userId;
+
+        when(cacheService.getCache(redisKey)).thenReturn(null);
+        when(cassandraOperation.getRecordsByPropertiesByKey(
+                eq(Constants.KEYSPACE_SUNBIRD_COURSES),
+                eq(Constants.USER_BADGE_LOOKUP_TABLE),
+                any(),
+                any(),
+                eq(userId)
+        )).thenThrow(new RuntimeException("Cassandra error"));
+
+        int result = (int) ReflectionTestUtils.invokeMethod(profileService, "getUserBadgeCount", userId);
+
+        assertEquals(0, result);
     }
 }
 

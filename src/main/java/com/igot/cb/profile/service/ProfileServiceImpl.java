@@ -372,6 +372,7 @@ public class ProfileServiceImpl implements ProfileService {
                 cacheService.putCache(cacheKey, userProfile);
             }
             userProfile.put(Constants.POSTCOUNT, getUserPostCount(userId));
+            userProfile.put(Constants.BADGE_COUNT, getUserBadgeCount(userId));
             userProfile.put(Constants.ROLES, getUserRoles(userId,(String)userProfile.get(Constants.ROOT_ORG_ID)));
 
             if (!isSelfUser) {
@@ -1487,5 +1488,29 @@ public class ProfileServiceImpl implements ProfileService {
             result.add(orgFields);
         }
         return result;
+    }
+
+    private int getUserBadgeCount(String userId) {
+        String redisKey = Constants.USER_BADGE_COUNT + userId;
+
+        try {
+            String cachedValue = cacheService.getCache(redisKey);
+            if (cachedValue != null) {
+                return Integer.parseInt(cachedValue);
+            }
+
+            List<Map<String, Object>> records = cassandraOperation.getRecordsByPropertiesByKey(Constants.KEYSPACE_SUNBIRD_COURSES,Constants.USER_BADGE_LOOKUP_TABLE,
+                    Map.of(Constants.USERID_KEY, userId), List.of(Constants.COURSE_ID), userId);
+            int totalPoints = 0;
+            if(!CollectionUtils.isEmpty(records)){
+                totalPoints= records.size();
+            }
+            cacheService.putCache(redisKey, totalPoints);
+            return totalPoints;
+
+        } catch (Exception e) {
+            log.warn("Failed to fetch badge count for userId {}: {}", userId, e.getMessage());
+            return 0;
+        }
     }
 }
