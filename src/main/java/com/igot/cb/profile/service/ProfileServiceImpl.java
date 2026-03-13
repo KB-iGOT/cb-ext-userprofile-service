@@ -367,7 +367,10 @@ public class ProfileServiceImpl implements ProfileService {
             userProfile.put(Constants.PROFILE_COMPLETION_PERCENTAGE, calculateProfileCompletionPercentage(userProfile,
                     userId, userToken));
             userProfile.put(Constants.KARMA_POINTS, getUserKarmaPoints(userId));
-            userProfile.put(Constants.CERTIFICATE_COUNT, getIssuedCertificateCount(userId));
+            if (!userProfile.containsKey(Constants.CERTIFICATE_COUNT)) {
+                userProfile.put(Constants.CERTIFICATE_COUNT, getIssuedCertificateCount(userId));
+                cacheService.putCache(cacheKey, userProfile);
+            }
             userProfile.put(Constants.POSTCOUNT, getUserPostCount(userId));
             userProfile.put(Constants.ROLES, getUserRoles(userId,(String)userProfile.get(Constants.ROOT_ORG_ID)));
 
@@ -941,13 +944,9 @@ public class ProfileServiceImpl implements ProfileService {
 
 
     private int getIssuedCertificateCount(String userId) {
-        String redisKey = serverConfig.getCertificateCountRedisKey();
 
         try {
-            String cachedValue = cacheService.hget(redisKey,serverConfig.getDataIndex(),userId,serverConfig.getCertificateCountRedisTtl());
-            if (cachedValue != null) {
-                return Integer.parseInt(cachedValue);
-            }
+
             List<Map<String, Object>> courseRecords = cassandraOperation.getRecordsByPropertiesByKey(
                     Constants.KEYSPACE_SUNBIRD_COURSES,
                     serverConfig.getUserEnrolmentsTable(),
@@ -1001,7 +1000,6 @@ public class ProfileServiceImpl implements ProfileService {
                     .filter(CollectionUtils::isNotEmpty)
                     .count();
             totalIssuedCertificates += certificatesFromEvents + certificatesFromExternalCourses;
-            cacheService.hset(redisKey,serverConfig.getDataIndex(),userId, String.valueOf(totalIssuedCertificates),serverConfig.getCertificateCountRedisTtl());
             return totalIssuedCertificates;
 
         } catch (Exception e) {
