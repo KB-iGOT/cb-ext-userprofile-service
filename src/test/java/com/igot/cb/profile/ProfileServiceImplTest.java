@@ -1548,16 +1548,20 @@ class ProfileServiceImplTest {
         when(serverConfig.getUserEnrolmentsTable()).thenReturn(Constants.USER_ENROLMENTS);
 
         List<Map<String, Object>> courseRecords = List.of(
-                Map.of(Constants.ISSUED_CERTIFICATES_KEY, List.of("c1")),
-                Map.of(Constants.ISSUED_CERTIFICATES_KEY, List.of("c2", "c3"))
+                Map.of(Constants.COURSE_ID, "course-1", Constants.ACTIVE_LOWERCASE, true,
+                        Constants.STATUS, 2, Constants.ISSUED_CERTIFICATES_KEY, List.of("cert-1")),
+                Map.of(Constants.COURSE_ID, "course-2", Constants.ACTIVE_LOWERCASE, true,
+                        Constants.STATUS, 2, Constants.ISSUED_CERTIFICATES_KEY, List.of("cert-2", "cert-3"))
         );
+        when(localCacheService.getCourseMetadataAsJsonString(anyList()))
+                .thenReturn(Map.of("course-1", "{}", "course-2", "{}"));
         when(localCassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), anyList(), anyString()))
                 .thenReturn(courseRecords)
                 .thenReturn(Collections.emptyList())
                 .thenReturn(Collections.emptyList());
         int count = ReflectionTestUtils.invokeMethod(localService, "getIssuedCertificateCount", "user-1");
         assertEquals(2, count);
-        verifyNoInteractions(localCacheService);
+        verify(localCacheService, times(1)).getCourseMetadataAsJsonString(anyList());
     }
 
     @Test
@@ -1572,9 +1576,13 @@ class ProfileServiceImplTest {
         when(serverConfig.getUserEnrolmentsTable()).thenReturn(Constants.USER_ENROLMENTS);
 
         List<Map<String, Object>> courseRecords = List.of(
-                Map.of(Constants.ISSUED_CERTIFICATES_KEY, List.of("c1", "c2")),
-                Map.of(Constants.ISSUED_CERTIFICATES_KEY, List.of("c3"))
+                Map.of(Constants.COURSE_ID, "course-1", Constants.ACTIVE_LOWERCASE, true,
+                        Constants.STATUS, 2, Constants.ISSUED_CERTIFICATES_KEY, List.of("c1", "c2")),
+                Map.of(Constants.COURSE_ID, "course-2", Constants.ACTIVE_LOWERCASE, true,
+                        Constants.STATUS, 2, Constants.ISSUED_CERTIFICATES_KEY, List.of("c3"))
         );
+        when(localCacheService.getCourseMetadataAsJsonString(anyList()))
+                .thenReturn(Map.of("course-1", "{}", "course-2", "{}"));
 
         List<Map<String, Object>> eventRecords = List.of(
                 Map.of(Constants.STATUS, 2, Constants.PROGRESS_KEY, 100, Constants.ISSUED_CERTIFICATES_KEY, List.of("e1")),
@@ -1596,7 +1604,7 @@ class ProfileServiceImplTest {
 
         int count = ReflectionTestUtils.invokeMethod(locaService, "getIssuedCertificateCount", "user-2");
         assertEquals(5, count);
-        verifyNoInteractions(localCacheService);
+        verify(localCacheService, times(1)).getCourseMetadataAsJsonString(anyList());
     }
 
     @Test

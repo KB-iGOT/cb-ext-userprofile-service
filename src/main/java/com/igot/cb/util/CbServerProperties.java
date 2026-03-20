@@ -133,6 +133,12 @@ public class CbServerProperties {
     @Value("${cb.certificate.count.redis.ttl}")
     private int certificateCountRedisTtl;
 
+    @Value("${content.api.base.url}")
+    private String contentBaseUrl;
+
+    @Value("${content.read.path}")
+    private String contentReadPath;
+
     public int getCertificateCountRedisTtl() {
         return certificateCountRedisTtl;
     }
