@@ -2,6 +2,7 @@ package com.igot.cb.profile;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.authentication.util.AccessTokenValidator;
+import com.igot.cb.common.KafkaEventPublisher;
 import com.igot.cb.profile.service.AchievementServiceImpl;
 import com.igot.cb.transactional.cassandrautils.CassandraOperation;
 import com.igot.cb.transactional.elasticsearch.dto.SearchCriteria;
@@ -45,6 +46,8 @@ class AchievementServiceImplTest {
     private ValueOperations<String, SearchResult> valueOperations;
     @Mock
     private CacheService cacheService;
+    @Mock
+    private KafkaEventPublisher kafkaEventPublisher;
 
     @InjectMocks
     private AchievementServiceImpl achievementService;
@@ -57,11 +60,12 @@ class AchievementServiceImplTest {
             when(cbServerProperties.getAchievementsMandatoryFields()).thenReturn("field1,field2");
             when(cbServerProperties.getAchievementEsRequiredFieldsMappingPath()).thenReturn("/tmp/mapping.json");
             when(cbServerProperties.getSearchResultRedisTtl()).thenReturn(1000L);
+            when(cbServerProperties.getUserCompetencyTopicName()).thenReturn("user-competency-mapping-event");
             when(redisTemplate.opsForValue()).thenReturn(valueOperations);
 
             achievementService = new AchievementServiceImpl(
                     accessTokenValidator, cbServerProperties, cassandraOperation,
-                    esClientService, objectMapper, redisTemplate, cacheService
+                    esClientService, objectMapper, redisTemplate, cacheService, kafkaEventPublisher
             );
             java.lang.reflect.Method initMethod = AchievementServiceImpl.class.getDeclaredMethod("initRequiredFields");
             initMethod.setAccessible(true);
@@ -1275,4 +1279,1025 @@ class AchievementServiceImplTest {
         assertEquals("achv1", resultData.get(0).get(Constants.ID));
     }
 
+    // ==================== KAFKA EVENT PUBLISHING TESTS ====================
+
+    @Test
+    void testCreateLearnerAchievement_withCompetencies_publishesKafkaEvent() throws Exception {
+        // Arrange
+        Map<String, Object> contextData = new HashMap<>();
+        contextData.put("field1", "value1");
+        contextData.put("field2", "value2");
+        List<Map<String, Object>> competencies = new ArrayList<>();
+        Map<String, Object> competency = new HashMap<>();
+        competency.put("competencyAreaId", "area1");
+        competencies.add(competency);
+        contextData.put(Constants.COMPETENCIES, competencies);
+
+        Map<String, Object> requestData = new HashMap<>();
+        requestData.put(Constants.CONTEXT_TYPE, "testContext");
+        requestData.put(Constants.SOURCE, "source");
+        requestData.put(Constants.CONTEXT_DATA, contextData);
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestData);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        ApiResponse cassandraResponse = new ApiResponse();
+        cassandraResponse.put(Constants.RESPONSE, Constants.SUCCESS);
+        when(cassandraOperation.insertRecord(any(), any(), any())).thenReturn(cassandraResponse);
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+        when(objectMapper.convertValue(any(), eq(Map.class))).thenReturn(new HashMap<>());
+        when(cbServerProperties.isRequireEs()).thenReturn(true);
+
+        SearchResult searchResult = new SearchResult();
+        searchResult.setData(new ArrayList<>());
+        when(esClientService.searchDocuments(any(), any())).thenReturn(searchResult);
+
+        // Act
+        ApiResponse response = achievementService.createLearnerAchievement(request, "token", "org1");
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        verify(kafkaEventPublisher, times(1)).publish(anyString(), (Object) any(), anyString());
+    }
+
+    @Test
+    void testCreateLearnerAchievement_withoutCompetencies_doesNotPublishKafkaEvent() throws Exception {
+        // Arrange
+        Map<String, Object> contextData = new HashMap<>();
+        contextData.put("field1", "value1");
+        contextData.put("field2", "value2");
+        // No competencies added
+
+        Map<String, Object> requestData = new HashMap<>();
+        requestData.put(Constants.CONTEXT_TYPE, "testContext");
+        requestData.put(Constants.SOURCE, "source");
+        requestData.put(Constants.CONTEXT_DATA, contextData);
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestData);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        ApiResponse cassandraResponse = new ApiResponse();
+        cassandraResponse.put(Constants.RESPONSE, Constants.SUCCESS);
+        when(cassandraOperation.insertRecord(any(), any(), any())).thenReturn(cassandraResponse);
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+        when(objectMapper.convertValue(any(), eq(Map.class))).thenReturn(new HashMap<>());
+        when(cbServerProperties.isRequireEs()).thenReturn(true);
+
+        SearchResult searchResult = new SearchResult();
+        searchResult.setData(new ArrayList<>());
+        when(esClientService.searchDocuments(any(), any())).thenReturn(searchResult);
+
+        // Act
+        ApiResponse response = achievementService.createLearnerAchievement(request, "token", "org1");
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        // Kafka event is always published regardless of competencies
+        verify(kafkaEventPublisher, times(1)).publish(anyString(), (Object) any(), anyString());
+    }
+
+    @Test
+    void testCreateLearnerAchievement_withEmptyCompetenciesList_publishesKafkaEvent() throws Exception {
+        // Arrange
+        Map<String, Object> contextData = new HashMap<>();
+        contextData.put("field1", "value1");
+        contextData.put("field2", "value2");
+        contextData.put(Constants.COMPETENCIES, new ArrayList<>()); // Empty list
+
+        Map<String, Object> requestData = new HashMap<>();
+        requestData.put(Constants.CONTEXT_TYPE, "testContext");
+        requestData.put(Constants.SOURCE, "source");
+        requestData.put(Constants.CONTEXT_DATA, contextData);
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestData);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        ApiResponse cassandraResponse = new ApiResponse();
+        cassandraResponse.put(Constants.RESPONSE, Constants.SUCCESS);
+        when(cassandraOperation.insertRecord(any(), any(), any())).thenReturn(cassandraResponse);
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+        when(objectMapper.convertValue(any(), eq(Map.class))).thenReturn(new HashMap<>());
+        when(cbServerProperties.isRequireEs()).thenReturn(true);
+
+        SearchResult searchResult = new SearchResult();
+        searchResult.setData(new ArrayList<>());
+        when(esClientService.searchDocuments(any(), any())).thenReturn(searchResult);
+
+        // Act
+        ApiResponse response = achievementService.createLearnerAchievement(request, "token", "org1");
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        // Kafka event is always published regardless of competencies list content
+        verify(kafkaEventPublisher, times(1)).publish(anyString(), (Object) any(), anyString());
+    }
+
+    @Test
+    void testCreateLearnerAchievement_kafkaPublishingFails_achievementStillCreated() throws Exception {
+        // Arrange
+        Map<String, Object> contextData = new HashMap<>();
+        contextData.put("field1", "value1");
+        contextData.put("field2", "value2");
+        List<Map<String, Object>> competencies = new ArrayList<>();
+        Map<String, Object> competency = new HashMap<>();
+        competency.put("competencyAreaId", "area1");
+        competencies.add(competency);
+        contextData.put(Constants.COMPETENCIES, competencies);
+
+        Map<String, Object> requestData = new HashMap<>();
+        requestData.put(Constants.CONTEXT_TYPE, "testContext");
+        requestData.put(Constants.SOURCE, "source");
+        requestData.put(Constants.CONTEXT_DATA, contextData);
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestData);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        ApiResponse cassandraResponse = new ApiResponse();
+        cassandraResponse.put(Constants.RESPONSE, Constants.SUCCESS);
+        when(cassandraOperation.insertRecord(any(), any(), any())).thenReturn(cassandraResponse);
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+        when(objectMapper.convertValue(any(), eq(Map.class))).thenReturn(new HashMap<>());
+        when(cbServerProperties.isRequireEs()).thenReturn(true);
+
+        SearchResult searchResult = new SearchResult();
+        searchResult.setData(new ArrayList<>());
+        when(esClientService.searchDocuments(any(), any())).thenReturn(searchResult);
+
+        // Kafka publishing throws exception
+        doThrow(new RuntimeException("Kafka error"))
+                .when(kafkaEventPublisher).publish(anyString(), (Object) any(), anyString());
+
+        // Act
+        ApiResponse response = achievementService.createLearnerAchievement(request, "token", "org1");
+
+        // Assert - Achievement creation should still succeed
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        assertNotNull(response.getResult());
+        verify(cassandraOperation, times(1)).insertRecord(any(), any(), any());
+        verify(esClientService, times(1)).addDocument(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void testCreateLearnerAchievement_withNullContextData_doesNotPublishKafkaEvent() throws Exception {
+        // Arrange
+        Map<String, Object> requestData = new HashMap<>();
+        requestData.put(Constants.CONTEXT_TYPE, "testContext");
+        requestData.put(Constants.SOURCE, "source");
+        requestData.put(Constants.CONTEXT_DATA, null); // Null context data
+
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestData);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+
+        // Act
+        ApiResponse response = achievementService.createLearnerAchievement(request, "token", "org1");
+
+        // Assert
+        // Should fail validation before reaching Kafka publishing
+        assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
+        verify(kafkaEventPublisher, never()).publish(anyString(), (Object) any(), anyString());
+    }
+
+    // ==================== COMPETENCY CHANGE DETECTION TESTS ====================
+
+    @Test
+    void testUpdateLearnerAchievement_withChangedCompetencies_publishesKafkaEvent() throws Exception {
+        // Arrange: Setup competencies_v6 with changes
+        List<Map<String, String>> newCompetencies = new ArrayList<>();
+        Map<String, String> newCompetency = new HashMap<>();
+        newCompetency.put(Constants.COMPETENCY_AREA_REF_ID, "kcmfinal_fw_competencyarea_area1");
+        newCompetency.put(Constants.COMPETENCY_THEME_REF_ID, "kcmfinal_fw_theme_theme1");
+        newCompetency.put(Constants.COMPETENCY_SUB_THEME_REF_ID, "kcmfinal_fw_subtheme_sub1");
+        newCompetencies.add(newCompetency);
+
+        Map<String, Object> newContextData = new HashMap<>();
+        newContextData.put("field1", "value1");
+        newContextData.put("field2", "value2");
+        newContextData.put(Constants.COMPETENCIES_V6, newCompetencies);
+
+        Map<String, Object> requestData = new HashMap<>();
+        requestData.put(Constants.ID, "achv1");
+        requestData.put(Constants.CONTEXT_TYPE, "testContext");
+        requestData.put(Constants.CONTEXT_DATA, newContextData);
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestData);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        when(cbServerProperties.isRequireEs()).thenReturn(true);
+
+        // Existing record with different competencies
+        Map<String, Object> existingRecord = new HashMap<>();
+        existingRecord.put(Constants.STATUS, Constants.PENDING);
+        existingRecord.put(Constants.CREATED_ON, LocalDate.now());
+        existingRecord.put(Constants.USER_ID_RQST, "user123");
+
+        List<Map<String, String>> existingCompetencies = new ArrayList<>();
+        Map<String, String> existingCompetency = new HashMap<>();
+        existingCompetency.put(Constants.COMPETENCY_AREA_REF_ID, "kcmfinal_fw_competencyarea_different");
+        existingCompetency.put(Constants.COMPETENCY_THEME_REF_ID, "kcmfinal_fw_theme_different");
+        existingCompetency.put(Constants.COMPETENCY_SUB_THEME_REF_ID, "kcmfinal_fw_subtheme_different");
+        existingCompetencies.add(existingCompetency);
+
+        Map<String, Object> existingContextData = new HashMap<>();
+        existingContextData.put("field1", "old");
+        existingContextData.put(Constants.COMPETENCIES_V6, existingCompetencies);
+        existingRecord.put(Constants.CONTEXT_DATA, existingContextData);
+
+        when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
+                .thenReturn(Collections.singletonList(existingRecord));
+        ApiResponse cassandraResponse = new ApiResponse();
+        cassandraResponse.put(Constants.RESPONSE, Constants.SUCCESS);
+        when(cassandraOperation.insertRecord(any(), any(), any())).thenReturn(cassandraResponse);
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+        when(objectMapper.convertValue(any(), eq(Map.class))).thenReturn(new HashMap<>());
+        when(objectMapper.readValue(anyString(), eq(Map.class))).thenReturn(existingContextData);
+
+        Map<String, Object> esDoc = new HashMap<>();
+        esDoc.put(Constants.CREATED_ON, "2024-01-01T00:00:00.000+0000");
+        when(esClientService.readDocument(any(), any())).thenReturn(esDoc);
+
+        SearchResult searchResult = new SearchResult();
+        searchResult.setData(new ArrayList<>());
+        when(esClientService.searchDocuments(any(), any())).thenReturn(searchResult);
+
+        // Act
+        ApiResponse response = achievementService.updateLearnerAchievement(request, "token", "org1");
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        verify(kafkaEventPublisher, times(1)).publish(anyString(), (Object) any(), anyString());
+    }
+
+    @Test
+    void testUpdateLearnerAchievement_withNoCompetencyChange_doesNotPublishKafkaEvent() throws Exception {
+        // Arrange: Same competencies
+        List<Map<String, String>> competencies = new ArrayList<>();
+        Map<String, String> competency = new HashMap<>();
+        competency.put(Constants.COMPETENCY_AREA_REF_ID, "kcmfinal_fw_competencyarea_same");
+        competency.put(Constants.COMPETENCY_THEME_REF_ID, "kcmfinal_fw_theme_same");
+        competency.put(Constants.COMPETENCY_SUB_THEME_REF_ID, "kcmfinal_fw_subtheme_same");
+        competencies.add(competency);
+
+        Map<String, Object> contextData = new HashMap<>();
+        contextData.put("field1", "value1");
+        contextData.put("field2", "value2");
+        contextData.put(Constants.COMPETENCIES_V6, competencies);
+
+        Map<String, Object> requestData = new HashMap<>();
+        requestData.put(Constants.ID, "achv1");
+        requestData.put(Constants.CONTEXT_TYPE, "testContext");
+        requestData.put(Constants.CONTEXT_DATA, contextData);
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestData);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        when(cbServerProperties.isRequireEs()).thenReturn(true);
+
+        Map<String, Object> existingRecord = new HashMap<>();
+        existingRecord.put(Constants.STATUS, Constants.PENDING);
+        existingRecord.put(Constants.CREATED_ON, LocalDate.now());
+        existingRecord.put(Constants.USER_ID_RQST, "user123");
+        existingRecord.put(Constants.CONTEXT_DATA, contextData);
+
+        when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
+                .thenReturn(Collections.singletonList(existingRecord));
+        ApiResponse cassandraResponse = new ApiResponse();
+        cassandraResponse.put(Constants.RESPONSE, Constants.SUCCESS);
+        when(cassandraOperation.insertRecord(any(), any(), any())).thenReturn(cassandraResponse);
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+        when(objectMapper.convertValue(any(), eq(Map.class))).thenReturn(new HashMap<>());
+        when(objectMapper.readValue(anyString(), eq(Map.class))).thenReturn(contextData);
+
+        Map<String, Object> esDoc = new HashMap<>();
+        esDoc.put(Constants.CREATED_ON, "2024-01-01T00:00:00.000+0000");
+        when(esClientService.readDocument(any(), any())).thenReturn(esDoc);
+
+        SearchResult searchResult = new SearchResult();
+        searchResult.setData(new ArrayList<>());
+        when(esClientService.searchDocuments(any(), any())).thenReturn(searchResult);
+
+        // Act
+        ApiResponse response = achievementService.updateLearnerAchievement(request, "token", "org1");
+
+        // Assert - No Kafka event should be published if competencies haven't changed
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        verify(kafkaEventPublisher, never()).publish(anyString(), (Object) any(), anyString());
+    }
+
+    @Test
+    void testDeleteLearnerAchievement_withCompetencies_publishesDeleteKafkaEvent() throws Exception {
+        // Arrange
+        List<Map<String, String>> competencies = new ArrayList<>();
+        Map<String, String> competency = new HashMap<>();
+        competency.put(Constants.COMPETENCY_AREA_REF_ID, "area1");
+        competency.put(Constants.COMPETENCY_THEME_REF_ID, "theme1");
+        competency.put(Constants.COMPETENCY_SUB_THEME_REF_ID, "sub1");
+        competencies.add(competency);
+
+        Map<String, Object> contextData = new HashMap<>();
+        contextData.put(Constants.COMPETENCIES_V6, competencies);
+
+        Map<String, Object> reqMap = new HashMap<>();
+        reqMap.put(Constants.ID, "achv1");
+        reqMap.put(Constants.CONTEXT_TYPE, "testContext");
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, reqMap);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+
+        Map<String, Object> existingRecord = new HashMap<>();
+        existingRecord.put(Constants.CONTEXT_DATA, contextData);
+        existingRecord.put(Constants.USER_ID_RQST, "user123");
+
+        when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
+                .thenReturn(Collections.singletonList(existingRecord));
+
+        Map<String, Object> cassandraResponse = new HashMap<>();
+        cassandraResponse.put(Constants.RESPONSE, Constants.SUCCESS);
+        when(cassandraOperation.deleteRecordByCompositeKey(any(), any(), any())).thenReturn(cassandraResponse);
+
+        when(cbServerProperties.isRequireEs()).thenReturn(true);
+        SearchResult searchResult = new SearchResult();
+        searchResult.setData(new ArrayList<>());
+        when(esClientService.searchDocuments(any(), any())).thenReturn(searchResult);
+
+        // Act
+        ApiResponse response = achievementService.deleteLearnerAchievement(request, "token");
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        verify(kafkaEventPublisher, times(1)).publish(anyString(), (Object) any(), anyString());
+    }
+
+    @Test
+    void testDeleteLearnerAchievement_withoutCompetencies_doesNotPublishKafkaEvent() {
+        // Arrange: No competencies in context data
+        Map<String, Object> contextData = new HashMap<>();
+        contextData.put("field1", "value1");
+        // No competencies_v6
+
+        Map<String, Object> reqMap = new HashMap<>();
+        reqMap.put(Constants.ID, "achv1");
+        reqMap.put(Constants.CONTEXT_TYPE, "testContext");
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, reqMap);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+
+        Map<String, Object> existingRecord = new HashMap<>();
+        existingRecord.put(Constants.CONTEXT_DATA, contextData);
+        existingRecord.put(Constants.USER_ID_RQST, "user123");
+
+        when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
+                .thenReturn(Collections.singletonList(existingRecord));
+
+        Map<String, Object> cassandraResponse = new HashMap<>();
+        cassandraResponse.put(Constants.RESPONSE, Constants.SUCCESS);
+        when(cassandraOperation.deleteRecordByCompositeKey(any(), any(), any())).thenReturn(cassandraResponse);
+
+        when(cbServerProperties.isRequireEs()).thenReturn(true);
+        SearchResult searchResult = new SearchResult();
+        searchResult.setData(new ArrayList<>());
+        try {
+            when(esClientService.searchDocuments(any(), any())).thenReturn(searchResult);
+        } catch (Exception e) {
+            fail("Mock setup failed");
+        }
+
+        // Act
+        ApiResponse response = achievementService.deleteLearnerAchievement(request, "token");
+
+        // Assert - No Kafka event should be published if no competencies
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        verify(kafkaEventPublisher, never()).publish(anyString(), (Object) any(), anyString());
+    }
+
+
+    // ==================== CASE-INSENSITIVE COMPARISON TESTS ====================
+
+    @Test
+    void testUpdateLearnerAchievement_caseInsensitiveCompetencyComparison() throws Exception {
+        // Arrange: Same competencies but different case
+        List<Map<String, String>> newCompetencies = new ArrayList<>();
+        Map<String, String> newCompetency = new HashMap<>();
+        newCompetency.put(Constants.COMPETENCY_AREA_REF_ID, "KCMFINAL_FW_COMPETENCYAREA_SAME");
+        newCompetency.put(Constants.COMPETENCY_THEME_REF_ID, "KCMFINAL_FW_THEME_SAME");
+        newCompetency.put(Constants.COMPETENCY_SUB_THEME_REF_ID, "KCMFINAL_FW_SUBTHEME_SAME");
+        newCompetencies.add(newCompetency);
+
+        Map<String, Object> newContextData = new HashMap<>();
+        newContextData.put("field1", "value1");
+        newContextData.put("field2", "value2");
+        newContextData.put(Constants.COMPETENCIES_V6, newCompetencies);
+
+        Map<String, Object> requestData = new HashMap<>();
+        requestData.put(Constants.ID, "achv1");
+        requestData.put(Constants.CONTEXT_TYPE, "testContext");
+        requestData.put(Constants.CONTEXT_DATA, newContextData);
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestData);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        when(cbServerProperties.isRequireEs()).thenReturn(true);
+
+        // Existing record with lowercase competencies
+        Map<String, Object> existingRecord = new HashMap<>();
+        existingRecord.put(Constants.STATUS, Constants.PENDING);
+        existingRecord.put(Constants.CREATED_ON, LocalDate.now());
+        existingRecord.put(Constants.USER_ID_RQST, "user123");
+
+        List<Map<String, String>> existingCompetencies = new ArrayList<>();
+        Map<String, String> existingCompetency = new HashMap<>();
+        existingCompetency.put(Constants.COMPETENCY_AREA_REF_ID, "kcmfinal_fw_competencyarea_same");
+        existingCompetency.put(Constants.COMPETENCY_THEME_REF_ID, "kcmfinal_fw_theme_same");
+        existingCompetency.put(Constants.COMPETENCY_SUB_THEME_REF_ID, "kcmfinal_fw_subtheme_same");
+        existingCompetencies.add(existingCompetency);
+
+        Map<String, Object> existingContextData = new HashMap<>();
+        existingContextData.put("field1", "value1");
+        existingContextData.put("field2", "value2");
+        existingContextData.put(Constants.COMPETENCIES_V6, existingCompetencies);
+        existingRecord.put(Constants.CONTEXT_DATA, existingContextData);
+
+        when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
+                .thenReturn(Collections.singletonList(existingRecord));
+        ApiResponse cassandraResponse = new ApiResponse();
+        cassandraResponse.put(Constants.RESPONSE, Constants.SUCCESS);
+        when(cassandraOperation.insertRecord(any(), any(), any())).thenReturn(cassandraResponse);
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+        when(objectMapper.convertValue(any(), eq(Map.class))).thenReturn(new HashMap<>());
+        when(objectMapper.readValue(anyString(), eq(Map.class))).thenReturn(existingContextData);
+
+        Map<String, Object> esDoc = new HashMap<>();
+        esDoc.put(Constants.CREATED_ON, "2024-01-01T00:00:00.000+0000");
+        when(esClientService.readDocument(any(), any())).thenReturn(esDoc);
+
+        SearchResult searchResult = new SearchResult();
+        searchResult.setData(new ArrayList<>());
+        try {
+            when(esClientService.searchDocuments(any(), any())).thenReturn(searchResult);
+        } catch (Exception e) {
+            fail("Mock setup failed");
+        }
+
+        // Act
+        ApiResponse response = achievementService.updateLearnerAchievement(request, "token", "org1");
+
+        // Assert - Should not publish Kafka event since competencies are same (case-insensitive)
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        assertNotNull(response.getResult());
+        verify(kafkaEventPublisher, never()).publish(anyString(), (Object) any(), anyString());
+    }
+
+    // ==================== getUserAchievementsByUserIds TESTS ====================
+
+    /** Builds a realistic achievement record exactly as Cassandra/cache would return it. */
+    private Map<String, Object> buildAchievement(String id) {
+        Map<String, Object> contextData = new HashMap<>();
+        contextData.put("title", "Java Certificate");
+        contextData.put("issuedDate", "2026-02-28T18:30:00.000Z");
+        contextData.put("trainingType", "Domestic Training");
+        contextData.put("deliveryMode", "ONLINE");
+        contextData.put("learningHours", 20);
+
+        Map<String, Object> achievement = new HashMap<>();
+        achievement.put(Constants.ID, id);
+        achievement.put(Constants.USER_ID_RQST, "user123");
+        achievement.put(Constants.ORG_ID, "org001");
+        achievement.put(Constants.CONTEXT_TYPE, Constants.ACHIEVEMENTS);
+        achievement.put(Constants.CONTEXT_DATA, contextData);
+        achievement.put(Constants.STATUS, "Approved");
+        achievement.put(Constants.CREATED_ON, "2026-03-09T13:15:00.323Z");
+        achievement.put("reason", null);
+        achievement.put("updatedBy", "user123");
+        achievement.put("source", "igot");
+        return achievement;
+    }
+
+    /**
+     * Builds the request map the service now expects:
+     * { "request": { "achievementIds": [...] } }
+     */
+    private Map<String, Object> buildRequest(List<String> ids) {
+        Map<String, Object> inner = new HashMap<>();
+        inner.put(Constants.ACHIEVEMENT_IDS, ids);
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, inner);
+        return request;
+    }
+
+    /** Stubs cbServerProperties so no field filtering is applied (return everything). */
+    private void stubNoFieldFiltering() {
+        when(cbServerProperties.getBulkListResponseFields()).thenReturn("");
+        when(cbServerProperties.getBulkListContextDataFields()).thenReturn("");
+    }
+
+    // ── token / input validation ─────────────────────────────────────────────
+
+    @Test
+    void testGetUserAchievementsByUserIds_blankToken_returnsUnauthorized() {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("");
+
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "bad-token", buildRequest(List.of("achv1")));
+
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getResponseCode());
+        assertNotNull(response.getParams().getErrMsg());
+        assertTrue(response.getParams().getErrMsg().contains("Invalid or missing access token"));
+        verifyNoInteractions(cassandraOperation, cacheService);
+    }
+
+    @Test
+    void testGetUserAchievementsByUserIds_nullToken_returnsUnauthorized() {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(null);
+
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(List.of("achv1")));
+
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getResponseCode());
+    }
+
+    @Test
+    void testGetUserAchievementsByUserIds_nullRequest_returnsBadRequest() {
+        // null request → no "request" key → achievementIds stays null → BAD_REQUEST
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+
+        Map<String, Object> emptyRequest = new HashMap<>(); // no "request" key at all
+        ApiResponse response = achievementService.getUserAchievementsByUserIds("token", emptyRequest);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
+        assertTrue(response.getParams().getErrMsg().contains("achievementIds"));
+        verifyNoInteractions(cassandraOperation, cacheService);
+    }
+
+    @Test
+    void testGetUserAchievementsByUserIds_emptyAchievementIds_returnsBadRequest() {
+        // empty list inside request → achievementIds is empty → BAD_REQUEST
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(Collections.emptyList()));
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
+        assertTrue(response.getParams().getErrMsg().contains("achievementIds"));
+    }
+
+    // ── cache hit ────────────────────────────────────────────────────────────
+
+    @Test
+    void testGetUserAchievementsByUserIds_cacheHit_returnsFromCache_noCassandraCall() throws Exception {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        stubNoFieldFiltering();
+
+        Map<String, Object> cached = buildAchievement("achv1");
+        when(cacheService.getCache(anyString())).thenReturn("{\"id\":\"achv1\"}");
+        when(objectMapper.readValue(anyString(),
+                any(com.fasterxml.jackson.core.type.TypeReference.class))).thenReturn(cached);
+
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(List.of("achv1")));
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        Map<String, Object> sr = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
+        assertEquals(1, sr.get(Constants.TOTAL_COUNT));
+        verify(cassandraOperation, never()).getRecordsByPropertiesByKey(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void testGetUserAchievementsByUserIds_cacheHit_multipleIds_allReturnedFromCache() throws Exception {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        stubNoFieldFiltering();
+
+        Map<String, Object> cached1 = buildAchievement("achv1");
+        Map<String, Object> cached2 = buildAchievement("achv2");
+        when(cacheService.getCache(contains("achv1"))).thenReturn("{\"id\":\"achv1\"}");
+        when(cacheService.getCache(contains("achv2"))).thenReturn("{\"id\":\"achv2\"}");
+        when(objectMapper.readValue(eq("{\"id\":\"achv1\"}"),
+                any(com.fasterxml.jackson.core.type.TypeReference.class))).thenReturn(cached1);
+        when(objectMapper.readValue(eq("{\"id\":\"achv2\"}"),
+                any(com.fasterxml.jackson.core.type.TypeReference.class))).thenReturn(cached2);
+
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(List.of("achv1", "achv2")));
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        Map<String, Object> sr = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
+        assertEquals(2, sr.get(Constants.TOTAL_COUNT));
+    }
+
+    // ── cache miss → DB ──────────────────────────────────────────────────────
+
+    @Test
+    void testGetUserAchievementsByUserIds_cacheMiss_fetchesFromCassandraAndCaches() throws Exception {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        stubNoFieldFiltering();
+        when(cacheService.getCache(anyString())).thenReturn(null);
+
+        Map<String, Object> dbRecord = buildAchievement("achv1");
+        when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
+                .thenReturn(List.of(dbRecord));
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(List.of("achv1")));
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        Map<String, Object> sr = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
+        assertEquals(1, sr.get(Constants.TOTAL_COUNT));
+        verify(cacheService, times(1)).putCache(anyString(), anyString(), anyInt());
+    }
+
+    @Test
+    void testGetUserAchievementsByUserIds_cacheMiss_cassandraReturnsEmpty_achievementExcluded() {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        stubNoFieldFiltering();
+        when(cacheService.getCache(anyString())).thenReturn(null);
+        when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
+                .thenReturn(Collections.emptyList());
+
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(List.of("achv1")));
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        Map<String, Object> sr = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
+        assertEquals(0, sr.get(Constants.TOTAL_COUNT));
+        List<?> data = (List<?>) sr.get(Constants.DATA);
+        assertTrue(data.isEmpty());
+    }
+
+    @Test
+    void testGetUserAchievementsByUserIds_cacheMiss_cassandraReturnsNull_achievementExcluded() {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        stubNoFieldFiltering();
+        when(cacheService.getCache(anyString())).thenReturn(null);
+        when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
+                .thenReturn(null);
+
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(List.of("achv1")));
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        Map<String, Object> sr = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
+        assertEquals(0, sr.get(Constants.TOTAL_COUNT));
+    }
+
+    // ── mixed cache-hit + DB ─────────────────────────────────────────────────
+
+    @Test
+    void testGetUserAchievementsByUserIds_mixCacheAndDB_bothReturned() throws Exception {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        stubNoFieldFiltering();
+
+        Map<String, Object> cached1 = buildAchievement("achv1");
+        when(cacheService.getCache(contains("achv1"))).thenReturn("{\"id\":\"achv1\"}");
+        when(objectMapper.readValue(eq("{\"id\":\"achv1\"}"),
+                any(com.fasterxml.jackson.core.type.TypeReference.class))).thenReturn(cached1);
+
+        when(cacheService.getCache(contains("achv2"))).thenReturn(null);
+        Map<String, Object> db2 = buildAchievement("achv2");
+        when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
+                .thenReturn(List.of(db2));
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(List.of("achv1", "achv2")));
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        Map<String, Object> sr = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
+        assertEquals(2, sr.get(Constants.TOTAL_COUNT));
+    }
+
+    // ── blank ids in list skipped ────────────────────────────────────────────
+
+    @Test
+    void testGetUserAchievementsByUserIds_blankIdsInList_areSkipped() throws Exception {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        stubNoFieldFiltering();
+
+        Map<String, Object> cached = buildAchievement("achv1");
+        when(cacheService.getCache(contains("achv1"))).thenReturn("{\"id\":\"achv1\"}");
+        when(objectMapper.readValue(anyString(),
+                any(com.fasterxml.jackson.core.type.TypeReference.class))).thenReturn(cached);
+
+        // list with achv1 plus blank entries — service does Object::toString so pass as strings
+        Map<String, Object> inner = new HashMap<>();
+        inner.put(Constants.ACHIEVEMENT_IDS, Arrays.asList("achv1", "", "  "));
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, inner);
+
+        ApiResponse response = achievementService.getUserAchievementsByUserIds("token", request);
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        Map<String, Object> sr = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
+        assertEquals(1, sr.get(Constants.TOTAL_COUNT));
+    }
+
+    // ── cache deserialization failure → falls through to DB ──────────────────
+
+    @Test
+    void testGetUserAchievementsByUserIds_cacheDeserializationFails_fallsThroughToDB() throws Exception {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        stubNoFieldFiltering();
+        when(cacheService.getCache(anyString())).thenReturn("{bad-json}");
+        when(objectMapper.readValue(anyString(),
+                any(com.fasterxml.jackson.core.type.TypeReference.class)))
+                .thenThrow(new com.fasterxml.jackson.core.JsonProcessingException("bad") {});
+
+        Map<String, Object> dbRecord = buildAchievement("achv1");
+        when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
+                .thenReturn(List.of(dbRecord));
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(List.of("achv1")));
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        Map<String, Object> sr = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
+        assertEquals(1, sr.get(Constants.TOTAL_COUNT));
+    }
+
+    // ── cache write failure does not break response ───────────────────────────
+
+    @Test
+    void testGetUserAchievementsByUserIds_cacheWriteFails_achievementStillReturned() throws Exception {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        stubNoFieldFiltering();
+        when(cacheService.getCache(anyString())).thenReturn(null);
+
+        Map<String, Object> dbRecord = buildAchievement("achv1");
+        when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
+                .thenReturn(List.of(dbRecord));
+        when(objectMapper.writeValueAsString(any()))
+                .thenThrow(new com.fasterxml.jackson.core.JsonProcessingException("ser-error") {});
+
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(List.of("achv1")));
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        Map<String, Object> sr = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
+        assertEquals(1, sr.get(Constants.TOTAL_COUNT));
+        verify(cacheService, never()).putCache(anyString(), anyString(), anyInt());
+    }
+
+    // ── unexpected exception → INTERNAL_SERVER_ERROR ─────────────────────────
+
+    @Test
+    void testGetUserAchievementsByUserIds_unexpectedException_returnsInternalServerError() {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        stubNoFieldFiltering();
+        when(cacheService.getCache(anyString())).thenThrow(new RuntimeException("Redis down"));
+
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(List.of("achv1")));
+
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
+        assertTrue(response.getParams().getErrMsg().contains("Failed to fetch achievements"));
+    }
+
+    // ── response structure ───────────────────────────────────────────────────
+
+    @Test
+    void testGetUserAchievementsByUserIds_responseHasCorrectApiId() throws Exception {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        stubNoFieldFiltering();
+        when(cacheService.getCache(anyString())).thenReturn(null);
+        when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
+                .thenReturn(List.of(buildAchievement("achv1")));
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(List.of("achv1")));
+
+        assertEquals(Constants.API_ACHIEVEMENT_V2_LIST, response.getId());
+    }
+
+    @Test
+    void testGetUserAchievementsByUserIds_totalCountMatchesDataSize() throws Exception {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        stubNoFieldFiltering();
+
+        Map<String, Object> c1 = buildAchievement("achv1");
+        Map<String, Object> c2 = buildAchievement("achv2");
+        when(cacheService.getCache(contains("achv1"))).thenReturn("{\"id\":\"achv1\"}");
+        when(cacheService.getCache(contains("achv2"))).thenReturn("{\"id\":\"achv2\"}");
+        when(objectMapper.readValue(eq("{\"id\":\"achv1\"}"),
+                any(com.fasterxml.jackson.core.type.TypeReference.class))).thenReturn(c1);
+        when(objectMapper.readValue(eq("{\"id\":\"achv2\"}"),
+                any(com.fasterxml.jackson.core.type.TypeReference.class))).thenReturn(c2);
+
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(List.of("achv1", "achv2")));
+
+        Map<String, Object> sr = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
+        List<?> data = (List<?>) sr.get(Constants.DATA);
+        assertEquals(data.size(), sr.get(Constants.TOTAL_COUNT));
+        assertEquals(2, sr.get(Constants.TOTAL_COUNT));
+    }
+
+    // ── top-level response field filtering ───────────────────────────────────
+
+    @Test
+    void testGetUserAchievementsByUserIds_responseFieldsConfigured_removesUnwantedTopLevelKeys() throws Exception {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        when(cbServerProperties.getBulkListResponseFields()).thenReturn("userId,id,status,contextData");
+        when(cbServerProperties.getBulkListContextDataFields()).thenReturn("");
+
+        Map<String, Object> cached = buildAchievement("achv1");
+        when(cacheService.getCache(anyString())).thenReturn("{\"id\":\"achv1\"}");
+        when(objectMapper.readValue(anyString(),
+                any(com.fasterxml.jackson.core.type.TypeReference.class))).thenReturn(cached);
+
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(List.of("achv1")));
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        Map<String, Object> sr = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
+        Map<String, Object> item = ((List<Map<String, Object>>) sr.get(Constants.DATA)).get(0);
+
+        assertTrue(item.containsKey(Constants.USER_ID_RQST));
+        assertTrue(item.containsKey(Constants.ID));
+        assertTrue(item.containsKey(Constants.STATUS));
+        assertTrue(item.containsKey(Constants.CONTEXT_DATA));
+        assertFalse(item.containsKey("reason"));
+        assertFalse(item.containsKey("source"));
+        assertFalse(item.containsKey("updatedBy"));
+    }
+
+    @Test
+    void testGetUserAchievementsByUserIds_responseFieldsBlank_allTopLevelFieldsRetained() throws Exception {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        when(cbServerProperties.getBulkListResponseFields()).thenReturn("");
+        when(cbServerProperties.getBulkListContextDataFields()).thenReturn("");
+
+        Map<String, Object> cached = buildAchievement("achv1");
+        when(cacheService.getCache(anyString())).thenReturn("{}");
+        when(objectMapper.readValue(anyString(),
+                any(com.fasterxml.jackson.core.type.TypeReference.class))).thenReturn(cached);
+
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(List.of("achv1")));
+
+        Map<String, Object> sr = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
+        Map<String, Object> item = ((List<Map<String, Object>>) sr.get(Constants.DATA)).get(0);
+
+        assertTrue(item.containsKey("reason"));
+        assertTrue(item.containsKey("source"));
+        assertTrue(item.containsKey("updatedBy"));
+        assertTrue(item.containsKey(Constants.CONTEXT_DATA));
+    }
+
+    @Test
+    void testGetUserAchievementsByUserIds_responseFieldsConfigured_missingFieldSkipped() throws Exception {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        when(cbServerProperties.getBulkListResponseFields()).thenReturn("id,nonExistentField");
+        when(cbServerProperties.getBulkListContextDataFields()).thenReturn("");
+
+        Map<String, Object> cached = buildAchievement("achv1");
+        when(cacheService.getCache(anyString())).thenReturn("{}");
+        when(objectMapper.readValue(anyString(),
+                any(com.fasterxml.jackson.core.type.TypeReference.class))).thenReturn(cached);
+
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(List.of("achv1")));
+
+        Map<String, Object> sr = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
+        Map<String, Object> item = ((List<Map<String, Object>>) sr.get(Constants.DATA)).get(0);
+
+        assertTrue(item.containsKey(Constants.ID));
+        assertFalse(item.containsKey("nonExistentField"));
+    }
+
+    // ── contextData field filtering ───────────────────────────────────────────
+
+    @Test
+    void testGetUserAchievementsByUserIds_contextDataFieldsConfigured_onlySpecifiedInnerFieldsKept() throws Exception {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        when(cbServerProperties.getBulkListResponseFields()).thenReturn("");
+        when(cbServerProperties.getBulkListContextDataFields()).thenReturn("title,issuedDate");
+
+        Map<String, Object> cached = buildAchievement("achv1");
+        when(cacheService.getCache(anyString())).thenReturn("{}");
+        when(objectMapper.readValue(anyString(),
+                any(com.fasterxml.jackson.core.type.TypeReference.class))).thenReturn(cached);
+
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(List.of("achv1")));
+
+        Map<String, Object> sr = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
+        Map<String, Object> item = ((List<Map<String, Object>>) sr.get(Constants.DATA)).get(0);
+        Map<String, Object> ctx = (Map<String, Object>) item.get(Constants.CONTEXT_DATA);
+
+        assertTrue(ctx.containsKey("title"));
+        assertTrue(ctx.containsKey("issuedDate"));
+        assertFalse(ctx.containsKey("trainingType"));
+        assertFalse(ctx.containsKey("deliveryMode"));
+        assertFalse(ctx.containsKey("learningHours"));
+    }
+
+    @Test
+    void testGetUserAchievementsByUserIds_contextDataFieldsBlank_allInnerFieldsRetained() throws Exception {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        when(cbServerProperties.getBulkListResponseFields()).thenReturn("");
+        when(cbServerProperties.getBulkListContextDataFields()).thenReturn("");
+
+        Map<String, Object> cached = buildAchievement("achv1");
+        when(cacheService.getCache(anyString())).thenReturn("{}");
+        when(objectMapper.readValue(anyString(),
+                any(com.fasterxml.jackson.core.type.TypeReference.class))).thenReturn(cached);
+
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(List.of("achv1")));
+
+        Map<String, Object> sr = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
+        Map<String, Object> ctx = (Map<String, Object>)
+                ((List<Map<String, Object>>) sr.get(Constants.DATA)).get(0).get(Constants.CONTEXT_DATA);
+
+        assertTrue(ctx.containsKey("title"));
+        assertTrue(ctx.containsKey("issuedDate"));
+        assertTrue(ctx.containsKey("trainingType"));
+        assertTrue(ctx.containsKey("deliveryMode"));
+        assertTrue(ctx.containsKey("learningHours"));
+    }
+
+    @Test
+    void testGetUserAchievementsByUserIds_contextDataFieldsConfigured_noContextDataInAchievement_noError() throws Exception {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        when(cbServerProperties.getBulkListResponseFields()).thenReturn("");
+        when(cbServerProperties.getBulkListContextDataFields()).thenReturn("title,issuedDate");
+
+        Map<String, Object> noCtx = buildAchievement("achv1");
+        noCtx.remove(Constants.CONTEXT_DATA);
+        when(cacheService.getCache(anyString())).thenReturn("{}");
+        when(objectMapper.readValue(anyString(),
+                any(com.fasterxml.jackson.core.type.TypeReference.class))).thenReturn(noCtx);
+
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(List.of("achv1")));
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        Map<String, Object> sr = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
+        assertEquals(1, sr.get(Constants.TOTAL_COUNT));
+        Map<String, Object> item = ((List<Map<String, Object>>) sr.get(Constants.DATA)).get(0);
+        assertFalse(item.containsKey(Constants.CONTEXT_DATA));
+    }
+
+    @Test
+    void testGetUserAchievementsByUserIds_contextDataIsString_filteringSkipped_noClassCastException() throws Exception {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        when(cbServerProperties.getBulkListResponseFields()).thenReturn("");
+        when(cbServerProperties.getBulkListContextDataFields()).thenReturn("title");
+
+        Map<String, Object> strCtx = buildAchievement("achv1");
+        strCtx.put(Constants.CONTEXT_DATA, "{\"title\":\"test\"}");
+        when(cacheService.getCache(anyString())).thenReturn("{}");
+        when(objectMapper.readValue(anyString(),
+                any(com.fasterxml.jackson.core.type.TypeReference.class))).thenReturn(strCtx);
+
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(List.of("achv1")));
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        Map<String, Object> sr = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
+        Map<String, Object> item = ((List<Map<String, Object>>) sr.get(Constants.DATA)).get(0);
+        assertTrue(item.get(Constants.CONTEXT_DATA) instanceof String);
+    }
+
+    // ── both filters combined ────────────────────────────────────────────────
+
+    @Test
+    void testGetUserAchievementsByUserIds_bothFiltersConfigured_appliedInSequence() throws Exception {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        when(cbServerProperties.getBulkListResponseFields()).thenReturn("userId,id,status,contextData");
+        when(cbServerProperties.getBulkListContextDataFields()).thenReturn("title,learningHours");
+
+        Map<String, Object> cached = buildAchievement("achv1");
+        when(cacheService.getCache(anyString())).thenReturn("{}");
+        when(objectMapper.readValue(anyString(),
+                any(com.fasterxml.jackson.core.type.TypeReference.class))).thenReturn(cached);
+
+        ApiResponse response = achievementService.getUserAchievementsByUserIds(
+                "token", buildRequest(List.of("achv1")));
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        Map<String, Object> sr = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
+        Map<String, Object> item = ((List<Map<String, Object>>) sr.get(Constants.DATA)).get(0);
+
+        assertTrue(item.containsKey(Constants.USER_ID_RQST));
+        assertTrue(item.containsKey(Constants.ID));
+        assertTrue(item.containsKey(Constants.STATUS));
+        assertTrue(item.containsKey(Constants.CONTEXT_DATA));
+        assertFalse(item.containsKey("source"));
+        assertFalse(item.containsKey("reason"));
+
+        Map<String, Object> ctx = (Map<String, Object>) item.get(Constants.CONTEXT_DATA);
+        assertTrue(ctx.containsKey("title"));
+        assertTrue(ctx.containsKey("learningHours"));
+        assertFalse(ctx.containsKey("trainingType"));
+        assertFalse(ctx.containsKey("deliveryMode"));
+        assertFalse(ctx.containsKey("issuedDate"));
+    }
+
 }
+
+

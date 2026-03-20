@@ -1,10 +1,13 @@
 package com.igot.cb.profile.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.authentication.util.AccessTokenValidator;
+import com.igot.cb.common.KafkaEventPublisher;
+import com.igot.cb.profile.model.CompetencyAcquiredEvent;
+import com.igot.cb.profile.model.CompetencyEventWrapper;
 import com.igot.cb.transactional.cassandrautils.CassandraOperation;
 import com.igot.cb.transactional.elasticsearch.dto.SearchCriteria;
 import com.igot.cb.transactional.elasticsearch.dto.SearchResult;
@@ -15,12 +18,11 @@ import com.igot.cb.util.CbServerProperties;
 import com.igot.cb.util.Constants;
 import com.igot.cb.util.ProjectUtil;
 import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -28,12 +30,12 @@ import org.springframework.stereotype.Service;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class AchievementServiceImpl implements AchievementService{
 
     private List<String> requiredFields;
@@ -54,25 +56,18 @@ public class AchievementServiceImpl implements AchievementService{
 
     private static final String FIELD_LEARNER_ID = "learnerId";
 
-    @Autowired
-    private CacheService cacheService;
+    private final CacheService cacheService;
 
-    @Autowired
-    public AchievementServiceImpl(
-            AccessTokenValidator accessTokenValidator,
-            CbServerProperties cbServerProperties,
-            CassandraOperation cassandraOperation,
-            EsClientService esClientService,
-            ObjectMapper objectMapper,
-            @Qualifier(Constants.SEARCH_RESULT_REDIS_TEMPLATE) RedisTemplate<String, SearchResult> redisTemplate,
-            CacheService cacheService) {
-        this.accessTokenValidator = accessTokenValidator;
-        this.cbServerProperties = cbServerProperties;
-        this.cassandraOperation = cassandraOperation;
-        this.esClientService = esClientService;
-        this.objectMapper = objectMapper;
-        this.redisTemplate = redisTemplate;
-        this.cacheService = cacheService;
+    private final KafkaEventPublisher kafkaEventPublisher ;
+
+    /**
+     * Inner class to represent competency delta
+     * Contains lists of unchanged, added, and removed competencies
+     */
+    private static class CompetencyDelta {
+        List<Map<String, String>> unchanged = List.of();
+        List<Map<String, String>> added = List.of();
+        List<Map<String, String>> removed = List.of();
     }
 
     @PostConstruct
@@ -95,27 +90,11 @@ public class AchievementServiceImpl implements AchievementService{
             ProjectUtil.errorResponse(response, validationError, HttpStatus.BAD_REQUEST);
             return response;
         }
-        String contextType = (String) requestData.get(Constants.CONTEXT_TYPE);
-        String source = (String) requestData.get(Constants.SOURCE);
-        Map<String, Object> contextData =
-                (Map<String, Object>) requestData.get(Constants.CONTEXT_DATA);
-
         String id = UUID.randomUUID().toString();
-        java.time.Instant createdOnTimestamp = java.time.Instant.now();
-
-        Map<String, Object> achievementRecord = new HashMap<>();
-        achievementRecord.put(Constants.USER_ID_RQST, userId);
-        achievementRecord.put(Constants.CONTEXT_TYPE, contextType);
-        achievementRecord.put(Constants.ID, id);
-        achievementRecord.put(Constants.ORG_ID, orgId);
-        achievementRecord.put(Constants.SOURCE, source);
-        achievementRecord.put(Constants.CONTEXT_DATA, contextData);
-        achievementRecord.put(Constants.STATUS, Constants.APPROVED);
-        achievementRecord.put(Constants.CREATED_ON, createdOnTimestamp);
+        Map<String, Object> achievementRecord = formAchievementRecord(orgId, userId, requestData, id);
 
         // Save into Cassandra
-        boolean isSaved = saveAchievementToCassandra(achievementRecord);
-        if (!isSaved) {
+        if (!saveAchievementToCassandra(achievementRecord)) {
             ProjectUtil.errorResponse(response,
                     "Failed to save learner achievement info",
                     HttpStatus.INTERNAL_SERVER_ERROR);
@@ -130,14 +109,29 @@ public class AchievementServiceImpl implements AchievementService{
         }
         // Cache record
         cacheService.putCache(
-                buildCacheKey("user:achievement", userId, contextType, id),
-                achievementRecord
+                buildCacheKey("user:achievement", userId, (String) requestData.get(Constants.CONTEXT_TYPE), id),
+                achievementRecord, cbServerProperties.getAchievementCacheTtl()
         );
+        // Publish competency event for creation
+        publishCompetencyEvent(userId, id, (String) requestData.get(Constants.CONTEXT_TYPE),
+                (Map<String, Object>) requestData.get(Constants.CONTEXT_DATA), "");
         response.setResponseCode(HttpStatus.OK);
         response.setResponse(achievementRecord);
-        // Refresh user achievements cache after creation
         fetchAndCacheUserAchievements(userId);
         return response;
+    }
+
+    private Map<String, Object> formAchievementRecord(String orgId, String userId, Map<String, Object> requestData, String id) {
+        Map<String, Object> achievementRecord = new HashMap<>();
+        achievementRecord.put(Constants.USER_ID_RQST, userId);
+        achievementRecord.put(Constants.CONTEXT_TYPE, requestData.get(Constants.CONTEXT_TYPE));
+        achievementRecord.put(Constants.ID, id);
+        achievementRecord.put(Constants.ORG_ID, orgId);
+        achievementRecord.put(Constants.SOURCE, requestData.get(Constants.SOURCE));
+        achievementRecord.put(Constants.CONTEXT_DATA, requestData.get(Constants.CONTEXT_DATA));
+        achievementRecord.put(Constants.STATUS, Constants.APPROVED);
+        achievementRecord.put(Constants.CREATED_ON, Instant.now());
+        return achievementRecord;
     }
 
     @Override
@@ -171,7 +165,10 @@ public class AchievementServiceImpl implements AchievementService{
         }
         java.time.Instant updateOnTimestamp = java.time.Instant.now();
 
-        updateExistingRecord(existingRecord, newContextData, userId, updateOnTimestamp);
+        // Compute delta-based comparison for competencies
+        CompetencyDelta competencyDelta = computeCompetencyDelta(existingRecord, newContextData);
+
+        updateExistingRecord(existingRecord, requestData, userId, updateOnTimestamp);
         boolean isSaved = saveAchievementToCassandra(existingRecord);
         if (!isSaved) {
             ProjectUtil.errorResponse(response, "Failed to update learner achievement", HttpStatus.INTERNAL_SERVER_ERROR);
@@ -180,7 +177,12 @@ public class AchievementServiceImpl implements AchievementService{
         if (cbServerProperties.isRequireEs()) {
             updateAchievementInElasticsearch(id, existingRecord, userId, updateOnTimestamp);
         }
-        cacheService.putCache(buildCacheKey("user:achievement", userId, contextType, id), existingRecord);
+        cacheService.putCache(buildCacheKey("user:achievement", userId, contextType, id), existingRecord,cbServerProperties.getAchievementCacheTtl());
+
+        // Publish competency update event only if there are actual changes (added or removed)
+        if (hasCompetencyChanges(competencyDelta)) {
+            publishCompetencyDeltaEvent(userId, id, contextType, competencyDelta, Constants.UPDATE);
+        }
         response.setResponseCode(HttpStatus.OK);
         response.setResponse(existingRecord);
         fetchAndCacheUserAchievements(userId);
@@ -236,6 +238,10 @@ public class AchievementServiceImpl implements AchievementService{
             ProjectUtil.errorResponse(response, "UserId not Found", HttpStatus.BAD_REQUEST);
             return response;
         }
+
+        // Fetch the achievement record before deletion to get competency details for Kafka event
+        Map<String, Object> existingRecord = getAchievementFromCassandra(userId, contextType, achievementId);
+
         // Delete from Cassandra
         Map<String, Object> compositeKey = new HashMap<>();
         compositeKey.put(Constants.ID, achievementId);
@@ -263,6 +269,16 @@ public class AchievementServiceImpl implements AchievementService{
                 log.warn("Failed to delete achievement from ES for id {}", achievementId, e);
             }
         }
+
+        // Publish competency delete event only if competencies_v6 is present and non-empty
+        Map<String, Object> contextData = extractContextData(existingRecord);
+        Object competenciesObj = contextData.get(Constants.COMPETENCIES_V6);
+
+        // Check if competencies_v6 exists and is a non-empty List
+        if (competenciesObj instanceof List && CollectionUtils.isNotEmpty((List<?>) competenciesObj)) {
+            publishCompetencyEvent(userId, achievementId, contextType, contextData, Constants.DELETE);
+        }
+
         response.setResponseCode(HttpStatus.OK);
         response.getResult().put("message", "Achievement deleted successfully");
         // Refresh user achievements cache after deletion
@@ -562,6 +578,12 @@ public class AchievementServiceImpl implements AchievementService{
     }
 
     private String validateRequetData(Map<String, Object> requestData) {
+        //  check that every field in the whole request body is an allowed field
+        String allowedFieldsError = validateAllowedFields(requestData);
+        if (StringUtils.isNotBlank(allowedFieldsError)) {
+            return allowedFieldsError;
+        }
+
         String requestContextType = (String) requestData.get(Constants.CONTEXT_TYPE);
         String[] configuredContextType = cbServerProperties.getContextType();
         if (StringUtils.isBlank(requestContextType)) {
@@ -677,7 +699,7 @@ public class AchievementServiceImpl implements AchievementService{
         if (achievement != null && StringUtils.isNotBlank(contextType)) {
             try {
                 String achievementJson = objectMapper.writeValueAsString(achievement);
-                cacheService.putCache(buildCacheKey("user:achievement", userId, contextType, achievementId), achievementJson);
+                cacheService.putCache(buildCacheKey("user:achievement", userId, contextType, achievementId), achievementJson,cbServerProperties.getAchievementCacheTtl());
             } catch (Exception e) {
                 log.error("Failed to serialize achievement for caching", e);
             }
@@ -828,8 +850,39 @@ public class AchievementServiceImpl implements AchievementService{
     /**
      * Updates the existing record with new context data and metadata
      */
-    private void updateExistingRecord(Map<String, Object> existingRecord, Map<String, Object> newContextData, String userId,java.time.Instant updateOnTimestamp) {
-        existingRecord.put(Constants.CONTEXT_DATA, newContextData);
+    private void updateExistingRecord(Map<String, Object> existingRecord, Map<String, Object> requestData, String userId, java.time.Instant updateOnTimestamp) {
+        if (Objects.isNull(existingRecord) || Objects.isNull(requestData)) {
+            return;
+        }
+        requestData.forEach((key, value) -> {
+            // ignore null values
+            if (Objects.isNull(value)) {
+                return;
+            }
+            // merge contextData instead of replacing
+            if (Constants.CONTEXT_DATA.equals(key) && value instanceof Map<?, ?> newContextMap) {
+
+                Map<String, Object> existingContext =
+                        (Map<String, Object>) existingRecord.get(Constants.CONTEXT_DATA);
+
+                if (Objects.isNull(existingContext)) {
+                    existingContext = new HashMap<>();
+                }
+                final Map<String, Object> finalExistingContext = existingContext;
+
+                newContextMap.forEach((ctxKey, ctxValue) -> {
+                    if (Objects.nonNull(ctxValue)) {
+                        finalExistingContext.put(ctxKey.toString(), ctxValue);
+                    }
+                });
+                existingRecord.put(Constants.CONTEXT_DATA, finalExistingContext);
+            } else {
+                // normal update (contextType, source etc.)
+                existingRecord.put(key, value);
+            }
+
+        });
+        // update metadata
         existingRecord.put(Constants.UPDATED_BY, userId);
         existingRecord.put(Constants.UPDATED_ON, updateOnTimestamp);
     }
@@ -926,5 +979,529 @@ public class AchievementServiceImpl implements AchievementService{
         return null;
     }
 
+    /**
+     * Publishes competency delta event to Kafka with ONLY changed competencies (added and removed)
+     * Unchanged competencies are NOT included in the event as per review feedback
+     * The event includes action field for each competency that was added or removed
+     *
+     * @param userId        The user ID
+     * @param achievementId The achievement ID
+     * @param contextType   The context type
+     * @param delta         The CompetencyDelta containing unchanged, added, and removed competencies
+     * @param action        The main action type (UPDATE, DELETE, etc.)
+     */
+    private void publishCompetencyDeltaEvent(String userId,
+                                             String achievementId,
+                                             String contextType,
+                                             CompetencyDelta delta,
+                                             String action) {
+        try {
+            // ONLY include changed competencies (added and removed), NOT unchanged
+            List<Map<String, String>> changedCompetencies = new ArrayList<>();
+            changedCompetencies.addAll(delta.added);
+            changedCompetencies.addAll(delta.removed);
+
+            if (changedCompetencies.isEmpty()) {
+                log.debug("No changed competencies to publish for achievementId: {}", achievementId);
+                return;
+            }
+
+            CompetencyAcquiredEvent event = CompetencyAcquiredEvent.builder()
+                    .eventType(Constants.EVENT_TYPE_COMPETENCY_ACQUIRED)
+                    .userId(userId)
+                    .contentId(achievementId)
+                    .batchId("")
+                    .contextType(contextType)
+                    .action(StringUtils.isNotBlank(action) ? action : null)
+                    .competencyIds(changedCompetencies)
+                    .build();
+
+            // Wrap the event in edata structure
+            CompetencyEventWrapper wrapper = CompetencyEventWrapper.builder()
+                    .edata(event)
+                    .build();
+
+            kafkaEventPublisher.publish(
+                    cbServerProperties.getUserCompetencyTopicName(),
+                    wrapper,
+                    String.format("userId: %s, contentId: %s, action: %s, added: %d, removed: %d",
+                            userId,
+                            achievementId,
+                            action,
+                            delta.added.size(),
+                            delta.removed.size())
+            );
+
+            log.info("Published competency delta event for achievementId: {} with {} added, {} removed (unchanged excluded)",
+                    achievementId, delta.added.size(), delta.removed.size());
+
+        } catch (Exception e) {
+            log.error("Failed to publish competency delta event", e);
+        }
+    }
+
+    /**
+     * Consolidated method to publish competency events to Kafka for create, update, and delete operations
+     * This method handles all three operations by parameterizing the action type
+     * Both action and competency fields are only included in the event if they have non-empty values
+     *
+     * @param userId        The user ID
+     * @param achievementId The achievement ID (content ID)
+     * @param contextType   The context type
+     * @param contextData   The context data containing competency information
+     * @param action        The action type: "create", "update", or "delete" (optional)
+     */
+    private void publishCompetencyEvent(String userId,
+                                        String achievementId,
+                                        String contextType,
+                                        Map<String, Object> contextData,
+                                        String action) {
+
+        try {
+
+            CompetencyAcquiredEvent.CompetencyAcquiredEventBuilder eventBuilder =
+                    CompetencyAcquiredEvent.builder()
+                            .eventType(Constants.EVENT_TYPE_COMPETENCY_ACQUIRED)
+                            .userId(userId)
+                            .contentId(achievementId)
+                            .batchId("")
+                            .contextType(contextType);
+
+            if (StringUtils.isNotBlank(action)) {
+                eventBuilder.action(action);
+            }
+
+            // Only for update/delete
+            if (Constants.UPDATE.equalsIgnoreCase(action)
+                    || Constants.DELETE.equalsIgnoreCase(action)) {
+
+                List<Map<String, String>> competencies =
+                        extractCompetencies(contextData);
+
+                eventBuilder.competencyIds(competencies);
+            }
+
+            CompetencyAcquiredEvent event = eventBuilder.build();
+
+            // Wrap the event in edata structure
+            CompetencyEventWrapper wrapper = CompetencyEventWrapper.builder()
+                    .edata(event)
+                    .build();
+
+            kafkaEventPublisher.publish(
+                    cbServerProperties.getUserCompetencyTopicName(),
+                    wrapper,
+                    String.format("userId: %s, contentId: %s, action: %s",
+                            userId,
+                            achievementId,
+                            action)
+            );
+
+        } catch (Exception e) {
+            log.error("Failed to publish competency event", e);
+        }
+    }
+
+    /**
+     * Computes delta-based comparison for competencies between existing and new context data
+     * Returns a CompetencyDelta object containing unchanged, added, and removed competencies
+     *
+     * @param existingRecord The existing achievement record
+     * @param newContextData The new context data from request
+     * @return CompetencyDelta object with unchanged, added, and removed competencies
+     */
+    private CompetencyDelta computeCompetencyDelta(Map<String, Object> existingRecord, Map<String, Object> newContextData) {
+        if (existingRecord == null || newContextData == null) {
+            return new CompetencyDelta();
+        }
+
+        // Extract existing competency from context data
+        Object existingContextObj = existingRecord.get(Constants.CONTEXT_DATA);
+        Map<String, Object> existingContextData = null;
+
+        if (existingContextObj instanceof Map<?, ?> map) {
+            existingContextData = convertToStringObjectMap(map);
+        } else if (existingContextObj instanceof String json) {
+            try {
+                existingContextData = objectMapper.readValue(json, Map.class);
+            } catch (Exception e) {
+                log.warn("Failed to parse existing context data", e);
+                return new CompetencyDelta();
+            }
+        }
+
+        if (existingContextData == null) {
+            existingContextData = new HashMap<>();
+        }
+
+        // Extract competencies_v6 from both datasets
+        List<Map<String, Object>> existingCompetencies = extractCompetenciesV6List(existingContextData);
+        List<Map<String, Object>> newCompetencies = extractCompetenciesV6List(newContextData);
+
+        // Convert to maps for set-based comparison
+        Map<String, Map<String, Object>> existingCompetencyMap = competenciesListToMap(existingCompetencies);
+        Map<String, Map<String, Object>> newCompetencyMap = competenciesListToMap(newCompetencies);
+
+        // Compute delta
+        return computeDelta(existingCompetencyMap, newCompetencyMap);
+    }
+
+    /**
+     * Extracts competencies_v6 list from context data
+     *
+     * @param contextData The context data map
+     * @return List of competency maps
+     */
+    private List<Map<String, Object>> extractCompetenciesV6List(Map<String, Object> contextData) {
+        if (contextData == null) {
+            return List.of();
+        }
+        Object competenciesObj = contextData.get(Constants.COMPETENCIES_V6);
+        if (competenciesObj instanceof List<?> list) {
+            return list.stream()
+                    .filter(item -> item instanceof Map)
+                    .map(item -> (Map<String, Object>) item)
+                    .toList();
+        }
+        return List.of();
+    }
+
+    /**
+     * Converts competencies list to a map keyed by unique competency identifier
+     * Key format: areaId|themeId|subThemeId (case-insensitive)
+     *
+     * @param competencies List of competency maps
+     * @return Map with unique key as key and competency map as value
+     */
+    private Map<String, Map<String, Object>> competenciesListToMap(List<Map<String, Object>> competencies) {
+        return competencies.stream()
+                .collect(Collectors.toMap(
+                        this::buildCompetencyKey,
+                        competency -> competency,
+                        (existing, duplicate) -> existing,
+                        LinkedHashMap::new
+                ));
+    }
+
+    /**
+     * Builds unique competency key from a competency map
+     * Format: areaId|themeId|subThemeId (all lowercase for case-insensitive comparison)
+     *
+     * @param competency The competency map
+     * @return Unique key string
+     */
+    private String buildCompetencyKey(Map<String, Object> competency) {
+        String areaId = getStringValueFromObject(competency.get(Constants.COMPETENCY_AREA_REF_ID)).toLowerCase();
+        String themeId = getStringValueFromObject(competency.get(Constants.COMPETENCY_THEME_REF_ID)).toLowerCase();
+        String subThemeId = getStringValueFromObject(competency.get(Constants.COMPETENCY_SUB_THEME_REF_ID)).toLowerCase();
+        return String.join("|", areaId, themeId, subThemeId);
+    }
+
+    /**
+     * Computes delta between existing and new competency maps
+     * Uses Set-based comparison to identify unchanged, added, and removed competencies
+     *
+     * @param existingMap Map of existing competencies
+     * @param newMap      Map of new competencies
+     * @return CompetencyDelta containing the differences
+     */
+    private CompetencyDelta computeDelta(Map<String, Map<String, Object>> existingMap,
+                                         Map<String, Map<String, Object>> newMap) {
+        CompetencyDelta delta = new CompetencyDelta();
+
+        Set<String> existingKeys = existingMap.keySet();
+        Set<String> newKeys = newMap.keySet();
+
+        // Unchanged: keys present in both
+        delta.unchanged = existingKeys.stream()
+                .filter(newKeys::contains)
+                .map(key -> buildCompetencyIdMap(newMap.get(key), null))
+                .collect(Collectors.toList());
+
+        // Added: keys in new but not in existing
+        delta.added = newKeys.stream()
+                .filter(key -> !existingKeys.contains(key))
+                .map(key -> buildCompetencyIdMap(newMap.get(key), Constants.ADDED))
+                .collect(Collectors.toList());
+
+        // Removed: keys in existing but not in new
+        delta.removed = existingKeys.stream()
+                .filter(key -> !newKeys.contains(key))
+                .map(key -> buildCompetencyIdMap(existingMap.get(key), Constants.REMOVED))
+                .collect(Collectors.toList());
+
+        return delta;
+    }
+
+    /**
+     * Builds a competency ID map with extracted fields
+     *
+     * @param competency The competency map
+     * @param action     The action type (null for unchanged, "added", or "removed")
+     * @return Map with competencyAreaId, competencyThemeId, competencySubThemeId, and optional action
+     */
+    private Map<String, String> buildCompetencyIdMap(Map<String, Object> competency, String action) {
+        Map<String, String> competencyIdMap = new LinkedHashMap<>();
+        competencyIdMap.put(Constants.COMPETENCY_AREA_ID,
+                getStringValueFromObject(competency.get(Constants.COMPETENCY_AREA_REF_ID)));
+        competencyIdMap.put(Constants.COMPETENCY_THEME_ID,
+                getStringValueFromObject(competency.get(Constants.COMPETENCY_THEME_REF_ID)));
+        competencyIdMap.put(Constants.COMPETENCY_SUB_THEME_ID,
+                getStringValueFromObject(competency.get(Constants.COMPETENCY_SUB_THEME_REF_ID)));
+
+        if (StringUtils.isNotBlank(action)) {
+            competencyIdMap.put(Constants.ACTION, action);
+        }
+        return competencyIdMap;
+    }
+
+    /**
+     * Checks if there are any competency changes (added or removed)
+     *
+     * @param delta The CompetencyDelta object
+     * @return true if there are changes, false otherwise
+     */
+    private boolean hasCompetencyChanges(CompetencyDelta delta) {
+        return !delta.added.isEmpty() || !delta.removed.isEmpty();
+    }
+
+    /**
+     * Extracts context data from an achievement record
+     * Handles both Map and JSON String formats
+     *
+     * @param achievementRecord The achievement record
+     * @return The extracted context data as a map, or empty map if parsing fails
+     */
+    private Map<String, Object> extractContextData(Map<String, Object> achievementRecord) {
+        if (achievementRecord == null) {
+            return new HashMap<>();
+        }
+
+        Object contextDataObj = achievementRecord.get(Constants.CONTEXT_DATA);
+
+        if (contextDataObj instanceof Map) {
+            return (Map<String, Object>) contextDataObj;
+        } else if (contextDataObj instanceof String) {
+            try {
+                return objectMapper.readValue((String) contextDataObj, Map.class);
+            } catch (Exception e) {
+                log.warn("Failed to parse context data from achievement record", e);
+                return new HashMap<>();
+            }
+        }
+
+        return new HashMap<>();
+    }
+
+    private List<Map<String, String>> extractCompetencies(Map<String, Object> contextData) {
+        List<Map<String, String>> competencyList = new ArrayList<>();
+
+        Object competenciesObj = contextData != null
+                ? contextData.get(Constants.COMPETENCIES_V6)
+                : null;
+
+        if (competenciesObj instanceof List<?> list) {
+
+            for (Object obj : list) {
+                if (obj instanceof Map<?, ?> map) {
+                    Map<String, String> competencyMap = new HashMap<>();
+
+                    competencyMap.put(Constants.COMPETENCY_AREA_ID,
+                            getStringValueFromObject(map.get(Constants.COMPETENCY_AREA_REF_ID)));
+
+                    competencyMap.put(Constants.COMPETENCY_THEME_ID,
+                            getStringValueFromObject(map.get(Constants.COMPETENCY_THEME_REF_ID)));
+
+                    competencyMap.put(Constants.COMPETENCY_SUB_THEME_ID,
+                            getStringValueFromObject(map.get(Constants.COMPETENCY_SUB_THEME_REF_ID)));
+
+                    competencyList.add(competencyMap);
+                }
+            }
+        }
+        return competencyList;
+    }
+
+    private String getStringValueFromObject(Object value) {
+        if (value instanceof String str) {
+            return str;
+        }
+        return "";
+    }
+
+    private Map<String, Object> convertToStringObjectMap(Map<?, ?> source) {
+        Map<String, Object> result = new HashMap<>();
+        for (Map.Entry<?, ?> entry : source.entrySet()) {
+            if (entry.getKey() instanceof String key) {
+                result.put(key, entry.getValue());
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Validates that every field present in the entire request body (including nested maps and
+     * list elements) is present in the configured allowed-fields list.
+     * If an unknown field is found a human-readable error message is returned; otherwise null.
+     *
+     * @param requestBody the full request body map received from the caller
+     * @return validation error message or null when all fields are allowed
+     */
+    private String validateAllowedFields(Map<String, Object> requestBody) {
+        String allowedFieldsConfig = cbServerProperties.getAchievementsAllowedFields();
+        if (StringUtils.isBlank(allowedFieldsConfig)) {
+            // config not set – skip this check
+            return null;
+        }
+        Set<String> allowedFields = Arrays.stream(allowedFieldsConfig.split(","))
+                .map(String::trim)
+                .filter(StringUtils::isNotBlank)
+                .collect(Collectors.toSet());
+
+        return validateFieldsRecursively(requestBody, allowedFields);
+    }
+
+    /**
+     * Recursively walks through a request node (Map, List, or scalar) and checks that
+     * every Map key is present in {@code allowedFields}.
+     *
+     * @param node          the current node being inspected
+     * @param allowedFields the set of permitted field names loaded from config
+     * @return the first invalid field error found, or null if all fields are allowed
+     */
+    private String validateFieldsRecursively(Object node, Set<String> allowedFields) {
+        if (node == null) {
+            return null;
+        }
+        if (node instanceof Map<?, ?> map) {
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                if (!(entry.getKey() instanceof String key)) {
+                    continue;
+                }
+                if (!allowedFields.contains(key)) {
+                    return "Invalid field in request: '" + key + "'. Only configured fields are allowed.";
+                }
+                String childError = validateFieldsRecursively(entry.getValue(), allowedFields);
+                if (StringUtils.isNotBlank(childError)) {
+                    return childError;
+                }
+            }
+        } else if (node instanceof List<?> list) {
+            for (Object item : list) {
+                String childError = validateFieldsRecursively(item, allowedFields);
+                if (StringUtils.isNotBlank(childError)) {
+                    return childError;
+                }
+            }
+        }
+        return null;
+    }
+
+    @Override
+    public ApiResponse getUserAchievementsByUserIds(String authToken, Map<String, Object> request) {
+        log.info("AchievementService::getUserAchievementsByAchievementIds");
+        ApiResponse response = ProjectUtil.createDefaultResponse(Constants.API_ACHIEVEMENT_V2_LIST);
+        String userId = accessTokenValidator.fetchUserIdFromAccessToken(authToken);
+        if (StringUtils.isBlank(userId)) {
+            ProjectUtil.errorResponse(response, "Invalid or missing access token", HttpStatus.UNAUTHORIZED);
+            return response;
+        }
+        List<String> achievementIds = null;
+        if (request.get(Constants.REQUEST) instanceof Map<?, ?> requestMap &&
+                requestMap.get(Constants.ACHIEVEMENT_IDS) instanceof List<?> ids) {
+
+            achievementIds = ids.stream()
+                    .map(Object::toString)
+                    .toList();
+        }
+        if (CollectionUtils.isEmpty(achievementIds)) {
+            ProjectUtil.errorResponse(response, "achievementIds list is mandatory and cannot be empty", HttpStatus.BAD_REQUEST);
+            return response;
+        }
+        // Load both config sets once per request
+        Set<String> responseFields = loadConfiguredFields(cbServerProperties.getBulkListResponseFields());
+        Set<String> contextDataFields = loadConfiguredFields(cbServerProperties.getBulkListContextDataFields());
+        try {
+            List<Map<String, Object>> result = new ArrayList<>();
+            for (String achievementId : achievementIds) {
+                if (StringUtils.isBlank(achievementId)) {
+                    continue;
+                }
+                String cacheKey = buildCacheKey("user:achievement", userId, Constants.ACHIEVEMENTS, achievementId);
+                Map<String, Object> achievement = getAchievementFromCache(cacheKey);
+                if (MapUtils.isNotEmpty(achievement)) {
+                    log.info("AchievementServiceImpl::getUserAchievementsByUserIds: fetched from cache for achievementId: {}", achievementId);
+                } else {
+                    log.info("AchievementServiceImpl::getUserAchievementsByUserIds: fetching from DB for achievementId: {}", achievementId);
+                    achievement = getAndCacheAchievementFromCassandra(userId, Constants.ACHIEVEMENTS, achievementId);
+                }
+                if (MapUtils.isNotEmpty(achievement)) {
+                    result.add(applyBulkListFilters(achievement, responseFields, contextDataFields));
+                }
+            }
+            Map<String, Object> searchResults = new HashMap<>();
+            searchResults.put(Constants.DATA, result);
+            searchResults.put(Constants.TOTAL_COUNT, result.size());
+            response.getResult().put(Constants.SEARCH_RESULTS, searchResults);
+            response.setResponseCode(HttpStatus.OK);
+        } catch (Exception e) {
+            log.error("Exception while fetching achievements for userId: {}, achievementIds: {}", userId, achievementIds, e);
+            ProjectUtil.errorResponse(response, "Failed to fetch achievements: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+        return response;
+    }
+
+    /**
+     * Parses a comma-separated config string into a Set of trimmed field names.
+     * Returns an empty set if the config is blank, which means "return all fields".
+     */
+    private Set<String> loadConfiguredFields(String config) {
+        if (StringUtils.isBlank(config)) {
+            return Collections.emptySet();
+        }
+        return Arrays.stream(config.split(","))
+                .map(String::trim)
+                .filter(StringUtils::isNotBlank)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    /**
+     * Applies both filters to an achievement map:
+     * 1. Top-level field filter  – keeps only fields listed in responseFields     (if non-empty)
+     * 2. contextData field filter – keeps only fields listed in contextDataFields (if non-empty)
+     * <p>
+     * The original cached/DB map is never mutated; a new map is always returned.
+     */
+    private Map<String, Object> applyBulkListFilters(Map<String, Object> achievement,
+                                                     Set<String> responseFields,
+                                                     Set<String> contextDataFields) {
+        // filter top-level fields
+        Map<String, Object> filtered;
+        if (CollectionUtils.isEmpty(responseFields)) {
+            filtered = new HashMap<>(achievement);   // copy so we can mutate contextData safely
+        } else {
+            filtered = new LinkedHashMap<>();
+            for (String field : responseFields) {
+                if (achievement.containsKey(field)) {
+                    filtered.put(field, achievement.get(field));
+                }
+            }
+        }
+
+        // filter contextData fields
+        if (CollectionUtils.isNotEmpty(contextDataFields) && filtered.containsKey(Constants.CONTEXT_DATA)) {
+            Object contextDataObj = filtered.get(Constants.CONTEXT_DATA);
+            if (contextDataObj instanceof Map<?, ?> rawMap) {
+                Map<String, Object> filteredContextData = new LinkedHashMap<>();
+                for (String field : contextDataFields) {
+                    if (rawMap.containsKey(field)) {
+                        filteredContextData.put(field, rawMap.get(field));
+                    }
+                }
+                filtered.put(Constants.CONTEXT_DATA, filteredContextData);
+            }
+        }
+        return filtered;
+    }
 
 }
