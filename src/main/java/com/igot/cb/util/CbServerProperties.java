@@ -211,4 +211,20 @@ public class CbServerProperties {
 
     @Value("${achievement.require-es}")
     private boolean requireEs;
+
+    @Value("${user.competency.mapping.event}")
+    public String userCompetencyTopicName;
+
+    @Value("${validation.allowed-fields.achievement}")
+    private String achievementsAllowedFields;
+
+    @Value("${achievement.bulk.list.context.data.fields:}")
+    private String bulkListContextDataFields;
+
+    @Value("${achievement.bulk.list.response.fields:}")
+    private String bulkListResponseFields;
+
+    @Value("${achievement.cache.ttl}")
+    private int achievementCacheTtl;
+
 }
