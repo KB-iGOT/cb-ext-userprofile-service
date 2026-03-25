@@ -162,6 +162,7 @@ class ProfileServiceImplPrivateMethodTest {
         String redisKey = "user:badgeCount_" + userId;
 
         when(cacheService.getCache(redisKey)).thenReturn(null);
+        when(serverConfig.getBadgeCountRedisTtl()).thenReturn(0);
 
         List<Map<String, Object>> records = Arrays.asList(
                 Map.of(Constants.COURSE_ID, "course1"),
@@ -179,7 +180,7 @@ class ProfileServiceImplPrivateMethodTest {
         int result = (int) ReflectionTestUtils.invokeMethod(profileService, "getUserBadgeCount", userId);
 
         assertEquals(3, result);
-        Mockito.verify(cacheService).putCache(redisKey, 3);
+        Mockito.verify(cacheService).putCache(redisKey, 3, 0);
     }
 
     @Test
@@ -188,6 +189,7 @@ class ProfileServiceImplPrivateMethodTest {
         String redisKey = "user:badgeCount_" + userId;
 
         when(cacheService.getCache(redisKey)).thenReturn(null);
+        when(serverConfig.getBadgeCountRedisTtl()).thenReturn(0);
 
         when(cassandraOperation.getRecordsByPropertiesByKey(
                 (Constants.KEYSPACE_SUNBIRD_COURSES),
@@ -200,7 +202,7 @@ class ProfileServiceImplPrivateMethodTest {
         int result = (int) ReflectionTestUtils.invokeMethod(profileService, "getUserBadgeCount", userId);
 
         assertEquals(0, result);
-        Mockito.verify(cacheService).putCache(redisKey, 0);
+        Mockito.verify(cacheService).putCache(redisKey, 0, 0);
     }
 
     @Test
@@ -209,6 +211,7 @@ class ProfileServiceImplPrivateMethodTest {
         String redisKey = "user:badgeCount_" + userId;
 
         when(cacheService.getCache(redisKey)).thenReturn(null);
+        when(serverConfig.getBadgeCountRedisTtl()).thenReturn(0);
 
         when(cassandraOperation.getRecordsByPropertiesByKey(
                 (Constants.KEYSPACE_SUNBIRD_COURSES),
@@ -221,7 +224,7 @@ class ProfileServiceImplPrivateMethodTest {
         int result = (int) ReflectionTestUtils.invokeMethod(profileService, "getUserBadgeCount", userId);
 
         assertEquals(0, result);
-        Mockito.verify(cacheService).putCache(redisKey, 0);
+        Mockito.verify(cacheService).putCache(redisKey, 0, 0);
     }
 
     @Test
