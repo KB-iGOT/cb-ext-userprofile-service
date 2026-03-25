@@ -139,6 +139,9 @@ public class CbServerProperties {
     @Value("${content.read.path}")
     private String contentReadPath;
 
+    @Value("${content.admin.read.api}")
+    private String adminContentReadPath;
+
     public int getCertificateCountRedisTtl() {
         return certificateCountRedisTtl;
     }

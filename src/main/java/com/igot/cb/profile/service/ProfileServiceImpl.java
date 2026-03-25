@@ -1055,7 +1055,10 @@ public class ProfileServiceImpl implements ProfileService {
         if (StringUtils.isBlank(courseId)) return null;
 
         try {
-            String url = serverConfig.getContentBaseUrl() + serverConfig.getContentReadPath() + courseId;
+            String path = StringUtils.endsWith(courseId, Constants.RESTRICTED_CONTENT_ID_SUFFIX)
+                    ? serverConfig.getAdminContentReadPath() : serverConfig.getContentReadPath();
+
+            String url = serverConfig.getContentBaseUrl() + path + courseId;
 
             Map<String, String> headers = new HashMap<>();
             headers.put(Constants.CONTENT_TYPE, Constants.APPLICATION_JSON);
@@ -1073,7 +1076,7 @@ public class ProfileServiceImpl implements ProfileService {
                 }
             }
         } catch (Exception e) {
-            log.warn("Failed explicit API lookup for internal courseId: {}", courseId, e.getMessage());
+            log.warn("Failed explicit API lookup for internal courseId {}: {}", courseId, e.getMessage());
         }
         return null;
     }
