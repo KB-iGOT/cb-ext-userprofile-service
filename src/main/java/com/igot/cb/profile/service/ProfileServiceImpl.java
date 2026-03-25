@@ -1505,7 +1505,7 @@ public class ProfileServiceImpl implements ProfileService {
             if(!CollectionUtils.isEmpty(records)){
                 totalPoints= records.size();
             }
-            cacheService.putCache(redisKey, totalPoints);
+            cacheService.putCache(redisKey, totalPoints, serverConfig.getBadgeCountRedisTtl());
             return totalPoints;
 
         } catch (Exception e) {
