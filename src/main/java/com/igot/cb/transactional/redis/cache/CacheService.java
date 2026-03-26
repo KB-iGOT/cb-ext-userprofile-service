@@ -78,6 +78,18 @@ public class CacheService {
         }
     }
 
+    public void putCache(String key, Object object, int ttl, int index) {
+        try (Jedis jedis = jedisPool.getResource()) {
+            jedis.select(index);
+            String data = objectMapper.writeValueAsString(object);
+            jedis.set(key, data);
+            jedis.expire(key, ttl);
+            logger.debug("Cache_key_value " + key + " is saved in redis");
+        } catch (Exception e) {
+            logger.error("Error in putCache", e);
+        }
+    }
+
     public void putCache(String key, Object object) {
         putCache(key, object, cache_ttl);
     }
@@ -140,5 +152,15 @@ public class CacheService {
             logger.error("Error in hget: ", e);
         }
         return resultList;
+    }
+
+    public String getCache(String key, int index) {
+        try (Jedis jedis = jedisPool.getResource()) {
+            jedis.select(index);
+            return jedis.get(key);
+        } catch (Exception e) {
+            logger.error("Error while reading the cache",e);
+            return null;
+        }
     }
 }

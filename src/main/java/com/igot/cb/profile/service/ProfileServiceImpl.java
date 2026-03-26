@@ -1494,7 +1494,7 @@ public class ProfileServiceImpl implements ProfileService {
         String redisKey = Constants.USER_BADGE_COUNT + userId;
 
         try {
-            String cachedValue = cacheService.getCache(redisKey);
+            String cachedValue = cacheService.getCache(redisKey, 2);
             if (StringUtils.isNotBlank(cachedValue)) {
                 return Integer.parseInt(cachedValue);
             }
@@ -1505,7 +1505,7 @@ public class ProfileServiceImpl implements ProfileService {
             if(!CollectionUtils.isEmpty(records)){
                 totalPoints= records.size();
             }
-            cacheService.putCache(redisKey, totalPoints, serverConfig.getBadgeCountRedisTtl());
+            cacheService.putCache(redisKey, totalPoints, serverConfig.getBadgeCountRedisTtl(), 2);
             return totalPoints;
 
         } catch (Exception e) {

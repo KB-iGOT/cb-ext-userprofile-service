@@ -192,4 +192,69 @@ class CacheServiceTest {
         Map<String, String> result = cacheService.getCourseMetadataAsJsonString(List.of("k1"));
         assertTrue(result.isEmpty());
     }
+
+    @Test
+    void getCacheWithIndex_ReturnsValue_WhenKeyExistsInSpecificIndex() {
+        when(jedis.get("key")).thenReturn("value");
+        String result = cacheService.getCache("key", 1);
+        assertEquals("value", result);
+        verify(jedis).select(1);
+        verify(jedis).get("key");
+    }
+
+    @Test
+    void getCacheWithIndex_SelectsCorrectIndex_WhenIndexIsZero() {
+        when(jedis.get("key")).thenReturn("cachedValue");
+        String result = cacheService.getCache("key", 0);
+        assertEquals("cachedValue", result);
+        verify(jedis).select(0);
+        verify(jedis).get("key");
+    }
+
+    @Test
+    void getCacheWithIndex_SelectsCorrectIndex_WhenIndexIsHigherNumber() {
+        when(jedis.get("testKey")).thenReturn("testValue");
+        String result = cacheService.getCache("testKey", 15);
+        assertEquals("testValue", result);
+        verify(jedis).select(15);
+        verify(jedis).get("testKey");
+    }
+
+    @Test
+    void getCacheWithIndex_ReturnsNull_WhenKeyDoesNotExist() {
+        when(jedis.get("nonExistentKey")).thenReturn(null);
+        String result = cacheService.getCache("nonExistentKey", 2);
+        assertNull(result);
+        verify(jedis).select(2);
+        verify(jedis).get("nonExistentKey");
+    }
+
+    @Test
+    void getCacheWithIndex_ReturnsNull_OnException() {
+        when(jedis.get("key")).thenThrow(new RuntimeException("Redis connection failed"));
+        String result = cacheService.getCache("key", 3);
+        assertNull(result);
+    }
+
+    @Test
+    void getCacheWithIndex_ReturnsNull_WhenSelectThrowsException() {
+        doThrow(new RuntimeException("Invalid DB index")).when(jedis).select(99);
+        String result = cacheService.getCache("key", 99);
+        assertNull(result);
+    }
+
+    @Test
+    void getCacheWithIndex_HandlesNegativeIndex() {
+        doThrow(new RuntimeException("Invalid DB index")).when(jedis).select(-1);
+        String result = cacheService.getCache("key", -1);
+        assertNull(result);
+    }
+
+    @Test
+    void getCacheWithIndex_ReturnsEmptyString_WhenValueIsEmptyString() {
+        when(jedis.get("key")).thenReturn("");
+        String result = cacheService.getCache("key", 0);
+        assertEquals("", result);
+        verify(jedis).select(0);
+    }
 }
