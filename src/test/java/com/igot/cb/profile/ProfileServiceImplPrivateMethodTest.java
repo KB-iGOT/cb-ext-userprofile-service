@@ -149,6 +149,7 @@ class ProfileServiceImplPrivateMethodTest {
         String userId = "user123";
         String redisKey = "user:badgeCount_" + userId;
 
+        when(serverConfig.getBadgeCountRedisIndex()).thenReturn(2);
         when(cacheService.getCache(redisKey, 2)).thenReturn("5");
 
         int result = (int) ReflectionTestUtils.invokeMethod(profileService, "getUserBadgeCount", userId);
@@ -161,6 +162,7 @@ class ProfileServiceImplPrivateMethodTest {
         String userId = "user456";
         String redisKey = "user:badgeCount_" + userId;
 
+        when(serverConfig.getBadgeCountRedisIndex()).thenReturn(2);
         when(cacheService.getCache(redisKey, 2)).thenReturn(null);
         when(serverConfig.getBadgeCountRedisTtl()).thenReturn(0);
 
@@ -188,6 +190,7 @@ class ProfileServiceImplPrivateMethodTest {
         String userId = "user789";
         String redisKey = "user:badgeCount_" + userId;
 
+        when(serverConfig.getBadgeCountRedisIndex()).thenReturn(2);
         when(cacheService.getCache(redisKey, 2)).thenReturn(null);
         when(serverConfig.getBadgeCountRedisTtl()).thenReturn(0);
 
@@ -210,6 +213,7 @@ class ProfileServiceImplPrivateMethodTest {
         String userId = "userNull";
         String redisKey = "user:badgeCount_" + userId;
 
+        when(serverConfig.getBadgeCountRedisIndex()).thenReturn(2);
         when(cacheService.getCache(redisKey, 2)).thenReturn(null);
         when(serverConfig.getBadgeCountRedisTtl()).thenReturn(0);
 
@@ -232,6 +236,7 @@ class ProfileServiceImplPrivateMethodTest {
         String userId = "userError";
         String redisKey = "user:badgeCount_" + userId;
 
+        when(serverConfig.getBadgeCountRedisIndex()).thenReturn(2);
         when(cacheService.getCache(redisKey, 2)).thenThrow(new RuntimeException("Redis unavailable"));
 
         int result = (int) ReflectionTestUtils.invokeMethod(profileService, "getUserBadgeCount", userId);
@@ -244,6 +249,7 @@ class ProfileServiceImplPrivateMethodTest {
         String userId = "userCassandraError";
         String redisKey = "user:badgeCount_" + userId;
 
+        when(serverConfig.getBadgeCountRedisIndex()).thenReturn(2);
         when(cacheService.getCache(redisKey, 2)).thenReturn(null);
         when(cassandraOperation.getRecordsByPropertiesByKey(
                 eq(Constants.KEYSPACE_SUNBIRD_COURSES),
