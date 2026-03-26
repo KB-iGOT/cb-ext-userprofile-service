@@ -149,7 +149,7 @@ class ProfileServiceImplPrivateMethodTest {
         String userId = "user123";
         String redisKey = "user:badgeCount_" + userId;
 
-        when(cacheService.getCache(redisKey)).thenReturn("5");
+        when(cacheService.getCache(redisKey, 2)).thenReturn("5");
 
         int result = (int) ReflectionTestUtils.invokeMethod(profileService, "getUserBadgeCount", userId);
 
@@ -161,7 +161,7 @@ class ProfileServiceImplPrivateMethodTest {
         String userId = "user456";
         String redisKey = "user:badgeCount_" + userId;
 
-        when(cacheService.getCache(redisKey)).thenReturn(null);
+        when(cacheService.getCache(redisKey, 2)).thenReturn(null);
         when(serverConfig.getBadgeCountRedisTtl()).thenReturn(0);
 
         List<Map<String, Object>> records = Arrays.asList(
@@ -180,7 +180,7 @@ class ProfileServiceImplPrivateMethodTest {
         int result = (int) ReflectionTestUtils.invokeMethod(profileService, "getUserBadgeCount", userId);
 
         assertEquals(3, result);
-        Mockito.verify(cacheService).putCache(redisKey, 3, 0);
+        Mockito.verify(cacheService).putCache(redisKey, 3, 0, 2);
     }
 
     @Test
@@ -188,7 +188,7 @@ class ProfileServiceImplPrivateMethodTest {
         String userId = "user789";
         String redisKey = "user:badgeCount_" + userId;
 
-        when(cacheService.getCache(redisKey)).thenReturn(null);
+        when(cacheService.getCache(redisKey, 2)).thenReturn(null);
         when(serverConfig.getBadgeCountRedisTtl()).thenReturn(0);
 
         when(cassandraOperation.getRecordsByPropertiesByKey(
@@ -202,7 +202,7 @@ class ProfileServiceImplPrivateMethodTest {
         int result = (int) ReflectionTestUtils.invokeMethod(profileService, "getUserBadgeCount", userId);
 
         assertEquals(0, result);
-        Mockito.verify(cacheService).putCache(redisKey, 0, 0);
+        Mockito.verify(cacheService).putCache(redisKey, 0, 0, 2);
     }
 
     @Test
@@ -210,7 +210,7 @@ class ProfileServiceImplPrivateMethodTest {
         String userId = "userNull";
         String redisKey = "user:badgeCount_" + userId;
 
-        when(cacheService.getCache(redisKey)).thenReturn(null);
+        when(cacheService.getCache(redisKey, 2)).thenReturn(null);
         when(serverConfig.getBadgeCountRedisTtl()).thenReturn(0);
 
         when(cassandraOperation.getRecordsByPropertiesByKey(
@@ -224,7 +224,7 @@ class ProfileServiceImplPrivateMethodTest {
         int result = (int) ReflectionTestUtils.invokeMethod(profileService, "getUserBadgeCount", userId);
 
         assertEquals(0, result);
-        Mockito.verify(cacheService).putCache(redisKey, 0, 0);
+        Mockito.verify(cacheService).putCache(redisKey, 0, 0, 2);
     }
 
     @Test
@@ -232,7 +232,7 @@ class ProfileServiceImplPrivateMethodTest {
         String userId = "userError";
         String redisKey = "user:badgeCount_" + userId;
 
-        when(cacheService.getCache(redisKey)).thenThrow(new RuntimeException("Redis unavailable"));
+        when(cacheService.getCache(redisKey, 2)).thenThrow(new RuntimeException("Redis unavailable"));
 
         int result = (int) ReflectionTestUtils.invokeMethod(profileService, "getUserBadgeCount", userId);
 
@@ -244,7 +244,7 @@ class ProfileServiceImplPrivateMethodTest {
         String userId = "userCassandraError";
         String redisKey = "user:badgeCount_" + userId;
 
-        when(cacheService.getCache(redisKey)).thenReturn(null);
+        when(cacheService.getCache(redisKey, 2)).thenReturn(null);
         when(cassandraOperation.getRecordsByPropertiesByKey(
                 eq(Constants.KEYSPACE_SUNBIRD_COURSES),
                 eq(Constants.USER_BADGE_LOOKUP_TABLE),

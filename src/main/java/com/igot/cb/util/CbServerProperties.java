@@ -136,6 +136,11 @@ public class CbServerProperties {
     @Value("${cb.badge.count.redis.ttl}")
     private int badgeCountRedisTtl;
 
+    @Value("${badge.count.redis.index}")
+    private int badgeCountRedisIndex;
+
+
+
     public int getCertificateCountRedisTtl() {
         return certificateCountRedisTtl;
     }
