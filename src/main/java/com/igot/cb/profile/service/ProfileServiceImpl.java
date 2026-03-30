@@ -943,70 +943,136 @@ public class ProfileServiceImpl implements ProfileService {
         }
     }
 
-
     private int getIssuedCertificateCount(String userId) {
 
         try {
+            return getInternalCoursesCertificateCount(userId) + getEventsCertificateCount(userId) + getExternalCoursesCertificateCount(userId);
+        } catch (Exception e) {
+            log.error("Failed to fetch overall issued certificate count for userId {}: {}", userId, e.getMessage(), e);
+            return 0;
+        }
+    }
 
+    private int getInternalCoursesCertificateCount(String userId) {
+
+        try {
             List<Map<String, Object>> courseRecords = cassandraOperation.getRecordsByPropertiesByKey(
-                    Constants.KEYSPACE_SUNBIRD_COURSES,
-                    serverConfig.getUserEnrolmentsTable(),
+                    Constants.KEYSPACE_SUNBIRD_COURSES, serverConfig.getUserEnrolmentsTable(),
                     Map.of(Constants.USERID_KEY, userId),
-                    List.of(Constants.ISSUED_CERTIFICATES),
-                    userId
-            );
+                    List.of(Constants.COURSE_ID, Constants.STATUS, Constants.ACTIVE_LOWERCASE, Constants.ISSUED_CERTIFICATES),
+                    userId);
 
-            int totalIssuedCertificates = 0;
-            totalIssuedCertificates += (int) courseRecords.stream()
+            List<Map<String, Object>> eligibleCourseEnrolments = courseRecords.stream()
                     .filter(MapUtils::isNotEmpty)
-                    .map(record -> record.get(Constants.ISSUED_CERTIFICATES_KEY))
-                    .filter(certObj -> certObj instanceof List<?>)
-                    .map(certObj -> (List<?>) certObj)
-                    .filter(CollectionUtils::isNotEmpty)
-                    .count();
+                    .filter(r -> Boolean.TRUE.equals(r.get(Constants.ACTIVE_LOWERCASE)))
+                    .filter(r -> r.get(Constants.STATUS) instanceof Number && ((Number) r.get(Constants.STATUS)).intValue() == 2)
+                    .filter(r -> r.get(Constants.ISSUED_CERTIFICATES_KEY) instanceof List<?> certs && CollectionUtils.isNotEmpty(certs))
+                    .collect(Collectors.toList());
 
+            if (eligibleCourseEnrolments.isEmpty()) {
+                return 0;
+            }
+
+            List<String> internalCourseIds = eligibleCourseEnrolments.stream()
+                    .map(r -> (String) r.get(Constants.COURSE_ID))
+                    .filter(StringUtils::isNotBlank).distinct().collect(Collectors.toList());
+
+            Map<String, String> internalCacheMap = cacheService.getCourseMetadataAsJsonString(internalCourseIds);
+
+            return (int) eligibleCourseEnrolments.stream()
+                    .filter(r -> isInternalCourseEligible((String) r.get(Constants.COURSE_ID), internalCacheMap))
+                    .count();
+        } catch (Exception e) {
+            log.error("Error fetching internal course certificates for {}: {}", userId, e.getMessage());
+            return 0;
+        }
+    }
+
+    private int getEventsCertificateCount(String userId) {
+
+        try {
             List<Map<String, Object>> eventRecords = cassandraOperation.getRecordsByPropertiesByKey(
-                    Constants.KEYSPACE_SUNBIRD_COURSES,
-                    Constants.USER_ENTITY_ENROLMENTS,
+                    Constants.KEYSPACE_SUNBIRD_COURSES, Constants.USER_ENTITY_ENROLMENTS,
                     Map.of(Constants.USERID_KEY, userId),
-                    List.of(Constants.ISSUED_CERTIFICATES,Constants.PROGRESS_KEY,Constants.STATUS),
-                    userId
-            );
+                    List.of(Constants.STATUS, Constants.ISSUED_CERTIFICATES),
+                    userId);
 
-            int certificatesFromEvents = (int) eventRecords.stream()
+            return (int) eventRecords.stream()
                     .filter(MapUtils::isNotEmpty)
-                    .filter(r -> r.get(Constants.STATUS) instanceof Number && ((Number)r.get(Constants.STATUS)).intValue() == 2)
-                    .filter(r -> r.get(Constants.PROGRESS_KEY) instanceof Number && ((Number)r.get(Constants.PROGRESS_KEY)).intValue() == 100)
-                    .map(r -> r.get(Constants.ISSUED_CERTIFICATES_KEY))
-                    .filter(obj -> obj instanceof List<?>)
-                    .map(obj -> (List<?>) obj)
-                    .filter(CollectionUtils::isNotEmpty)
+                    .filter(r -> r.get(Constants.STATUS) instanceof Number && ((Number) r.get(Constants.STATUS)).intValue() == 2)
+                    .filter(r -> r.get(Constants.ISSUED_CERTIFICATES_KEY) instanceof List<?> certs && CollectionUtils.isNotEmpty(certs))
                     .count();
+        } catch (Exception e) {
+            log.error("Error fetching event certificates for {}: {}", userId, e.getMessage());
+            return 0;
+        }
+    }
 
+    private int getExternalCoursesCertificateCount(String userId) {
+
+        try {
             List<Map<String, Object>> externalCourseRecords = cassandraOperation.getRecordsByPropertiesByKey(
                     Constants.KEYSPACE_SUNBIRD_COURSES,
                     Constants.USER_EXTERNAL_COURSE_ENROLMENTS,
                     Map.of(Constants.USERID_KEY, userId),
-                    List.of(Constants.ISSUED_CERTIFICATES,Constants.PROGRESS_KEY,Constants.STATUS),
+                    List.of(Constants.ISSUED_CERTIFICATES, Constants.PROGRESS_KEY, Constants.STATUS),
                     userId
             );
 
             int certificatesFromExternalCourses = (int) externalCourseRecords.stream()
                     .filter(MapUtils::isNotEmpty)
-                    .filter(r -> r.get(Constants.STATUS) instanceof Number && ((Number)r.get(Constants.STATUS)).intValue() == 2)
-                    .filter(r -> r.get(Constants.PROGRESS_KEY) instanceof Number && ((Number)r.get(Constants.PROGRESS_KEY)).intValue() == 100)
+                    .filter(r -> r.get(Constants.STATUS) instanceof Number && ((Number) r.get(Constants.STATUS)).intValue() == 2)
+                    .filter(r -> r.get(Constants.PROGRESS_KEY) instanceof Number && ((Number) r.get(Constants.PROGRESS_KEY)).intValue() == 100)
                     .map(r -> r.get(Constants.ISSUED_CERTIFICATES_KEY))
                     .filter(obj -> obj instanceof List<?>)
                     .map(obj -> (List<?>) obj)
                     .filter(CollectionUtils::isNotEmpty)
                     .count();
-            totalIssuedCertificates += certificatesFromEvents + certificatesFromExternalCourses;
-            return totalIssuedCertificates;
+
+            return certificatesFromExternalCourses;
 
         } catch (Exception e) {
-            log.warn("Failed to fetch issued certificate count for userId {}: {}", userId, e.getMessage());
+            log.error("Error fetching external course certificates for {}: {}", userId, e.getMessage());
             return 0;
         }
+    }
+
+    private boolean isInternalCourseEligible(String courseId, Map<String, String> cachedCourseMap) {
+        if (StringUtils.isBlank(courseId)) return false;
+        if (cachedCourseMap != null && cachedCourseMap.containsKey(courseId)) {
+            return true;
+        }
+        Map<String, Object> apiContentData = fetchInternalCourseMetadataFromApi(courseId);
+        return apiContentData != null && !apiContentData.isEmpty();
+    }
+
+    public Map<String, Object> fetchInternalCourseMetadataFromApi(String courseId) {
+
+        if (StringUtils.isBlank(courseId)) return null;
+
+        try {
+            String path = StringUtils.endsWith(courseId, Constants.RESTRICTED_CONTENT_ID_SUFFIX)
+                    ? serverConfig.getAdminContentReadPath() : serverConfig.getContentReadPath();
+
+            Map<String, String> headers = new HashMap<>();
+            headers.put(Constants.CONTENT_TYPE, Constants.APPLICATION_JSON);
+
+            Object rawResponse = outboundRequestHandlerService.fetchUsingGetWithHeadersProfile(serverConfig.getContentBaseUrl() + path + courseId, headers);
+
+            if (rawResponse instanceof Map) {
+                Map<String, Object> response = (Map<String, Object>) rawResponse;
+
+                if (response != null && Constants.OK.equalsIgnoreCase((String) response.get(Constants.RESPONSE_CODE))) {
+                    Map<String, Object> result = (Map<String, Object>) response.get(Constants.RESULT);
+                    if (result != null) {
+                        return (Map<String, Object>) result.get(Constants.CONTENT);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed explicit API lookup for internal courseId {}: {}", courseId, e.getMessage());
+        }
+        return null;
     }
 
     private int getUserPostCount(String userId) {

@@ -216,4 +216,13 @@ public class CbServerProperties {
 
     @Value("${achievement.require-es}")
     private boolean requireEs;
+
+    @Value("${content.api.base.url}")
+    private String contentBaseUrl;
+
+    @Value("${content.read.path}")
+    private String contentReadPath;
+
+    @Value("${content.admin.read.api}")
+    private String adminContentReadPath;
 }
