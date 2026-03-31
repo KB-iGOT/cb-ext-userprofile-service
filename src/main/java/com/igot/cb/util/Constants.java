@@ -516,6 +516,7 @@ public class Constants {
     public static final String BADGE_COUNT = "badgeCount";
     public static final String USER_BADGE_LOOKUP_TABLE = "user_badge_lookup";
     public static final String USER_BADGE_COUNT = "user:badgeCount_";
+    public static final String RESTRICTED_CONTENT_ID_SUFFIX = "_rc";
 
     private Constants() {
     }

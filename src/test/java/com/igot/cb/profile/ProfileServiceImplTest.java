@@ -68,7 +68,7 @@ class ProfileServiceImplTest {
 
     @InjectMocks
     @Spy
-    private OutboundRequestHandlerServiceImpl service;
+    private OutboundRequestHandlerServiceImpl outboundRequestHandlerService;
 
     @BeforeEach
      void setUp() {
@@ -1548,16 +1548,20 @@ class ProfileServiceImplTest {
         when(serverConfig.getUserEnrolmentsTable()).thenReturn(Constants.USER_ENROLMENTS);
 
         List<Map<String, Object>> courseRecords = List.of(
-                Map.of(Constants.ISSUED_CERTIFICATES_KEY, List.of("c1")),
-                Map.of(Constants.ISSUED_CERTIFICATES_KEY, List.of("c2", "c3"))
+                Map.of(Constants.COURSE_ID, "course-1", Constants.ACTIVE_LOWERCASE, true,
+                        Constants.STATUS, 2, Constants.ISSUED_CERTIFICATES_KEY, List.of("cert-1")),
+                Map.of(Constants.COURSE_ID, "course-2", Constants.ACTIVE_LOWERCASE, true,
+                        Constants.STATUS, 2, Constants.ISSUED_CERTIFICATES_KEY, List.of("cert-2", "cert-3"))
         );
+        when(localCacheService.getCourseMetadataAsJsonString(anyList()))
+                .thenReturn(Map.of("course-1", "{}", "course-2", "{}"));
         when(localCassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), anyList(), anyString()))
                 .thenReturn(courseRecords)
                 .thenReturn(Collections.emptyList())
                 .thenReturn(Collections.emptyList());
         int count = ReflectionTestUtils.invokeMethod(localService, "getIssuedCertificateCount", "user-1");
         assertEquals(2, count);
-        verifyNoInteractions(localCacheService);
+        verify(localCacheService, times(1)).getCourseMetadataAsJsonString(anyList());
     }
 
     @Test
@@ -1572,9 +1576,13 @@ class ProfileServiceImplTest {
         when(serverConfig.getUserEnrolmentsTable()).thenReturn(Constants.USER_ENROLMENTS);
 
         List<Map<String, Object>> courseRecords = List.of(
-                Map.of(Constants.ISSUED_CERTIFICATES_KEY, List.of("c1", "c2")),
-                Map.of(Constants.ISSUED_CERTIFICATES_KEY, List.of("c3"))
+                Map.of(Constants.COURSE_ID, "course-1", Constants.ACTIVE_LOWERCASE, true,
+                        Constants.STATUS, 2, Constants.ISSUED_CERTIFICATES_KEY, List.of("c1", "c2")),
+                Map.of(Constants.COURSE_ID, "course-2", Constants.ACTIVE_LOWERCASE, true,
+                        Constants.STATUS, 2, Constants.ISSUED_CERTIFICATES_KEY, List.of("c3"))
         );
+        when(localCacheService.getCourseMetadataAsJsonString(anyList()))
+                .thenReturn(Map.of("course-1", "{}", "course-2", "{}"));
 
         List<Map<String, Object>> eventRecords = List.of(
                 Map.of(Constants.STATUS, 2, Constants.PROGRESS_KEY, 100, Constants.ISSUED_CERTIFICATES_KEY, List.of("e1")),
@@ -1596,7 +1604,7 @@ class ProfileServiceImplTest {
 
         int count = ReflectionTestUtils.invokeMethod(locaService, "getIssuedCertificateCount", "user-2");
         assertEquals(5, count);
-        verifyNoInteractions(localCacheService);
+        verify(localCacheService, times(1)).getCourseMetadataAsJsonString(anyList());
     }
 
     @Test
@@ -2950,6 +2958,94 @@ class ProfileServiceImplTest {
         lenient().when(esUtilService.updateUserOrgCustomFields(any(), any(), any())).thenReturn(false);
         ApiResponse response = profileService.updateAdditionalFields(req, "token");
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
+    }
+
+    @Test
+    void testIsInternalCourseEligible_blankCourseId_returnsFalse() throws Exception {
+        Method method = ProfileServiceImpl.class.getDeclaredMethod("isInternalCourseEligible", String.class, Map.class);
+        method.setAccessible(true);
+
+        boolean eligible = (boolean) method.invoke(profileService, "   ", Map.of("c1", "{}"));
+        assertFalse(eligible);
+    }
+
+    @Test
+    void testIsInternalCourseEligible_cacheHit_returnsTrueAndSkipsApi() throws Exception {
+        Method method = ProfileServiceImpl.class.getDeclaredMethod("isInternalCourseEligible", String.class, Map.class);
+        method.setAccessible(true);
+
+        String courseId = "course-1";
+        Map<String, String> cached = Map.of(courseId, "{\"id\":\"course-1\"}");
+
+        boolean eligible = (boolean) method.invoke(profileService, courseId, cached);
+        assertTrue(eligible);
+
+        verify(profileService, never()).fetchInternalCourseMetadataFromApi(anyString());
+    }
+
+    @Test
+    void testIsInternalCourseEligible_cacheMiss_fallsBackToApi() throws Exception {
+        Method method = ProfileServiceImpl.class.getDeclaredMethod("isInternalCourseEligible", String.class, Map.class);
+        method.setAccessible(true);
+
+        String courseId = "course-2";
+        doReturn(Map.of("id", courseId)).when(profileService).fetchInternalCourseMetadataFromApi(courseId);
+
+        boolean eligible = (boolean) method.invoke(profileService, courseId, Map.of());
+        assertTrue(eligible);
+
+        verify(profileService, times(1)).fetchInternalCourseMetadataFromApi(courseId);
+    }
+
+    @Test
+    void testFetchInternalCourseMetadataFromApi_blank_returnsEmptyMap() {
+        assertTrue(profileService.fetchInternalCourseMetadataFromApi("   ").isEmpty());
+    }
+
+    @Test
+    void testFetchInternalCourseMetadataFromApi_happyPath_returnsContent() {
+        String baseUrl = "http://content-base/";
+        String contentReadPath = "content/read/";
+        String courseId = "do_123";
+        String expectedUrl = baseUrl + contentReadPath + courseId;
+
+        when(serverProperties.getContentBaseUrl()).thenReturn(baseUrl);
+        when(serverProperties.getContentReadPath()).thenReturn(contentReadPath);
+
+        Map<String, Object> content = Map.of("identifier", courseId);
+        Map<String, Object> response = new HashMap<>();
+        response.put(Constants.RESPONSE_CODE, Constants.OK);
+        response.put(Constants.RESULT, Map.of(Constants.CONTENT, content));
+
+        doReturn(response).when(outboundRequestHandlerService).fetchUsingGetWithHeadersProfile(
+                eq(expectedUrl),
+                eq(Map.of(Constants.CONTENT_TYPE, Constants.APPLICATION_JSON))
+        );
+
+        Map<String, Object> result = profileService.fetchInternalCourseMetadataFromApi(courseId);
+        assertEquals(content, result);
+    }
+
+    @Test
+    void testFetchInternalCourseMetadataFromApi_nonOkResponse_returnsEmptyMap() {
+        String baseUrl = "http://content-base/";
+        String contentReadPath = "content/read/";
+        String courseId = "do_124";
+        String expectedUrl = baseUrl + contentReadPath + courseId;
+
+        when(serverProperties.getContentBaseUrl()).thenReturn(baseUrl);
+        when(serverProperties.getContentReadPath()).thenReturn(contentReadPath);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put(Constants.RESPONSE_CODE, "NOT_OK");
+        response.put(Constants.RESULT, Map.of(Constants.CONTENT, Map.of("identifier", courseId)));
+
+        doReturn(response).when(outboundRequestHandlerService).fetchUsingGetWithHeadersProfile(
+                eq(expectedUrl),
+                eq(Map.of(Constants.CONTENT_TYPE, Constants.APPLICATION_JSON))
+        );
+
+        assertTrue(profileService.fetchInternalCourseMetadataFromApi(courseId).isEmpty());
     }
 
 }
