@@ -68,7 +68,7 @@ class ProfileServiceImplTest {
 
     @InjectMocks
     @Spy
-    private OutboundRequestHandlerServiceImpl service;
+    private OutboundRequestHandlerServiceImpl outboundRequestHandlerService;
 
     @BeforeEach
      void setUp() {
@@ -2958,6 +2958,94 @@ class ProfileServiceImplTest {
         lenient().when(esUtilService.updateUserOrgCustomFields(any(), any(), any())).thenReturn(false);
         ApiResponse response = profileService.updateAdditionalFields(req, "token");
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
+    }
+
+    @Test
+    void testIsInternalCourseEligible_blankCourseId_returnsFalse() throws Exception {
+        Method method = ProfileServiceImpl.class.getDeclaredMethod("isInternalCourseEligible", String.class, Map.class);
+        method.setAccessible(true);
+
+        boolean eligible = (boolean) method.invoke(profileService, "   ", Map.of("c1", "{}"));
+        assertFalse(eligible);
+    }
+
+    @Test
+    void testIsInternalCourseEligible_cacheHit_returnsTrueAndSkipsApi() throws Exception {
+        Method method = ProfileServiceImpl.class.getDeclaredMethod("isInternalCourseEligible", String.class, Map.class);
+        method.setAccessible(true);
+
+        String courseId = "course-1";
+        Map<String, String> cached = Map.of(courseId, "{\"id\":\"course-1\"}");
+
+        boolean eligible = (boolean) method.invoke(profileService, courseId, cached);
+        assertTrue(eligible);
+
+        verify(profileService, never()).fetchInternalCourseMetadataFromApi(anyString());
+    }
+
+    @Test
+    void testIsInternalCourseEligible_cacheMiss_fallsBackToApi() throws Exception {
+        Method method = ProfileServiceImpl.class.getDeclaredMethod("isInternalCourseEligible", String.class, Map.class);
+        method.setAccessible(true);
+
+        String courseId = "course-2";
+        doReturn(Map.of("id", courseId)).when(profileService).fetchInternalCourseMetadataFromApi(courseId);
+
+        boolean eligible = (boolean) method.invoke(profileService, courseId, Map.of());
+        assertTrue(eligible);
+
+        verify(profileService, times(1)).fetchInternalCourseMetadataFromApi(courseId);
+    }
+
+    @Test
+    void testFetchInternalCourseMetadataFromApi_blank_returnsEmptyMap() {
+        assertTrue(profileService.fetchInternalCourseMetadataFromApi("   ").isEmpty());
+    }
+
+    @Test
+    void testFetchInternalCourseMetadataFromApi_happyPath_returnsContent() {
+        String baseUrl = "http://content-base/";
+        String contentReadPath = "content/read/";
+        String courseId = "do_123";
+        String expectedUrl = baseUrl + contentReadPath + courseId;
+
+        when(serverProperties.getContentBaseUrl()).thenReturn(baseUrl);
+        when(serverProperties.getContentReadPath()).thenReturn(contentReadPath);
+
+        Map<String, Object> content = Map.of("identifier", courseId);
+        Map<String, Object> response = new HashMap<>();
+        response.put(Constants.RESPONSE_CODE, Constants.OK);
+        response.put(Constants.RESULT, Map.of(Constants.CONTENT, content));
+
+        doReturn(response).when(outboundRequestHandlerService).fetchUsingGetWithHeadersProfile(
+                eq(expectedUrl),
+                eq(Map.of(Constants.CONTENT_TYPE, Constants.APPLICATION_JSON))
+        );
+
+        Map<String, Object> result = profileService.fetchInternalCourseMetadataFromApi(courseId);
+        assertEquals(content, result);
+    }
+
+    @Test
+    void testFetchInternalCourseMetadataFromApi_nonOkResponse_returnsEmptyMap() {
+        String baseUrl = "http://content-base/";
+        String contentReadPath = "content/read/";
+        String courseId = "do_124";
+        String expectedUrl = baseUrl + contentReadPath + courseId;
+
+        when(serverProperties.getContentBaseUrl()).thenReturn(baseUrl);
+        when(serverProperties.getContentReadPath()).thenReturn(contentReadPath);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put(Constants.RESPONSE_CODE, "NOT_OK");
+        response.put(Constants.RESULT, Map.of(Constants.CONTENT, Map.of("identifier", courseId)));
+
+        doReturn(response).when(outboundRequestHandlerService).fetchUsingGetWithHeadersProfile(
+                eq(expectedUrl),
+                eq(Map.of(Constants.CONTENT_TYPE, Constants.APPLICATION_JSON))
+        );
+
+        assertTrue(profileService.fetchInternalCourseMetadataFromApi(courseId).isEmpty());
     }
 
 }

@@ -962,12 +962,12 @@ public class ProfileServiceImpl implements ProfileService {
                     List.of(Constants.COURSE_ID, Constants.STATUS, Constants.ACTIVE_LOWERCASE, Constants.ISSUED_CERTIFICATES),
                     userId);
 
-            List<Map<String, Object>> eligibleCourseEnrolments = courseRecords.stream()
+            List<Map<String, Object>> eligibleCourseEnrolments = CollectionUtils.emptyIfNull(courseRecords).stream()
                     .filter(MapUtils::isNotEmpty)
                     .filter(r -> Boolean.TRUE.equals(r.get(Constants.ACTIVE_LOWERCASE)))
                     .filter(r -> r.get(Constants.STATUS) instanceof Number && ((Number) r.get(Constants.STATUS)).intValue() == 2)
                     .filter(r -> r.get(Constants.ISSUED_CERTIFICATES_KEY) instanceof List<?> certs && CollectionUtils.isNotEmpty(certs))
-                    .collect(Collectors.toList());
+                    .toList();
 
             if (eligibleCourseEnrolments.isEmpty()) {
                 return 0;
@@ -997,7 +997,7 @@ public class ProfileServiceImpl implements ProfileService {
                     List.of(Constants.STATUS, Constants.ISSUED_CERTIFICATES),
                     userId);
 
-            return (int) eventRecords.stream()
+            return (int) CollectionUtils.emptyIfNull(eventRecords).stream()
                     .filter(MapUtils::isNotEmpty)
                     .filter(r -> r.get(Constants.STATUS) instanceof Number && ((Number) r.get(Constants.STATUS)).intValue() == 2)
                     .filter(r -> r.get(Constants.ISSUED_CERTIFICATES_KEY) instanceof List<?> certs && CollectionUtils.isNotEmpty(certs))
@@ -1019,7 +1019,7 @@ public class ProfileServiceImpl implements ProfileService {
                     userId
             );
 
-            int certificatesFromExternalCourses = (int) externalCourseRecords.stream()
+            return (int) CollectionUtils.emptyIfNull(externalCourseRecords).stream()
                     .filter(MapUtils::isNotEmpty)
                     .filter(r -> r.get(Constants.STATUS) instanceof Number && ((Number) r.get(Constants.STATUS)).intValue() == 2)
                     .filter(r -> r.get(Constants.PROGRESS_KEY) instanceof Number && ((Number) r.get(Constants.PROGRESS_KEY)).intValue() == 100)
@@ -1029,8 +1029,6 @@ public class ProfileServiceImpl implements ProfileService {
                     .filter(CollectionUtils::isNotEmpty)
                     .count();
 
-            return certificatesFromExternalCourses;
-
         } catch (Exception e) {
             log.error("Error fetching external course certificates for {}: {}", userId, e.getMessage());
             return 0;
@@ -1039,40 +1037,46 @@ public class ProfileServiceImpl implements ProfileService {
 
     private boolean isInternalCourseEligible(String courseId, Map<String, String> cachedCourseMap) {
         if (StringUtils.isBlank(courseId)) return false;
-        if (cachedCourseMap != null && cachedCourseMap.containsKey(courseId)) {
+        if (MapUtils.isNotEmpty(cachedCourseMap) && cachedCourseMap.containsKey(courseId)) {
             return true;
         }
         Map<String, Object> apiContentData = fetchInternalCourseMetadataFromApi(courseId);
-        return apiContentData != null && !apiContentData.isEmpty();
+        return MapUtils.isNotEmpty(apiContentData);
     }
 
     public Map<String, Object> fetchInternalCourseMetadataFromApi(String courseId) {
 
-        if (StringUtils.isBlank(courseId)) return null;
+        if (StringUtils.isBlank(courseId)) return Collections.emptyMap();
 
         try {
             String path = StringUtils.endsWith(courseId, Constants.RESTRICTED_CONTENT_ID_SUFFIX)
                     ? serverConfig.getAdminContentReadPath() : serverConfig.getContentReadPath();
 
-            Map<String, String> headers = new HashMap<>();
-            headers.put(Constants.CONTENT_TYPE, Constants.APPLICATION_JSON);
+            Map<String, String> headers = Map.of(Constants.CONTENT_TYPE, Constants.APPLICATION_JSON);
 
             Object rawResponse = outboundRequestHandlerService.fetchUsingGetWithHeadersProfile(serverConfig.getContentBaseUrl() + path + courseId, headers);
 
-            if (rawResponse instanceof Map) {
-                Map<String, Object> response = (Map<String, Object>) rawResponse;
-
-                if (response != null && Constants.OK.equalsIgnoreCase((String) response.get(Constants.RESPONSE_CODE))) {
-                    Map<String, Object> result = (Map<String, Object>) response.get(Constants.RESULT);
-                    if (result != null) {
-                        return (Map<String, Object>) result.get(Constants.CONTENT);
-                    }
-                }
+            if (!(rawResponse instanceof Map<?, ?> responseObj)) {
+                return Collections.emptyMap();
             }
+
+            Map<String, Object> response = (Map<String, Object>) responseObj;
+            if (!Constants.OK.equalsIgnoreCase(String.valueOf(response.get(Constants.RESPONSE_CODE)))) {
+                return Collections.emptyMap();
+            }
+
+            Object resultObj = response.get(Constants.RESULT);
+            if (!(resultObj instanceof Map<?, ?> resultMapObj)) {
+                return Collections.emptyMap();
+            }
+
+            Map<String, Object> result = (Map<String, Object>) resultMapObj;
+            Object contentObj = result.get(Constants.CONTENT);
+            return (contentObj instanceof Map<?, ?> contentMapObj) ? (Map<String, Object>) contentMapObj : Collections.emptyMap();
         } catch (Exception e) {
             log.warn("Failed explicit API lookup for internal courseId {}: {}", courseId, e.getMessage());
         }
-        return null;
+        return Collections.emptyMap();
     }
 
     private int getUserPostCount(String userId) {
