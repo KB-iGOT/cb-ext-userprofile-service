@@ -163,6 +163,7 @@ public class AchievementServiceImpl implements AchievementService{
             ProjectUtil.errorResponse(response, "Achievement records not found", HttpStatus.NOT_FOUND);
             return response;
         }
+        boolean isUrlChanged = hasUrlChanges(existingRecord, newContextData);
         java.time.Instant updateOnTimestamp = java.time.Instant.now();
 
         // Compute delta-based comparison for competencies
@@ -180,8 +181,8 @@ public class AchievementServiceImpl implements AchievementService{
         cacheService.putCache(buildCacheKey("user:achievement", userId, contextType, id), existingRecord,cbServerProperties.getAchievementCacheTtl());
 
         // Publish competency update event only if there are actual changes (added or removed)
-        if (hasCompetencyChanges(competencyDelta)) {
-            publishCompetencyDeltaEvent(userId, id, contextType, competencyDelta, Constants.UPDATE);
+        if (hasCompetencyChanges(competencyDelta) || isUrlChanged) {
+            publishCompetencyDeltaEvent(userId, id, contextType, competencyDelta, Constants.UPDATE, isUrlChanged, existingRecord);
         }
         response.setResponseCode(HttpStatus.OK);
         response.setResponse(existingRecord);
@@ -844,6 +845,48 @@ public class AchievementServiceImpl implements AchievementService{
             ProjectUtil.errorResponse(response, "contextData is mandatory for update", HttpStatus.BAD_REQUEST);
             return response;
         }
+        if (!newContextData.containsKey(Constants.UPLOAD_DOCUMENT_URL) || !newContextData.containsKey(Constants.URL)) {
+            ProjectUtil.errorResponse(
+                    response,
+                    "Both uploadedDocumentUrl and url fields must be present",
+                    HttpStatus.BAD_REQUEST
+            );
+            return response;
+        }
+
+        String uploadedDocumentUrl = (String) newContextData.get(Constants.UPLOAD_DOCUMENT_URL);
+        String url = (String) newContextData.get(Constants.URL);
+
+        if (uploadedDocumentUrl == null || url == null) {
+            ProjectUtil.errorResponse(
+                    response,
+                    "uploadedDocumentUrl and url must not be null (can be empty string)",
+                    HttpStatus.BAD_REQUEST
+            );
+            return response;
+        }
+
+        if (StringUtils.isBlank(uploadedDocumentUrl) && StringUtils.isBlank(url)) {
+            ProjectUtil.errorResponse(
+                    response,
+                    "Either uploadedDocumentUrl or url must have a value",
+                    HttpStatus.BAD_REQUEST
+            );
+            return response;
+        }
+
+        boolean isUploadedBlank = StringUtils.isBlank(uploadedDocumentUrl);
+        boolean isUrlBlank = StringUtils.isBlank(url);
+
+        if (isUploadedBlank == isUrlBlank) {
+            ProjectUtil.errorResponse(
+                    response,
+                    "Exactly one of uploadedDocumentUrl or url must have a value",
+                    HttpStatus.BAD_REQUEST
+            );
+            return response;
+        }
+
         return null;
     }
 
@@ -994,12 +1037,29 @@ public class AchievementServiceImpl implements AchievementService{
                                              String achievementId,
                                              String contextType,
                                              CompetencyDelta delta,
-                                             String action) {
+                                             String action,
+                                             boolean isUrlChanged,
+                                             Map<String, Object> existingRecord) {
         try {
             // ONLY include changed competencies (added and removed), NOT unchanged
             List<Map<String, String>> changedCompetencies = new ArrayList<>();
             changedCompetencies.addAll(delta.added);
             changedCompetencies.addAll(delta.removed);
+
+            if (isUrlChanged) {
+                List<Map<String, String>> urlChangedCompetencies =
+                        buildChangeUrlCompetencies(existingRecord);
+
+                Set<String> removedKeys = delta.removed.stream()
+                        .map(this::buildKey)
+                        .collect(Collectors.toSet());
+
+                urlChangedCompetencies = urlChangedCompetencies.stream()
+                        .filter(comp -> !removedKeys.contains(buildKey(comp)))
+                        .collect(Collectors.toList());
+
+                changedCompetencies.addAll(urlChangedCompetencies);
+            }
 
             if (changedCompetencies.isEmpty()) {
                 log.debug("No changed competencies to publish for achievementId: {}", achievementId);
@@ -1502,6 +1562,74 @@ public class AchievementServiceImpl implements AchievementService{
             }
         }
         return filtered;
+    }
+
+    private boolean hasUrlChanges(Map<String, Object> existingRecord,
+                                  Map<String, Object> newContextData) {
+
+        //  Get old context
+        Map<String, Object> oldContext =
+                (Map<String, Object>) existingRecord.get(Constants.CONTEXT_DATA);
+
+        //  Extract old values (default "" if null)
+        String oldUploaded = oldContext != null && oldContext.get(Constants.UPLOAD_DOCUMENT_URL) != null
+                ? oldContext.get(Constants.UPLOAD_DOCUMENT_URL).toString()
+                : "";
+
+        String oldUrl = oldContext != null && oldContext.get(Constants.URL) != null
+                ? oldContext.get(Constants.URL).toString()
+                : "";
+
+        //  Extract new values (default "" if null)
+        String newUploaded = newContextData.get(Constants.UPLOAD_DOCUMENT_URL) != null
+                ? newContextData.get(Constants.UPLOAD_DOCUMENT_URL).toString()
+                : "";
+
+        String newUrl = newContextData.get(Constants.URL) != null
+                ? newContextData.get(Constants.URL).toString()
+                : "";
+
+        // Compare fields directly (no normalization to null)
+        boolean isUploadedChanged = !oldUploaded.equals(newUploaded);
+        boolean isUrlChanged = !oldUrl.equals(newUrl);
+
+        return isUploadedChanged || isUrlChanged;
+    }
+
+    private List<Map<String, String>> buildChangeUrlCompetencies(Map<String, Object> existingRecord) {
+
+        Map<String, Object> existingContextData;
+
+        Object existingContextObj = existingRecord.get(Constants.CONTEXT_DATA);
+
+        if (existingContextObj instanceof Map<?, ?> map) {
+            existingContextData = convertToStringObjectMap(map);
+        } else if (existingContextObj instanceof String json) {
+            try {
+                existingContextData = objectMapper.readValue(json, Map.class);
+            } catch (Exception e) {
+                log.warn("Failed to parse existing context data", e);
+                return List.of();
+            }
+        } else {
+            return List.of();
+        }
+
+        //  Extract competencies exactly like delta method
+        List<Map<String, Object>> existingCompetencies =
+                extractCompetenciesV6List(existingContextData);
+
+        //  Reuse SAME structure builder
+        return existingCompetencies.stream()
+                .map(comp -> buildCompetencyIdMap(comp, "changeUrl"))
+                .collect(Collectors.toList());
+    }
+
+    private String buildKey(Map<String, String> comp) {
+        return (comp.get(Constants.COMPETENCY_AREA_ID) + "|" +
+                comp.get(Constants.COMPETENCY_THEME_ID) + "|" +
+                comp.get(Constants.COMPETENCY_SUB_THEME_ID))
+                .toLowerCase();
     }
 
 }
