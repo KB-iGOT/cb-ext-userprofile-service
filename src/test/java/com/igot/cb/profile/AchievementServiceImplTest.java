@@ -54,23 +54,24 @@ class AchievementServiceImplTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        try (AutoCloseable ignored = MockitoAnnotations.openMocks(this)) {
-            when(cbServerProperties.getRequiredFieldsProperty()).thenReturn("id,contextType");
-            when(cbServerProperties.getContextType()).thenReturn(new String[]{"testContext"});
-            when(cbServerProperties.getAchievementsMandatoryFields()).thenReturn("field1,field2");
-            when(cbServerProperties.getAchievementEsRequiredFieldsMappingPath()).thenReturn("/tmp/mapping.json");
-            when(cbServerProperties.getSearchResultRedisTtl()).thenReturn(1000L);
-            when(cbServerProperties.getUserCompetencyTopicName()).thenReturn("user-competency-mapping-event");
-            when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        MockitoAnnotations.openMocks(this);
+        when(cbServerProperties.getRequiredFieldsProperty()).thenReturn("id,contextType");
+        when(cbServerProperties.getContextType()).thenReturn(new String[]{"testContext"});
+        when(cbServerProperties.getAchievementsMandatoryFields()).thenReturn("field1,field2");
+        when(cbServerProperties.getAchievementsAllowedFields()).thenReturn(null);
+        when(cbServerProperties.getAchievementEsRequiredFieldsMappingPath()).thenReturn("/tmp/mapping.json");
+        when(cbServerProperties.getSearchResultRedisTtl()).thenReturn(1000L);
+        when(cbServerProperties.getUserCompetencyTopicName()).thenReturn("user-competency-mapping-event");
+        when(cbServerProperties.getAchievementCacheTtl()).thenReturn(100);
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
 
-            achievementService = new AchievementServiceImpl(
-                    accessTokenValidator, cbServerProperties, cassandraOperation,
-                    esClientService, objectMapper, redisTemplate, cacheService, kafkaEventPublisher
-            );
-            java.lang.reflect.Method initMethod = AchievementServiceImpl.class.getDeclaredMethod("initRequiredFields");
-            initMethod.setAccessible(true);
-            initMethod.invoke(achievementService);
-        }
+        achievementService = new AchievementServiceImpl(
+                accessTokenValidator, cbServerProperties, cassandraOperation,
+                esClientService, objectMapper, redisTemplate, cacheService, kafkaEventPublisher
+        );
+        java.lang.reflect.Method initMethod = AchievementServiceImpl.class.getDeclaredMethod("initRequiredFields");
+        initMethod.setAccessible(true);
+        initMethod.invoke(achievementService);
     }
 
     // ==================== CREATE TESTS ====================
@@ -160,6 +161,8 @@ class AchievementServiceImplTest {
         Map<String, Object> contextData = new HashMap<>();
         contextData.put("field1", "value1");
         contextData.put("field2", "value2");
+        contextData.put(Constants.UPLOAD_DOCUMENT_URL, "http://example.com/doc.pdf");
+        contextData.put(Constants.URL, "");
         Map<String, Object> requestData = new HashMap<>();
         requestData.put(Constants.ID, "achv1");
         requestData.put(Constants.CONTEXT_TYPE, "testContext");
@@ -248,6 +251,8 @@ class AchievementServiceImplTest {
         Map<String, Object> contextData = new HashMap<>();
         contextData.put("field1", "value1");
         contextData.put("field2", "value2");
+        contextData.put(Constants.UPLOAD_DOCUMENT_URL, "http://example.com/doc.pdf");
+        contextData.put(Constants.URL, "");
         Map<String, Object> requestData = new HashMap<>();
         requestData.put(Constants.ID, "achv1");
         requestData.put(Constants.CONTEXT_TYPE, "testContext");
@@ -265,6 +270,8 @@ class AchievementServiceImplTest {
         Map<String, Object> contextData = new HashMap<>();
         contextData.put("field1", "value1");
         contextData.put("field2", "value2");
+        contextData.put(Constants.UPLOAD_DOCUMENT_URL, "http://example.com/doc.pdf");
+        contextData.put(Constants.URL, "");
         Map<String, Object> requestData = new HashMap<>();
         requestData.put(Constants.ID, "achv1");
         requestData.put(Constants.CONTEXT_TYPE, "testContext");
@@ -1474,6 +1481,8 @@ class AchievementServiceImplTest {
         Map<String, Object> newContextData = new HashMap<>();
         newContextData.put("field1", "value1");
         newContextData.put("field2", "value2");
+        newContextData.put(Constants.UPLOAD_DOCUMENT_URL, "http://example.com/doc.pdf");
+        newContextData.put(Constants.URL, "");
         newContextData.put(Constants.COMPETENCIES_V6, newCompetencies);
 
         Map<String, Object> requestData = new HashMap<>();
@@ -1542,6 +1551,8 @@ class AchievementServiceImplTest {
         Map<String, Object> contextData = new HashMap<>();
         contextData.put("field1", "value1");
         contextData.put("field2", "value2");
+        contextData.put(Constants.UPLOAD_DOCUMENT_URL, "http://example.com/doc.pdf");
+        contextData.put(Constants.URL, "");
         contextData.put(Constants.COMPETENCIES_V6, competencies);
 
         Map<String, Object> requestData = new HashMap<>();
@@ -1689,6 +1700,8 @@ class AchievementServiceImplTest {
         Map<String, Object> newContextData = new HashMap<>();
         newContextData.put("field1", "value1");
         newContextData.put("field2", "value2");
+        newContextData.put(Constants.UPLOAD_DOCUMENT_URL, "http://example.com/doc.pdf");
+        newContextData.put(Constants.URL, "");
         newContextData.put(Constants.COMPETENCIES_V6, newCompetencies);
 
         Map<String, Object> requestData = new HashMap<>();
@@ -1717,6 +1730,8 @@ class AchievementServiceImplTest {
         Map<String, Object> existingContextData = new HashMap<>();
         existingContextData.put("field1", "value1");
         existingContextData.put("field2", "value2");
+        existingContextData.put(Constants.UPLOAD_DOCUMENT_URL, "http://example.com/doc.pdf");
+        existingContextData.put(Constants.URL, "");
         existingContextData.put(Constants.COMPETENCIES_V6, existingCompetencies);
         existingRecord.put(Constants.CONTEXT_DATA, existingContextData);
 
