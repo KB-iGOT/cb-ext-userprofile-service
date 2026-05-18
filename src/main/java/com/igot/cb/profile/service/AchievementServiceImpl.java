@@ -763,10 +763,12 @@ public class AchievementServiceImpl implements AchievementService{
     }
 
     @Override
-    public ApiResponse getUserAchievements(String authToken) {
+    public ApiResponse getUserAchievements(String authToken, String id) {
         log.info("AchievementService::getUserAchievements");
         ApiResponse response = ProjectUtil.createDefaultResponse(Constants.API_ACHIEVEMENT_LIST);
-        String userId = accessTokenValidator.fetchUserIdFromAccessToken(authToken);
+        String userId = StringUtils.isNotBlank(id)
+                ? id
+                : accessTokenValidator.fetchUserIdFromAccessToken(authToken);
         if (StringUtils.isBlank(userId)) {
             ProjectUtil.errorResponse(response, "Invalid or missing access token", HttpStatus.UNAUTHORIZED);
             return response;

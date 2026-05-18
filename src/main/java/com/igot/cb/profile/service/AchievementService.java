@@ -20,7 +20,7 @@ public interface AchievementService {
 
     ApiResponse searchLearnerAchievements(SearchCriteria searchCriteria, String authToken);
 
-    ApiResponse getUserAchievements(String authToken);
+    ApiResponse  getUserAchievements(String authToken, String id);
 
     ApiResponse getUserAchievementsByUserIds(String authToken, Map<String, Object> request);
 }

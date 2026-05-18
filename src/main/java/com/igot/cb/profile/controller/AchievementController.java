@@ -71,8 +71,9 @@ public class AchievementController {
 
     @GetMapping("/list")
     public ResponseEntity<?> listLearnerAchievements(
-            @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken) {
-        ApiResponse response = achievementService.getUserAchievements(authToken);
+            @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken,
+            @RequestParam(value = Constants.ID, required = false) String id) {
+        ApiResponse response = achievementService.getUserAchievements(authToken, id);
         return new ResponseEntity<>(response, response.getResponseCode());
     }
 
