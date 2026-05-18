@@ -103,44 +103,44 @@ class AchievementControllerTest {
         Map<String, Object> result = new HashMap<>();
         result.put("achievements", "data");
         apiResponse.put("result", result);
-        when(achievementService.getUserAchievements(anyString())).thenReturn(apiResponse);
-        ResponseEntity<?> response = achievementController.listLearnerAchievements("token");
+        when(achievementService.getUserAchievements(anyString(), any())).thenReturn(apiResponse);
+        ResponseEntity<?> response = achievementController.listLearnerAchievements("token", null);
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(apiResponse, response.getBody());
-        verify(achievementService).getUserAchievements("token");
+        verify(achievementService).getUserAchievements("token", null);
     }
 
     @Test
     void testListLearnerAchievements_unauthorized() {
         ApiResponse apiResponse = new ApiResponse();
         apiResponse.setResponseCode(HttpStatus.UNAUTHORIZED);
-        when(achievementService.getUserAchievements(anyString())).thenReturn(apiResponse);
-        ResponseEntity<?> response = achievementController.listLearnerAchievements("invalid_token");
+        when(achievementService.getUserAchievements(anyString(), any())).thenReturn(apiResponse);
+        ResponseEntity<?> response = achievementController.listLearnerAchievements("invalid_token", null);
         assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
         assertEquals(apiResponse, response.getBody());
-        verify(achievementService).getUserAchievements("invalid_token");
+        verify(achievementService).getUserAchievements("invalid_token", null);
     }
 
     @Test
     void testListLearnerAchievements_badRequest() {
         ApiResponse apiResponse = new ApiResponse();
         apiResponse.setResponseCode(HttpStatus.BAD_REQUEST);
-        when(achievementService.getUserAchievements(anyString())).thenReturn(apiResponse);
-        ResponseEntity<?> response = achievementController.listLearnerAchievements("token");
+        when(achievementService.getUserAchievements(anyString(), any())).thenReturn(apiResponse);
+        ResponseEntity<?> response = achievementController.listLearnerAchievements("token", null);
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
         assertEquals(apiResponse, response.getBody());
-        verify(achievementService).getUserAchievements("token");
+        verify(achievementService).getUserAchievements(eq("token"), any());
     }
 
     @Test
     void testListLearnerAchievements_internalServerError() {
         ApiResponse apiResponse = new ApiResponse();
         apiResponse.setResponseCode(HttpStatus.INTERNAL_SERVER_ERROR);
-        when(achievementService.getUserAchievements(anyString())).thenReturn(apiResponse);
-        ResponseEntity<?> response = achievementController.listLearnerAchievements("token");
+        when(achievementService.getUserAchievements(anyString(), any())).thenReturn(apiResponse);
+        ResponseEntity<?> response = achievementController.listLearnerAchievements("token", "123");
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
         assertEquals(apiResponse, response.getBody());
-        verify(achievementService).getUserAchievements("token");
+        verify(achievementService).getUserAchievements("token", "123");
     }
 
     @Test
@@ -148,11 +148,11 @@ class AchievementControllerTest {
         ApiResponse apiResponse = new ApiResponse();
         apiResponse.setResponseCode(HttpStatus.OK);
         apiResponse.put("result", new HashMap<>());
-        when(achievementService.getUserAchievements(anyString())).thenReturn(apiResponse);
-        ResponseEntity<?> response = achievementController.listLearnerAchievements("token");
+        when(achievementService.getUserAchievements(anyString(), any())).thenReturn(apiResponse);
+        ResponseEntity<?> response = achievementController.listLearnerAchievements("token", "123");
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(apiResponse, response.getBody());
-        verify(achievementService).getUserAchievements("token");
+        verify(achievementService).getUserAchievements("token", "123");
     }
 
     // ==================== listLearnerAchievementsByUserIds TESTS ====================

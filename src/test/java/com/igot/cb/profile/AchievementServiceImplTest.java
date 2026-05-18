@@ -963,7 +963,7 @@ class AchievementServiceImplTest {
         when(cacheService.getCache(anyString())).thenReturn(cachedJson);
         when(objectMapper.readValue(anyString(), eq(Map.class))).thenReturn(cachedData);
 
-        ApiResponse response = achievementService.getUserAchievements("token");
+        ApiResponse response = achievementService.getUserAchievements("token", "123");
 
         assertEquals(HttpStatus.OK, response.getResponseCode());
         assertNotNull(response.getResult().get(Constants.SEARCH_RESULTS));
@@ -991,7 +991,7 @@ class AchievementServiceImplTest {
         when(cassandraOperation.getRecordsByPropertiesWithoutFiltering(any(), any(), any(), any(), anyInt()))
                 .thenReturn(achievements);
 
-        ApiResponse response = achievementService.getUserAchievements("token");
+        ApiResponse response = achievementService.getUserAchievements("token", "123");
 
         assertEquals(HttpStatus.OK, response.getResponseCode());
         assertNotNull(response.getResult().get(Constants.SEARCH_RESULTS));
@@ -1020,7 +1020,7 @@ class AchievementServiceImplTest {
                 .thenReturn(achievements);
         when(objectMapper.readValue(anyString(), eq(Map.class))).thenReturn(new HashMap<>());
 
-        ApiResponse response = achievementService.getUserAchievements("token");
+        ApiResponse response = achievementService.getUserAchievements("token", null);
 
         assertEquals(HttpStatus.OK, response.getResponseCode());
         assertNotNull(response.getResult().get(Constants.SEARCH_RESULTS));
@@ -1047,7 +1047,7 @@ class AchievementServiceImplTest {
         when(cassandraOperation.getRecordsByPropertiesWithoutFiltering(any(), any(), any(), any(), anyInt()))
                 .thenReturn(achievements);
 
-        ApiResponse response = achievementService.getUserAchievements("token");
+        ApiResponse response = achievementService.getUserAchievements("token", null);
 
         assertEquals(HttpStatus.OK, response.getResponseCode());
         assertNotNull(response.getResult().get(Constants.SEARCH_RESULTS));
@@ -1070,7 +1070,7 @@ class AchievementServiceImplTest {
         when(cassandraOperation.getRecordsByPropertiesWithoutFiltering(any(), any(), any(), any(), anyInt()))
                 .thenReturn(Collections.emptyList());
 
-        ApiResponse response = achievementService.getUserAchievements("token");
+        ApiResponse response = achievementService.getUserAchievements("token", null);
 
         assertEquals(HttpStatus.OK, response.getResponseCode());
         assertNotNull(response.getResult().get(Constants.SEARCH_RESULTS));
@@ -1088,7 +1088,7 @@ class AchievementServiceImplTest {
         when(cassandraOperation.getRecordsByPropertiesWithoutFiltering(any(), any(), any(), any(), anyInt()))
                 .thenReturn(null);
 
-        ApiResponse response = achievementService.getUserAchievements("token");
+        ApiResponse response = achievementService.getUserAchievements("token", null);
 
         assertEquals(HttpStatus.OK, response.getResponseCode());
         assertNotNull(response.getResult().get(Constants.SEARCH_RESULTS));
@@ -1100,7 +1100,7 @@ class AchievementServiceImplTest {
     void testGetUserAchievements_invalidToken_blank() {
         when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("");
 
-        ApiResponse response = achievementService.getUserAchievements("token");
+        ApiResponse response = achievementService.getUserAchievements("token", null);
 
         assertEquals(HttpStatus.UNAUTHORIZED, response.getResponseCode());
         assertNotNull(response.getParams());
@@ -1113,7 +1113,7 @@ class AchievementServiceImplTest {
     void testGetUserAchievements_invalidToken_null() {
         when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(null);
 
-        ApiResponse response = achievementService.getUserAchievements("token");
+        ApiResponse response = achievementService.getUserAchievements("token", null);
 
         assertEquals(HttpStatus.UNAUTHORIZED, response.getResponseCode());
         assertNotNull(response.getParams());
@@ -1129,7 +1129,7 @@ class AchievementServiceImplTest {
         when(objectMapper.readValue(anyString(), eq(Map.class)))
                 .thenThrow(new com.fasterxml.jackson.core.JsonProcessingException("JSON parse error") {});
 
-        ApiResponse response = achievementService.getUserAchievements("token");
+        ApiResponse response = achievementService.getUserAchievements("token", null);
 
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
         assertNotNull(response.getParams());
@@ -1144,7 +1144,7 @@ class AchievementServiceImplTest {
         when(cassandraOperation.getRecordsByPropertiesWithoutFiltering(any(), any(), any(), any(), anyInt()))
                 .thenThrow(new RuntimeException("Database connection error"));
 
-        ApiResponse response = achievementService.getUserAchievements("token");
+        ApiResponse response = achievementService.getUserAchievements("token", null);
 
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
         assertNotNull(response.getParams());
@@ -1170,7 +1170,7 @@ class AchievementServiceImplTest {
         when(objectMapper.readValue(anyString(), eq(Map.class)))
                 .thenThrow(new com.fasterxml.jackson.core.JsonProcessingException("JSON parse error") {});
 
-        ApiResponse response = achievementService.getUserAchievements("token");
+        ApiResponse response = achievementService.getUserAchievements("token", null);
 
         assertEquals(HttpStatus.OK, response.getResponseCode());
         Map<String, Object> searchResults = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
@@ -1196,7 +1196,7 @@ class AchievementServiceImplTest {
                 .thenReturn(achievements);
         doThrow(new RuntimeException("Cache write error")).when(cacheService).putCache(anyString(), any());
 
-        ApiResponse response = achievementService.getUserAchievements("token");
+        ApiResponse response = achievementService.getUserAchievements("token", null);
 
         // Should still return OK even if cache write fails
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
@@ -1238,7 +1238,7 @@ class AchievementServiceImplTest {
                 .thenReturn(achievements);
         when(objectMapper.readValue(anyString(), eq(Map.class))).thenReturn(new HashMap<>());
 
-        ApiResponse response = achievementService.getUserAchievements("token");
+        ApiResponse response = achievementService.getUserAchievements("token", null);
 
         assertEquals(HttpStatus.OK, response.getResponseCode());
         Map<String, Object> searchResults = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
@@ -1277,7 +1277,7 @@ class AchievementServiceImplTest {
         when(cassandraOperation.getRecordsByPropertiesWithoutFiltering(any(), any(), any(), any(), anyInt()))
                 .thenReturn(achievements);
 
-        ApiResponse response = achievementService.getUserAchievements("token");
+        ApiResponse response = achievementService.getUserAchievements("token", null);
 
         assertEquals(HttpStatus.OK, response.getResponseCode());
         Map<String, Object> searchResults = (Map<String, Object>) response.getResult().get(Constants.SEARCH_RESULTS);
