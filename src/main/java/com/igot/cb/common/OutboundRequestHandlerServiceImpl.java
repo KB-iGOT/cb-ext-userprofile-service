@@ -43,7 +43,7 @@ public class OutboundRequestHandlerServiceImpl {
             }
             HttpHeaders headers = new HttpHeaders();
             if (!CollectionUtils.isEmpty(headersValues)) {
-                headersValues.forEach((k, v) -> headers.set(k, v));
+                headersValues.forEach(headers::set);
             }
             HttpEntity<Object> entity = new HttpEntity<>(headers);
             response = restTemplate.exchange(uri, HttpMethod.GET, entity, Map.class).getBody();
@@ -53,6 +53,7 @@ public class OutboundRequestHandlerServiceImpl {
                         new TypeReference<HashMap<String, Object>>() {
                         });
             } catch (Exception e1) {
+                log.error("Error parsing response body from HttpClientErrorException", e1);
             }
             log.error("Error received: " + e.getResponseBodyAsString(), e);
         } catch (Exception e) {
@@ -60,6 +61,7 @@ public class OutboundRequestHandlerServiceImpl {
             try {
                 log.warn("Error Response: " + mapper.writeValueAsString(response));
             } catch (Exception e1) {
+                log.error("Error parsing response body from Exception", e1);
             }
         }
         return response;
@@ -70,7 +72,7 @@ public class OutboundRequestHandlerServiceImpl {
         try {
             HttpHeaders headers = new HttpHeaders();
             if (!CollectionUtils.isEmpty(headersValues)) {
-                headersValues.forEach((k, v) -> headers.set(k, v));
+                headersValues.forEach(headers::set);
             }
             headers.setContentType(MediaType.APPLICATION_JSON);
             HttpEntity<Object> entity = new HttpEntity<>(request, headers);
@@ -87,6 +89,7 @@ public class OutboundRequestHandlerServiceImpl {
                         new TypeReference<HashMap<String, Object>>() {
                         });
             } catch (Exception e1) {
+                log.error("Error parsing response body from HttpClientErrorException", e1);
             }
             log.error("Error received: " + e.getResponseBodyAsString(), e);
         }
@@ -105,6 +108,7 @@ public class OutboundRequestHandlerServiceImpl {
                     .append(System.lineSeparator());
             log.debug(str.toString());
         } catch (JsonProcessingException je) {
+            log.error("Error parsing request/response body", je);
         }
     }
 

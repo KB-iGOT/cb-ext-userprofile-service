@@ -36,7 +36,7 @@ public class ProjectUtilTest {
         assertNotNull(exception);
         assertEquals(responseCode.getErrorCode(), exception.getErrorCode());
         assertEquals(responseCode.getErrorMessage(), exception.getMessage());
-        assertEquals(Integer.valueOf(ResponseCode.SERVER_ERROR.getResponseCode()),
+        assertEquals(Integer.valueOf(ResponseCode.SERVER_ERROR.getHttpStatusCode()),
                 Integer.valueOf(exception.getResponseCode()));
     }
 
@@ -47,7 +47,7 @@ public class ProjectUtilTest {
         assertNotNull(exception);
         assertEquals(responseCode.getErrorCode(), exception.getErrorCode());
         assertEquals(responseCode.getErrorMessage(), exception.getMessage());
-        assertEquals(Integer.valueOf(ResponseCode.CLIENT_ERROR.getResponseCode()),
+        assertEquals(Integer.valueOf(ResponseCode.CLIENT_ERROR.getHttpStatusCode()),
                 Integer.valueOf(exception.getResponseCode()));
     }
 

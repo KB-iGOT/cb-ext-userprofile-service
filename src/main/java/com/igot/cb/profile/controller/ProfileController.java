@@ -1,8 +1,9 @@
 package com.igot.cb.profile.controller;
 
 import com.igot.cb.profile.service.ProfileService;
-import com.igot.cb.util.ApiResponse;
 import com.igot.cb.util.Constants;
+
+import org.igot.common.model.ApiResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -18,7 +19,7 @@ public class ProfileController {
     private ProfileService profileService;
 
     @PostMapping("/extended")
-    public ResponseEntity<?> saveExtendedProfile(
+    public ResponseEntity<Object> saveExtendedProfile(
             @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken,
             @RequestBody Map<String, Object> request) throws Exception {
         ApiResponse response = profileService.saveExtendedProfile(request, authToken);
@@ -62,7 +63,7 @@ public class ProfileController {
     }
 
     @PutMapping("/extended")
-    public ResponseEntity<?> updateExtendedProfile(
+    public ResponseEntity<Object> updateExtendedProfile(
             @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken,
             @RequestBody Map<String, Object> request) throws Exception {
         ApiResponse response = profileService.updateExtendedProfile(request, authToken);
@@ -70,7 +71,7 @@ public class ProfileController {
     }
 
     @DeleteMapping("/extended")
-    public ResponseEntity<?> deleteExtendedProfile(
+    public ResponseEntity<Object> deleteExtendedProfile(
             @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken,
             @RequestBody Map<String, Object> request) {
 

@@ -10,18 +10,18 @@ import org.apache.commons.lang3.StringUtils;
  */
 @Getter
 public enum ResponseCode {
-    unAuthorized(ResponseMessage.Key.UNAUTHORIZED_USER, ResponseMessage.Message.UNAUTHORIZED_USER),
-    internalError(ResponseMessage.Key.INTERNAL_ERROR, ResponseMessage.Message.INTERNAL_ERROR),
-    resourceNotFound(
+    UNAUTHORIZED(ResponseMessage.Key.UNAUTHORIZED_USER, ResponseMessage.Message.UNAUTHORIZED_USER),
+    INTERNAL_SERVER_ERROR(ResponseMessage.Key.INTERNAL_ERROR, ResponseMessage.Message.INTERNAL_ERROR),
+    RESOURCE_NOT_FOUND(
             ResponseMessage.Key.RESOURCE_NOT_FOUND, ResponseMessage.Message.RESOURCE_NOT_FOUND),
-    invalidParameterValue(
+    INVALID_PARAMETER_VALUE(
             ResponseMessage.Key.INVALID_PARAMETER_VALUE, ResponseMessage.Message.INVALID_PARAMETER_VALUE),
 
     OK(200),
     CLIENT_ERROR(400),
     SERVER_ERROR(500);
     @Setter
-    private int responseCode;
+    private int httpStatusCode;
     /**
      * error code contains String value
      */
@@ -40,8 +40,8 @@ public enum ResponseCode {
         this.errorMessage = errorMessage;
     }
 
-    ResponseCode(int responseCode) {
-        this.responseCode = responseCode;
+    ResponseCode(int httpStatusCode) {
+        this.httpStatusCode = httpStatusCode;
     }
 
     /**
@@ -51,7 +51,7 @@ public enum ResponseCode {
         if (StringUtils.isBlank(errorCode)) {
             return null;
         } else if (Constants.UNAUTHORIZED.equals(errorCode)) {
-            return ResponseCode.unAuthorized;
+            return ResponseCode.UNAUTHORIZED;
         } else {
             ResponseCode value = null;
             ResponseCode[] responseCodes = ResponseCode.values();
@@ -63,9 +63,4 @@ public enum ResponseCode {
             return value;
         }
     }
-
-    public String getMessage(int errorCode) {
-        return "";
-    }
-
 }
