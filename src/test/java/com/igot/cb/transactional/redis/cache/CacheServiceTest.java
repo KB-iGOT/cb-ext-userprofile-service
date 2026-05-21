@@ -1,5 +1,6 @@
 package com.igot.cb.transactional.redis.cache;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.util.CbServerProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,6 +33,9 @@ class CacheServiceTest {
     @Mock
     private CbServerProperties serverProperties;
 
+    @Mock
+    private ObjectMapper objectMapper;
+
     @InjectMocks
     private CacheService cacheService;
 
@@ -58,24 +62,26 @@ class CacheServiceTest {
 
     @Test
     void hset_SetsValueAndTTL() {
-        cacheService.hset("key", 0, "field", "value");
+        cacheService.hset("key", 0, "field", "value",0);
         verify(jedis).hset("key", "field", "value");
         verify(jedis).expire("key", 84600);
     }
 
     @Test
-    void putCache_SerializesAndSetsValueWithTTL() {
+    void putCache_SerializesAndSetsValueWithTTL() throws Exception {
         Object obj = Map.of("a", 1);
+        when(objectMapper.writeValueAsString(obj)).thenReturn("{\"a\":1}");
         cacheService.putCache("key", obj, 123);
-        verify(jedis).set(eq("key"), anyString());
+        verify(jedis).set("key", "{\"a\":1}");
         verify(jedis).expire("key", 123);
     }
 
     @Test
-    void putCache_UsesDefaultTTL() {
+    void putCache_UsesDefaultTTL() throws Exception {
         Object obj = Map.of("a", 1);
+        when(objectMapper.writeValueAsString(obj)).thenReturn("{\"a\":1}");
         cacheService.putCache("key", obj);
-        verify(jedis).set(eq("key"), anyString());
+        verify(jedis).set("key", "{\"a\":1}");
         verify(jedis).expire("key", 84600);
     }
 
@@ -145,14 +151,15 @@ class CacheServiceTest {
     @Test
     void hset_DoesNotThrow_OnException() {
         doThrow(new RuntimeException("fail")).when(jedis).hset("key", "field", "value");
-        cacheService.hset("key", 0, "field", "value");
+        cacheService.hset("key", 0, "field", "value",0);
         assertNotNull(cacheService);
     }
 
     @Test
-    void putCache_DoesNotThrow_OnException() {
-        doThrow(new RuntimeException("fail")).when(jedis).set(eq("key"), anyString());
-        cacheService.putCache("key", Map.of("a", 1), 100);
+    void putCache_DoesNotThrow_OnException() throws Exception {
+        Object obj = Map.of("a", 1);
+        when(objectMapper.writeValueAsString(obj)).thenThrow(new RuntimeException("fail"));
+        cacheService.putCache("key", obj, 100);
         assertNotNull(cacheService);
     }
 

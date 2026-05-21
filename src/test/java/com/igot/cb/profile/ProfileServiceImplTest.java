@@ -1575,14 +1575,19 @@ class ProfileServiceImplTest {
         ReflectionTestUtils.setField(localService, "cacheService", localCacheService);
         ReflectionTestUtils.setField(localService, "cassandraOperation", localCassandraOperation);
         ReflectionTestUtils.setField(localService, "serverConfig", serverConfig);
-        when(serverConfig.getCertificateCountRedisKey()).thenReturn("cert:count");
-        when(serverConfig.getDataIndex()).thenReturn(12);
-        when(serverConfig.getCacheTtl()).thenReturn(100);
-        when(localCacheService.hget("cert:count", 12, "user-1", 100)).thenReturn("7");
+        when(serverConfig.getUserEnrolmentsTable()).thenReturn(Constants.USER_ENROLMENTS);
+
+        List<Map<String, Object>> courseRecords = List.of(
+                Map.of(Constants.ISSUED_CERTIFICATES_KEY, List.of("c1")),
+                Map.of(Constants.ISSUED_CERTIFICATES_KEY, List.of("c2", "c3"))
+        );
+        when(localCassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), anyList(), anyString()))
+                .thenReturn(courseRecords)
+                .thenReturn(Collections.emptyList())
+                .thenReturn(Collections.emptyList());
         int count = ReflectionTestUtils.invokeMethod(localService, "getIssuedCertificateCount", "user-1");
-        assertEquals(7, count);
-        verify(localCacheService).hget("cert:count", 12, "user-1", 100);
-        verifyNoInteractions(localCassandraOperation);
+        assertEquals(2, count);
+        verifyNoInteractions(localCacheService);
     }
 
     @Test
@@ -1594,10 +1599,7 @@ class ProfileServiceImplTest {
         ReflectionTestUtils.setField(locaService, "cacheService", localCacheService);
         ReflectionTestUtils.setField(locaService, "cassandraOperation", localCassandraOperation);
         ReflectionTestUtils.setField(locaService, "serverConfig", serverConfig);
-        when(serverConfig.getCertificateCountRedisKey()).thenReturn("cert:count");
-        when(serverConfig.getDataIndex()).thenReturn(12);
-        when(serverConfig.getCacheTtl()).thenReturn(100);
-        when(localCacheService.hget("cert:count", 12, "user-2", 100)).thenReturn(null);
+        when(serverConfig.getUserEnrolmentsTable()).thenReturn(Constants.USER_ENROLMENTS);
 
         List<Map<String, Object>> courseRecords = List.of(
                 Map.of(Constants.ISSUED_CERTIFICATES_KEY, List.of("c1", "c2")),
@@ -1624,7 +1626,7 @@ class ProfileServiceImplTest {
 
         int count = ReflectionTestUtils.invokeMethod(locaService, "getIssuedCertificateCount", "user-2");
         assertEquals(5, count);
-        verify(localCacheService).hset("cert:count", 12, "user-2", "5");
+        verifyNoInteractions(localCacheService);
     }
 
     @Test
@@ -1638,7 +1640,7 @@ class ProfileServiceImplTest {
         ReflectionTestUtils.setField(localService, "serverConfig", serverConfig);
         when(serverConfig.getCertificateCountRedisKey()).thenReturn("cert:count");
         when(serverConfig.getDataIndex()).thenReturn(12);
-        when(serverConfig.getCacheTtl()).thenReturn(100);
+        when(serverConfig.getCertificateCountRedisTtl()).thenReturn(100);
         when(localCacheService.hget("cert:count", 12, "user-3", 100)).thenReturn(null);
         when(localCassandraOperation.getRecordsByPropertiesByKey(
                 anyString(), eq(Constants.USER_ENROLMENTS), anyMap(), anyList(), eq("user-3")
@@ -1649,7 +1651,7 @@ class ProfileServiceImplTest {
         int count = ReflectionTestUtils.invokeMethod(localService, "getIssuedCertificateCount", "user-3");
         assertEquals(0, count);
         //verify(localCacheService).hset("cert:count", 12, "user-3", "0");
-        verify(localCacheService, never()).hset(anyString(), anyInt(), anyString(), anyString());
+        verify(localCacheService, never()).hset(anyString(), anyInt(), anyString(), anyString(), eq(100));
     }
 
     @Test
@@ -1661,12 +1663,12 @@ class ProfileServiceImplTest {
         ReflectionTestUtils.setField(localService, "cacheService", localCacheService);
         ReflectionTestUtils.setField(localService, "cassandraOperation", localCassandraOperation);
         ReflectionTestUtils.setField(localService, "serverConfig", serverConfig);
-        when(serverConfig.getCertificateCountRedisKey()).thenReturn("cert:count");
-        when(serverConfig.getDataIndex()).thenReturn(12);
-        when(serverConfig.getCacheTtl()).thenReturn(100);
-        when(localCacheService.hget(anyString(), anyInt(), anyString(), anyInt())).thenThrow(new RuntimeException("fail"));
+        when(serverConfig.getUserEnrolmentsTable()).thenReturn(Constants.USER_ENROLMENTS);
+        when(localCassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), anyList(), anyString()))
+                .thenThrow(new RuntimeException("fail"));
         int count = ReflectionTestUtils.invokeMethod(localService, "getIssuedCertificateCount", "user-4");
         assertEquals(0, count);
+        verifyNoInteractions(localCacheService);
     }
 
     @Test
@@ -1680,7 +1682,7 @@ class ProfileServiceImplTest {
         ReflectionTestUtils.setField(locaService, "serverConfig", serverConfig);
         when(serverConfig.getCertificateCountRedisKey()).thenReturn("cert:count");
         when(serverConfig.getDataIndex()).thenReturn(12);
-        when(serverConfig.getCacheTtl()).thenReturn(100);
+        when(serverConfig.getCertificateCountRedisTtl()).thenReturn(100);
 
         List<Map<String, Object>> courseRecords = List.of(
                 new HashMap<String, Object>() {{ put(Constants.ISSUED_CERTIFICATES_KEY, null); }},
@@ -1704,7 +1706,7 @@ class ProfileServiceImplTest {
 
         int count = ReflectionTestUtils.invokeMethod(locaService, "getIssuedCertificateCount", "user-5");
         assertEquals(0, count);
-        verify(localCacheService, never()).hset(anyString(), anyInt(), anyString(), anyString());
+        verify(localCacheService, never()).hset(anyString(), anyInt(), anyString(), anyString(), eq(100));
     }
 
     @Test

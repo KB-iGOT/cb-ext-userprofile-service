@@ -2,20 +2,7 @@ package com.igot.cb.profile.service;
 
 import java.io.IOException;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -366,13 +353,19 @@ public class ProfileServiceImpl implements ProfileService {
             String cachedJson = cacheService.getCache(cacheKey);
             Map<String, Object> userProfile;
             if (StringUtils.isNotEmpty(cachedJson)) {
-                userProfile = mapper.readValue(cachedJson, new TypeReference<Map<String, Object>>() {
-                });
-                List<String> cachedKeyList = new ArrayList<>(userProfile.keySet());
+                userProfile = mapper.readValue(cachedJson, new TypeReference<>() {});
+                Set<String> cachedKeysLower = userProfile.keySet().stream()
+                        .map(String::toLowerCase)
+                        .collect(Collectors.toSet());
                 List<String> differenceList = serverConfig.getBasicProfileFields().stream()
-                        .filter(key -> !cachedKeyList.contains(key)).toList();
+                        .filter(key -> !cachedKeysLower.contains(key.toLowerCase()))
+                        .toList();
                 if (!differenceList.isEmpty()) {
-                    Map<String, Object> userDetails = readUserDataFromDB(userId, differenceList);
+                    Set<String> allRequiredKeys = new LinkedHashSet<>();
+                    allRequiredKeys.addAll(userProfile.keySet());
+                    allRequiredKeys.addAll(differenceList);
+                    Map<String, Object> userDetails =
+                            readUserDataFromDB(userId, new ArrayList<>(allRequiredKeys));
                     if (MapUtils.isNotEmpty(userDetails)) {
                         userProfile.putAll(userDetails);
                     }
@@ -389,8 +382,12 @@ public class ProfileServiceImpl implements ProfileService {
             userProfile.put(Constants.PROFILE_COMPLETION_PERCENTAGE, calculateProfileCompletionPercentage(userProfile,
                     userId, userToken));
             userProfile.put(Constants.KARMA_POINTS, getUserKarmaPoints(userId));
-            userProfile.put(Constants.CERTIFICATE_COUNT, getIssuedCertificateCount(userId));
+            if (!userProfile.containsKey(Constants.CERTIFICATE_COUNT)) {
+                userProfile.put(Constants.CERTIFICATE_COUNT, getIssuedCertificateCount(userId));
+                cacheService.putCache(cacheKey, userProfile);
+            }
             userProfile.put(Constants.POSTCOUNT, getUserPostCount(userId));
+            userProfile.put(Constants.BADGE_COUNT, getUserBadgeCount(userId));
             userProfile.put(Constants.ROLES, getUserRoles(userId,(String)userProfile.get(Constants.ROOT_ORG_ID)));
 
             if (!isSelfUser) {
@@ -957,13 +954,9 @@ public class ProfileServiceImpl implements ProfileService {
 
 
     private int getIssuedCertificateCount(String userId) {
-        String redisKey = serverConfig.getCertificateCountRedisKey();
 
         try {
-            String cachedValue = cacheService.hget(redisKey,serverConfig.getDataIndex(),userId,serverConfig.getCacheTtl());
-            if (cachedValue != null) {
-                return Integer.parseInt(cachedValue);
-            }
+
             List<Map<String, Object>> courseRecords = cassandraOperation.getRecordsByPropertiesByKey(
                     Constants.KEYSPACE_SUNBIRD_COURSES,
                     serverConfig.getUserEnrolmentsTable(),
@@ -1017,7 +1010,6 @@ public class ProfileServiceImpl implements ProfileService {
                     .filter(CollectionUtils::isNotEmpty)
                     .count();
             totalIssuedCertificates += certificatesFromEvents + certificatesFromExternalCourses;
-            cacheService.hset(redisKey,serverConfig.getDataIndex(),userId, String.valueOf(totalIssuedCertificates));
             return totalIssuedCertificates;
 
         } catch (Exception e) {
@@ -1505,5 +1497,29 @@ public class ProfileServiceImpl implements ProfileService {
             result.add(orgFields);
         }
         return result;
+    }
+
+    private int getUserBadgeCount(String userId) {
+        String redisKey = Constants.USER_BADGE_COUNT + userId;
+
+        try {
+            String cachedValue = cacheService.getCache(redisKey);
+            if (StringUtils.isNotBlank(cachedValue)) {
+                return Integer.parseInt(cachedValue);
+            }
+
+            List<Map<String, Object>> records = cassandraOperation.getRecordsByPropertiesByKey(Constants.KEYSPACE_SUNBIRD_COURSES,Constants.USER_BADGE_LOOKUP_TABLE,
+                    Map.of(Constants.USERID_KEY, userId), List.of(Constants.COURSE_ID), userId);
+            int totalPoints = 0;
+            if(!CollectionUtils.isEmpty(records)){
+                totalPoints= records.size();
+            }
+            cacheService.putCache(redisKey, totalPoints, serverConfig.getBadgeCountRedisTtl());
+            return totalPoints;
+
+        } catch (Exception e) {
+            log.warn("Failed to fetch badge count for userId {}: {}", userId, e.getMessage());
+            return 0;
+        }
     }
 }

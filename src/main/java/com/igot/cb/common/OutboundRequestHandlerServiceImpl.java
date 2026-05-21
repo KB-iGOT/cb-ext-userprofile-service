@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.igot.cb.util.Constants;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.MapUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -109,5 +110,42 @@ public class OutboundRequestHandlerServiceImpl {
         } catch (JsonProcessingException je) {
             log.error("Error parsing request/response body", je);
         }
+    }
+
+    public Map<String, Object> fetchResultUsingPost(String uri, Object request, Map<String, String> headerValues) {
+
+        ObjectMapper mapper = new ObjectMapper().configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        if (!CollectionUtils.isEmpty(headerValues)) {
+            headerValues.forEach(headers::set);
+        }
+        HttpEntity<Object> entity = new HttpEntity<>(request, headers);
+        try {
+            if (log.isDebugEnabled()) log.debug("Calling POST API | URI: {} | Request: {}", uri, mapper.writeValueAsString(request));
+            Map<String, Object> response = restTemplate.postForObject(uri, entity, Map.class);
+
+            if (log.isDebugEnabled()) {
+                log.debug("Response: {}", mapper.writeValueAsString(response));
+            }
+            return response;
+        } catch (HttpStatusCodeException ex) {
+            log.error("HTTP error while calling URI={}", uri, ex);
+            try {
+                if (StringUtils.isNotBlank(ex.getResponseBodyAsString())) {
+                    return mapper.readValue(ex.getResponseBodyAsString(), new TypeReference<Map<String, Object>>() {});
+                }
+            } catch (Exception parseEx) {
+                log.warn("Failed to parse error response body", parseEx);
+            }
+
+        } catch (JsonProcessingException ex) {
+            log.error("JSON processing error while calling URI={}", uri, ex);
+
+        } catch (Exception ex) {
+            log.error("Unexpected error while calling URI={}", uri, ex);
+        }
+
+        return Map.of();
     }
 }

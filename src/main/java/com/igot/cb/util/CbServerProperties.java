@@ -130,6 +130,20 @@ public class CbServerProperties {
     @Value("${cb.certificate.count.redis.key}")
     private String certificateCountRedisKey;
 
+    @Value("${cb.certificate.count.redis.ttl}")
+    private int certificateCountRedisTtl;
+
+    @Value("${cb.badge.count.redis.ttl}")
+    private int badgeCountRedisTtl;
+
+    public int getCertificateCountRedisTtl() {
+        return certificateCountRedisTtl;
+    }
+
+    public void setCertificateCountRedisTtl(int certificateCountRedisTtl) {
+        this.certificateCountRedisTtl = certificateCountRedisTtl;
+    }
+
     public List<String> getBasicProfileFields() {
         return Arrays.asList(basicProfileFields.split(","));
     }
@@ -149,4 +163,68 @@ public class CbServerProperties {
 
     @Value("${db.table.user-enrolments}")
     private String userEnrolmentsTable;
+
+    @Value("${master.data.search.string.regex}")
+    private String masterDataSearchStringRegex;
+
+    @Value("${es.degree.index.name}")
+    private String esDegreeIndexName;
+
+    @Value("${es.institute.index.name}")
+    private String esInstituteIndexName;
+
+    @Value("${es.masterdata.index.doc.type}")
+    private String esMasterDataIndexDocType;
+
+    @Value("${master.data.allowed.type}")
+    private String masterDataAllowedType;
+
+    @Value("${master.data.search.string.min.length}")
+    private String masterDataSearchStringMinLength;
+
+    @Value("${master.data.search.string.max.length}")
+    private String masterDataSearchStringMaxLength;
+
+    @Value("${learner.service.host}")
+    private String learnerServiceHost;
+
+    @Value("${password.reset.path}")
+    private String passwordResetPath;
+
+    @Value("${master.data.search.allowed.sortby.fields}")
+    private String masterDataAllowedSortByFields;
+
+    @Value("${achievement.status.update.required.fields}")
+    private String requiredFieldsProperty;
+
+    @Value("${elastic.required.field.achievement.json.path}")
+    private String achievementEsRequiredFieldsMappingPath;
+
+    @Value("${cassandra.fetch.limit}")
+    private int cassandraFetchLimit;
+
+    public List<String> getMasterDataAllowedSortByFields() {return Arrays.asList(masterDataAllowedSortByFields.split(","));}
+
+    public List<String> getMasterDataAllowedType() {
+        return Arrays.asList(masterDataAllowedType.split(","));
+    }
+
+    @Value("${achievement.require-es}")
+    private boolean requireEs;
+
+    @Value("${user.competency.mapping.event}")
+    public String userCompetencyTopicName;
+
+    @Value("${validation.allowed-fields.achievement}")
+    private String achievementsAllowedFields;
+
+    @Value("${achievement.bulk.list.context.data.fields:}")
+    private String bulkListContextDataFields;
+
+    @Value("${achievement.bulk.list.response.fields:}")
+    private String bulkListResponseFields;
+
+    @Value("${achievement.cache.ttl}")
+    private int achievementCacheTtl;
+
 }
