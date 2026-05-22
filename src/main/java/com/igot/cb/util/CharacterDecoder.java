@@ -77,6 +77,11 @@ public abstract class CharacterDecoder {
 
             try {
                 length = decodeLinePrefix(ps, bStream);
+
+                if (length <= 0) {
+                    break;
+                }
+
                 for (i = 0; (i + bytesPerAtom()) < length; i += bytesPerAtom()) {
                     decodeAtom(ps, bStream, bytesPerAtom());
                     totalBytes += bytesPerAtom();

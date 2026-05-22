@@ -456,6 +456,11 @@ public class Constants {
     public static final String AUTH_TOKEN = "Authorization";
     public static final String APPROVED = "Approved";
     public static final String USER_EXTERNAL_COURSE_ENROLMENTS = "user_external_enrolments";
+    public static final String INVALID_USERID = "Invalid UserId in the request";
+    public static final String USER_EXTENDED_PROFILE = "user:extendedProfile";
+    public static final String INVALID_OR_MISSING_ACCESS_TOKEN = "Invalid or missing access token";
+    public static final String CUSTOM_FIELD_PREFIX = "Custom field ";
+    public static final String DATA_CENTER = "datacenter1";
     public static final String API_UPSERT_DEGREE = "api.upsert.degree";
     public static final String API_UPSERT_INSTITUTE = "api.upsert.institute";
     public static final String SEARCH_STRING = "searchString";

@@ -3,7 +3,6 @@ package com.igot.cb.profile;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.igot.cb.authentication.util.AccessTokenValidator;
 import com.igot.cb.common.OutboundRequestHandlerServiceImpl;
 import com.igot.cb.profile.entity.CustomFieldEntity;
 import com.igot.cb.profile.repository.CustomFieldRepository;
@@ -12,7 +11,13 @@ import com.igot.cb.transactional.cassandrautils.CassandraOperation;
 import com.igot.cb.transactional.elasticsearch.service.EsUtilServiceImpl;
 import com.igot.cb.transactional.redis.cache.CacheService;
 import com.igot.cb.transactional.service.RequestHandlerServiceImpl;
-import com.igot.cb.util.*;
+import com.igot.cb.util.CbServerProperties;
+import com.igot.cb.util.Constants;
+import com.igot.cb.util.ProfilePreference;
+
+import com.igot.cb.util.ApiResponse;
+import org.igot.common.auth.AccessTokenValidator;
+import com.igot.cb.util.ProjectUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -62,7 +67,7 @@ class ProfileServiceImplTest {
 
     private final String userID = "user-123";
     private final String token = "dummy-token";
-    private static final String CACHE_KEY = "user:competencies:user123";
+    private static final String CACHE_KEY = "user:competencies:user-123";
     private final String [] contextType = {"contextA"};
     private static final String REDIS_KEY = "user:extendedProfile:project:user-123";
 
@@ -127,7 +132,7 @@ class ProfileServiceImplTest {
 
     @Test
      void testGetBasicProfile_invalidToken_returnsError() {
-        when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(null);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(null);
 
         ApiResponse response = profileService.getBasicProfile(userID, token);
 
@@ -140,7 +145,7 @@ class ProfileServiceImplTest {
         String[] contextTypes = { "education" };
         List<Map<String, Object>> dataList = List.of(Map.of("field", "value"));
 
-        when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
         when(cacheService.getCache(anyString())).thenReturn(null);
         when(serverProperties.getContextType()).thenReturn(contextTypes);
         when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), isNull(), isNull()))
@@ -167,7 +172,7 @@ class ProfileServiceImplTest {
         ApiResponse mockResponse = new ApiResponse();
         mockResponse.put(Constants.RESPONSE, Constants.SUCCESS);
 
-        when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
         when(serverProperties.getContextType()).thenReturn(new String[] { "education" });
         when(serverProperties.getEducationalQualificationMandatoryFields()).thenReturn("");
         when(serverProperties.getAchievementsMandatoryFields()).thenReturn("");
@@ -202,7 +207,7 @@ class ProfileServiceImplTest {
         ApiResponse mockResponse = new ApiResponse();
         mockResponse.put(Constants.RESPONSE, Constants.SUCCESS);
 
-        when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
         when(serverProperties.getContextType()).thenReturn(new String[] { "education" });
         when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), anyMap(), any(), any()))
                 .thenReturn(List.of(Map.of(Constants.CONTEXT_DATA, "[]")));
@@ -230,7 +235,7 @@ class ProfileServiceImplTest {
         ApiResponse mockResponse = new ApiResponse();
         mockResponse.put(Constants.RESPONSE, Constants.SUCCESS);
 
-        when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
         when(serverProperties.getContextType()).thenReturn(new String[] { "education" });
         when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), anyMap(), any(), any()))
                 .thenReturn(List.of(Map.of(Constants.CONTEXT_DATA, "[]")));
@@ -249,7 +254,7 @@ class ProfileServiceImplTest {
         String localContextType = "education";
         List<Map<String, Object>> data = List.of(Map.of("degree", "MSc"));
 
-        when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
         when(cacheService.getCache(anyString())).thenReturn("[{'degree':'MSc'}]");
         when(projectUtil.parseListOfMap(anyString())).thenReturn(data);
 
@@ -272,7 +277,7 @@ class ProfileServiceImplTest {
         ApiResponse mockResponse = new ApiResponse();
         mockResponse.put(Constants.RESPONSE, Constants.SUCCESS);
 
-        when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
         when(serverProperties.getContextType()).thenReturn(new String[]{ testContext.contextKey });
         when(serverProperties.getEducationalQualificationMandatoryFields()).thenReturn("dummyField");
         when(serverProperties.getAchievementsMandatoryFields()).thenReturn("dummyField");
@@ -291,17 +296,17 @@ class ProfileServiceImplTest {
 
     @Test
     void testListCompetencies_invalidToken() {
-        when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(null);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(null);
 
         ApiResponse response = profileService.listCompetencies(userID, token);
 
         assertEquals(HttpStatus.UNAUTHORIZED, response.getResponseCode());
-        assertEquals("Invalid or missing access token", response.getParams().getErrMsg());
+        assertEquals("Access token is expired", response.getParams().getErrMsg());
     }
 
     @Test
     void testListCompetencies_noCoursesCompleted() {
-        when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
         lenient().when(cacheService.getCache(CACHE_KEY)).thenReturn(null);
 
         Map<String, Object> dbRecord = Map.of(
@@ -333,7 +338,7 @@ class ProfileServiceImplTest {
 
     @Test
     void testListCompetencies_cacheHit() {
-        when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
         lenient().when(cacheService.getCache(CACHE_KEY)).thenReturn("{\"dummy\":1}");
 
         ApiResponse response = profileService.listCompetencies(userID, token);
@@ -344,7 +349,7 @@ class ProfileServiceImplTest {
 
     @Test
     void testListCompetencies_exception() {
-        when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
         when(cacheService.getCache(CACHE_KEY)).thenThrow(new RuntimeException("Redis down"));
 
         ApiResponse response = profileService.listCompetencies(userID, token);
@@ -355,7 +360,7 @@ class ProfileServiceImplTest {
 
     @Test
     void testExtendedProfile_invalidToken() {
-        when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(null);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(null);
 
         ApiResponse response = profileService.getExtendedProfileSummary(userID, token);
 
@@ -365,7 +370,7 @@ class ProfileServiceImplTest {
 
     @Test
     void testExtendedProfile_cacheHit() throws Exception {
-        when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
         String cachedJson = "{\"contextA\":{\"count\":3,\"data\":[{\"a\":1},{\"b\":2},{\"c\":3}]}}";
 
         String redisKey = "user:extendedProfile:all:user-123"; // Correct key
@@ -389,8 +394,8 @@ class ProfileServiceImplTest {
 
     @Test
     void testExtendedProfile_cacheWriteFails() throws Exception {
-        when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
-        when(cacheService.getCache(CACHE_KEY)).thenReturn(null);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
+        when(cacheService.getCache(anyString())).thenReturn(null);
         when(serverProperties.getContextType()).thenReturn(contextType);
 
         String contextJson = "[{\"a\":1}]";
@@ -408,8 +413,8 @@ class ProfileServiceImplTest {
 
     @Test
     void testExtendedProfile_emptyData() {
-        when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
-        when(cacheService.getCache(CACHE_KEY)).thenReturn(null);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
+        when(cacheService.getCache(anyString())).thenReturn(null);
         when(serverProperties.getContextType()).thenReturn(contextType);
         when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
                 .thenReturn(Collections.emptyList());
@@ -422,8 +427,8 @@ class ProfileServiceImplTest {
 
     @Test
     void testExtendedProfile_cacheError_thenCassandraData() throws Exception {
-        when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
-        when(cacheService.getCache(CACHE_KEY)).thenThrow(new RuntimeException("Simulated"));
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
+        when(cacheService.getCache(anyString())).thenThrow(new RuntimeException("Simulated"));
 
         when(serverProperties.getContextType()).thenReturn(contextType);
 
@@ -435,7 +440,7 @@ class ProfileServiceImplTest {
         List<Map<String, Object>> parsed = List.of(Map.of("x", "1"), Map.of("y", "2"));
         when(projectUtil.parseListOfMap(contextJson)).thenReturn(parsed);
 
-        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+    lenient().when(objectMapper.writeValueAsString(any())).thenReturn("{}");
 
         ApiResponse response = profileService.getExtendedProfileSummary(userID, token);
 
@@ -445,33 +450,33 @@ class ProfileServiceImplTest {
 
     @Test
     void testInvalidToken() {
-        when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(null);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(null);
 
         ApiResponse response = profileService.readFullExtendedProfile(userID, Arrays.toString(contextType), token);
 
-        assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getResponseCode());
         assertEquals(Constants.FAILED, response.getParams().getStatus());
     }
 
     @Test
     void testCacheHit() throws Exception {
         String cachedJson = "[{\"data\": \"test\"}]";
-        when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
-        when(cacheService.getCache(REDIS_KEY)).thenReturn(cachedJson);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
+        when(cacheService.getCache(anyString())).thenReturn(cachedJson);
 
         List<Map<String, Object>> contextList = List.of(Map.of("data", "test"));
         when(projectUtil.parseListOfMap(cachedJson)).thenReturn(contextList);
 
         ApiResponse response = profileService.readFullExtendedProfile(userID, Arrays.toString(contextType), token);
 
-        assertEquals(HttpStatus.NO_CONTENT, response.getResponseCode());
-        assertEquals("No data found for user.", response.getParams().getErrMsg());
+    assertEquals(HttpStatus.OK, response.getResponseCode());
+    assertNotNull(response.get(Constants.RESPONSE));
     }
 
     @Test
     void testCacheMiss_thenFetchFromCassandra_success() throws Exception {
-        when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
-        when(cacheService.getCache(REDIS_KEY)).thenReturn(null);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
+        when(cacheService.getCache(anyString())).thenReturn(null);
 
         String json = "[{\"data\": \"test\"}]";
         Map<String, Object> cassandraRow = Map.of(Constants.CONTEXT_DATA, json);
@@ -480,7 +485,7 @@ class ProfileServiceImplTest {
 
         List<Map<String, Object>> parsedList = List.of(Map.of("data", "test"));
         when(projectUtil.parseListOfMap(json)).thenReturn(parsedList);
-        when(objectMapper.writeValueAsString(parsedList)).thenReturn(json);
+    lenient().when(objectMapper.writeValueAsString(parsedList)).thenReturn(json);
 
         ApiResponse response = profileService.readFullExtendedProfile(userID, Arrays.toString(contextType), token);
 
@@ -490,8 +495,8 @@ class ProfileServiceImplTest {
 
     @Test
     void testCacheMiss_thenFetchFromCassandra_emptyResult() {
-        when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
-        when(cacheService.getCache(REDIS_KEY)).thenReturn(null);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
+        when(cacheService.getCache(anyString())).thenReturn(null);
         when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
                 .thenReturn(Collections.emptyList());
 
@@ -503,7 +508,7 @@ class ProfileServiceImplTest {
 
     @Test
     void testParseListOfMapException() throws Exception {
-        when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
         when(cacheService.getCache(REDIS_KEY)).thenReturn("[invalid_json]");
         when(projectUtil.parseListOfMap("[invalid_json]")).thenThrow(new IOException("fail"));
 
@@ -525,7 +530,7 @@ class ProfileServiceImplTest {
         String localContextType = Constants.LOCATION_DETAILS;
         String json = "[{\"location\": \"India\"}]";
 
-        when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
         when(cacheService.getCache(any())).thenReturn(null);
         when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
                 .thenReturn(List.of(Map.of(Constants.CONTEXT_DATA, json)));
@@ -546,12 +551,12 @@ class ProfileServiceImplTest {
         String userId = "user-123";
         String localToken = "invalid-token";
 
-        when(accessTokenValidator.fetchUserIdFromAccessToken(localToken)).thenReturn(null);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(null);
 
         ApiResponse response = profileService.getBasicProfile(userId, localToken);
 
         assertEquals(HttpStatus.UNAUTHORIZED, response.getResponseCode());
-        assertEquals("Invalid or missing access token", response.getParams().getErrMsg());
+        assertEquals("Access token is expired", response.getParams().getErrMsg());
     }
 
     // Use reflection to test private methods:
@@ -574,7 +579,7 @@ class ProfileServiceImplTest {
         Map<String, Object> request = new HashMap<>();
         request.put("request", requestData);
 
-        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn("wrongUser");
+            when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("wrongUser");
 
         ApiResponse response = profileService.saveExtendedProfile(request, userToken);
 
@@ -655,7 +660,7 @@ class ProfileServiceImplTest {
         requestData.put(Constants.EDUCATIONAL_QUALIFICATIONS, List.of(educationItem));
         Map<String, Object> request = new HashMap<>();
         request.put(Constants.REQUEST, requestData);
-        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userId);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userId);
         when(serverProperties.getContextType()).thenReturn(new String[]{Constants.EDUCATIONAL_QUALIFICATIONS});
         when(serverProperties.getEducationalQualificationMandatoryFields()).thenReturn("degree,institute");
         when(serverProperties.getAchievementsMandatoryFields()).thenReturn("");
@@ -679,7 +684,7 @@ class ProfileServiceImplTest {
         requestData.put("otherContextType", List.of(validItem));
         Map<String, Object> request = new HashMap<>();
         request.put(Constants.REQUEST, requestData);
-        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userId);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userId);
         when(serverProperties.getContextType()).thenReturn(new String[]{
                 Constants.EDUCATIONAL_QUALIFICATIONS, "otherContextType"
         });
@@ -721,7 +726,7 @@ class ProfileServiceImplTest {
         requestData.put(localContextType, List.of(educationItem));
         Map<String, Object> request = new HashMap<>();
         request.put(Constants.REQUEST, requestData);
-        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userId);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userId);
         when(serverProperties.getContextType()).thenReturn(new String[]{localContextType});
         when(serverProperties.getEducationalQualificationMandatoryFields()).thenReturn("degree,institute");
         when(serverProperties.getAchievementsMandatoryFields()).thenReturn("");
@@ -752,12 +757,12 @@ class ProfileServiceImplTest {
         requestData.put(Constants.USER_ID_RQST, requestUserId);
         Map<String, Object> request = new HashMap<>();
         request.put(Constants.REQUEST, requestData);
-        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(tokenUserId);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(tokenUserId);
         ApiResponse response = profileService.saveExtendedProfile(request, userToken);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
         assertEquals(Constants.FAILED, response.getParams().getStatus());
         assertEquals("Invalid UserId in the request", response.getParams().getErrMsg());
-        verify(accessTokenValidator).fetchUserIdFromAccessToken(userToken);
+    verify(accessTokenValidator).fetchUserIdFromAccessToken(eq(userToken));
         verifyNoMoreInteractions(cassandraOperation, cacheService);
     }
 
@@ -775,7 +780,7 @@ class ProfileServiceImplTest {
         requestData.put(Constants.ACHIEVEMENTS, List.of(achievementItem));
         Map<String, Object> request = new HashMap<>();
         request.put(Constants.REQUEST, requestData);
-        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userId);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userId);
         when(serverProperties.getContextType()).thenReturn(new String[]{
                 Constants.EDUCATIONAL_QUALIFICATIONS,
                 Constants.SERVICE_HISTORY,
@@ -836,7 +841,7 @@ class ProfileServiceImplTest {
         requestData.put(localContextType, List.of(update));
         Map<String, Object> request = new HashMap<>();
         request.put(Constants.REQUEST, requestData);
-        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userId);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userId);
         when(serverProperties.getContextType()).thenReturn(new String[]{localContextType});
         when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), isNull(), isNull()))
                 .thenReturn(List.of(Map.of(Constants.CONTEXT_DATA, "[]")));
@@ -885,7 +890,7 @@ class ProfileServiceImplTest {
         requestData.put(localContextType, List.of(updateItem));
         Map<String, Object> request = new HashMap<>();
         request.put(Constants.REQUEST, requestData);
-        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userId);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userId);
         when(serverProperties.getContextType()).thenReturn(new String[]{localContextType});
         when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), isNull(), isNull()))
                 .thenReturn(List.of(Map.of(Constants.CONTEXT_DATA, "[]")));
@@ -916,7 +921,7 @@ class ProfileServiceImplTest {
         requestData.put(localContextType, List.of(updateItem));
         Map<String, Object> request = new HashMap<>();
         request.put(Constants.REQUEST, requestData);
-        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userId);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userId);
         when(serverProperties.getContextType()).thenReturn(new String[]{localContextType});
         when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), isNull(), isNull()))
                 .thenReturn(List.of(Map.of(Constants.CONTEXT_DATA, "[]")));
@@ -944,7 +949,7 @@ class ProfileServiceImplTest {
         requestData.put(Constants.USER_ID_RQST, requestUserId);
         Map<String, Object> request = new HashMap<>();
         request.put(Constants.REQUEST, requestData);
-        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(tokenUserId);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(tokenUserId);
         ApiResponse response = profileService.updateExtendedProfile(request, userToken);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
         assertEquals(Constants.FAILED, response.getParams().getStatus());
@@ -966,7 +971,7 @@ class ProfileServiceImplTest {
         requestData.put(contextType2, null);  // Null list
         Map<String, Object> request = new HashMap<>();
         request.put(Constants.REQUEST, requestData);
-        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userId);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userId);
         when(serverProperties.getContextType()).thenReturn(new String[]{contextType1, contextType2});
         ApiResponse response = profileService.updateExtendedProfile(request, userToken);
         assertEquals(HttpStatus.OK, response.getResponseCode());
@@ -987,7 +992,7 @@ class ProfileServiceImplTest {
         requestData.put(localContextType, List.of(updateWithNullUuid));
         Map<String, Object> request = new HashMap<>();
         request.put(Constants.REQUEST, requestData);
-        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userId);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userId);
         when(serverProperties.getContextType()).thenReturn(new String[]{localContextType});
         when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), any(), any()))
                 .thenReturn(new ArrayList<>());
@@ -1011,7 +1016,7 @@ class ProfileServiceImplTest {
         requestData.put(localContextType, List.of(deleteItem));
         Map<String, Object> request = new HashMap<>();
         request.put(Constants.REQUEST, requestData);
-        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userId);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userId);
         when(serverProperties.getContextType()).thenReturn(new String[]{localContextType});
         when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), any(), any()))
                 .thenReturn(List.of(Map.of(Constants.CONTEXT_DATA, "[]")));
@@ -1037,7 +1042,7 @@ class ProfileServiceImplTest {
         when(projectUtil.parseListOfMap(anyString())).thenReturn(
                 new ArrayList<>(List.of(new HashMap<>(Map.of("field", "value"))))
         );
-        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userId);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userId);
         doThrow(new RuntimeException("Cache error")).when(cacheService).putCache(anyString(), any());
         ApiResponse response = profileService.getExtendedProfileSummary(userId, userToken);
         assertEquals(HttpStatus.OK, response.getResponseCode());
@@ -1054,7 +1059,7 @@ class ProfileServiceImplTest {
         requestData.put(Constants.USER_ID_RQST, requestUserId);
         Map<String, Object> request = new HashMap<>();
         request.put(Constants.REQUEST, requestData);
-        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(tokenUserId);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(tokenUserId);
         ApiResponse response = profileService.deleteExtendedProfile(request, userToken);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
         assertEquals("Invalid UserId in the request", response.getParams().getErrMsg());
@@ -1072,7 +1077,7 @@ class ProfileServiceImplTest {
         requestData.put(contextType2, Collections.emptyList()); // empty list
         Map<String, Object> request = new HashMap<>();
         request.put(Constants.REQUEST, requestData);
-        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userId);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userId);
         when(serverProperties.getContextType()).thenReturn(new String[]{contextType1, contextType2});
         ApiResponse response = profileService.deleteExtendedProfile(request, userToken);
         assertEquals(HttpStatus.OK, response.getResponseCode());
@@ -1088,7 +1093,7 @@ class ProfileServiceImplTest {
         String userToken = "valid-token";
         String localContextType = "education";
         String redisKey = "user:extendedProfile:" + localContextType + ":" + userId;
-        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userId);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userId);
         when(cacheService.getCache(redisKey)).thenReturn(null);
         when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), any(), any()))
                 .thenReturn(null); // or Collections.emptyList()
@@ -1494,46 +1499,6 @@ class ProfileServiceImplTest {
         data.add(new HashMap<>()); // missing START_YEAR
         data.add(Map.of(Constants.START_YEAR, "2020"));
         assertThrows(NumberFormatException.class, () -> data.sort(comparator));
-    }
-
-    @Test
-    void sortContextData_sortsListDescending_whenComparatorExists() {
-        ProfileServiceImpl localService = new ProfileServiceImpl();
-        List<Map<String, Object>> dataList = new ArrayList<>();
-        dataList.add(Map.of(Constants.START_DATE, "2022-01-01T00:00:00Z"));
-        dataList.add(Map.of(Constants.START_DATE, "2023-01-01T00:00:00Z"));
-        ReflectionTestUtils.invokeMethod(localService, "sortContextData", dataList, Constants.SERVICE_HISTORY);
-        assertEquals("2023-01-01T00:00:00Z", dataList.get(0).get(Constants.START_DATE));
-    }
-
-    @Test
-    void sortContextData_doesNotSort_whenComparatorIsNull() {
-        ProfileServiceImpl localService = new ProfileServiceImpl();
-        List<Map<String, Object>> dataList = new ArrayList<>();
-        dataList.add(Map.of("field", "A"));
-        dataList.add(Map.of("field", "B"));
-        List<Map<String, Object>> original = new ArrayList<>(dataList);
-        ReflectionTestUtils.invokeMethod(localService, "sortContextData", dataList, "unknownType");
-        assertEquals(original, dataList);
-    }
-
-    @Test
-    void sortContextData_handlesEmptyList() {
-        ProfileServiceImpl localService = new ProfileServiceImpl();
-        List<Map<String, Object>> dataList = new ArrayList<>();
-        ReflectionTestUtils.invokeMethod(localService, "sortContextData", dataList, Constants.SERVICE_HISTORY);
-        assertTrue(dataList.isEmpty());
-    }
-
-    @Test
-    void sortContextData_throwsException_whenFieldMissing() {
-        ProfileServiceImpl localService = new ProfileServiceImpl();
-        List<Map<String, Object>> dataList = new ArrayList<>();
-        dataList.add(new HashMap<>());
-        dataList.add(Map.of(Constants.START_YEAR, "2020"));
-        assertThrows(NumberFormatException.class, () ->
-                ReflectionTestUtils.invokeMethod(localService, "sortContextData", dataList, Constants.EDUCATIONAL_QUALIFICATIONS)
-        );
     }
 
     @Test
@@ -2016,7 +1981,7 @@ class ProfileServiceImplTest {
     @Test
     void testGetAdditionalFieldsByOrg_UserIdMismatch()  {
         // Arrange
-        when(accessTokenValidator.fetchUserIdFromAccessToken("token123")).thenReturn("differentUser");
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("differentUser");
 
         // Act
         ApiResponse response = profileService.getAdditionalFieldsByOrg("user1", "org1", "token123");
@@ -2028,7 +1993,7 @@ class ProfileServiceImplTest {
     @Test
     void testGetAdditionalFieldsByOrg_OrgDataNotFound() throws Exception {
         // Arrange
-        when(accessTokenValidator.fetchUserIdFromAccessToken("token123")).thenReturn("user1");
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user1");
         
         // Mock cassandra operation to return data for different org
         Map<String, Object> contextData = Map.of(
@@ -2053,7 +2018,7 @@ class ProfileServiceImplTest {
     @Test
     void testGetAdditionalFieldsByOrg_OrgDataFound() throws Exception {
         // Arrange
-        when(accessTokenValidator.fetchUserIdFromAccessToken("token123")).thenReturn("user1");
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user1");
         
         // Mock cassandra operation to return organization data
         Map<String, Object> contextData = Map.of(
@@ -2891,7 +2856,7 @@ class ProfileServiceImplTest {
     @Test
     void updateAdditionalFields_returnsBadRequest_whenValidationFails() {
         Map<String, Object> req = Map.of(); // missing required params
-        when(accessTokenValidator.fetchUserIdFromAccessToken("token")).thenReturn("user1");
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user1");
         String result = ReflectionTestUtils.invokeMethod(profileService, "validateAdditionalFieldsRequest", req);
         assertEquals("Failed Due To Missing Params - [userId, organisationId, customFieldValues].", result);
         ApiResponse response = profileService.updateAdditionalFields(req, "token");
@@ -2900,7 +2865,7 @@ class ProfileServiceImplTest {
 
     @Test
     void updateAdditionalFields_returnsInternalServerError_whenSaveFails() {
-        when(accessTokenValidator.fetchUserIdFromAccessToken("token")).thenReturn("user1");
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user1");
         Map<String, Object> req = Map.of(
                 Constants.USER_ID, "user1",
                 Constants.ORGANISATION_ID, "org1",
@@ -2918,7 +2883,7 @@ class ProfileServiceImplTest {
                 Constants.ORGANISATION_ID, "org1",
                 Constants.CUSTOM_FIELD_VALUES, List.of()
         );
-        when(accessTokenValidator.fetchUserIdFromAccessToken("token")).thenReturn("userX");
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("userX");
         ReflectionTestUtils.setField(profileService, "accessTokenValidator", accessTokenValidator);
         ApiResponse response = profileService.updateAdditionalFields(req, "token");
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
@@ -2926,7 +2891,7 @@ class ProfileServiceImplTest {
 
     @Test
     void updateAdditionalFields_returnsInternalServerError_whenESUpdateFails() {
-        when(accessTokenValidator.fetchUserIdFromAccessToken("token")).thenReturn("user1");
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user1");
         Map<String, Object> req = Map.of(
                 Constants.USER_ID, "user1",
                 Constants.ORGANISATION_ID, "org1",

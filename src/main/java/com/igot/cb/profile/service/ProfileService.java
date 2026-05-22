@@ -1,8 +1,8 @@
 package com.igot.cb.profile.service;
 
-import com.igot.cb.util.ApiResponse;
-
 import java.util.Map;
+
+import com.igot.cb.util.ApiResponse;
 
 public interface ProfileService {
 

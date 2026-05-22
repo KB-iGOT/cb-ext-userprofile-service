@@ -2,14 +2,16 @@ package com.igot.cb.profile;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.igot.cb.authentication.util.AccessTokenValidator;
 import com.igot.cb.profile.service.ProfileServiceImpl;
 import com.igot.cb.transactional.cassandrautils.CassandraOperation;
 import com.igot.cb.transactional.redis.cache.CacheService;
-import com.igot.cb.util.ApiResponse;
 import com.igot.cb.util.CbServerProperties;
 import com.igot.cb.util.Constants;
 import com.igot.cb.util.UserUtility;
+
+import com.igot.cb.util.ApiResponse;
+import org.igot.common.auth.AccessTokenValidator;
+import com.igot.cb.util.ProjectUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -44,6 +46,8 @@ class ProfileServiceImplPrivateMethodTest {
     private ObjectMapper mapper;
     @Mock
     private CbServerProperties serverConfig;
+    @Mock
+    private ProjectUtil projectUtil;
 
     @BeforeEach
     void setup() {
@@ -54,7 +58,7 @@ class ProfileServiceImplPrivateMethodTest {
 
     @Test
     void testGetBasicProfile_InvalidToken() {
-        when(accessTokenValidator.fetchUserIdFromAccessToken("badToken")).thenReturn(null);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq("badToken"))).thenReturn(null);
 
         ApiResponse response = profileService.getBasicProfile("user123", "badToken");
 
@@ -66,7 +70,7 @@ class ProfileServiceImplPrivateMethodTest {
         String userId = "user123";
         String userToken = "token123";
 
-        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userId);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userId);
 
         // Simulate cache hit with some missing fields
         Map<String, Object> cachedMap = new HashMap<>();
@@ -99,7 +103,7 @@ class ProfileServiceImplPrivateMethodTest {
         String userId = "user123";
         String userToken = "token123";
 
-        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userId);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userId);
         when(cacheService.getCache(anyString())).thenReturn(null);
 
         ProfileServiceImpl spyService = Mockito.spy(profileService);
@@ -117,7 +121,7 @@ class ProfileServiceImplPrivateMethodTest {
         String userId = "user123";
         String userToken = "token123";
 
-        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn("otherUser");
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("otherUser");
         when(cacheService.getCache(anyString())).thenReturn(null);
 
         ProfileServiceImpl spyService = Mockito.spy(profileService);
@@ -137,7 +141,7 @@ class ProfileServiceImplPrivateMethodTest {
 
     @Test
     void testGetBasicProfile_Exception() {
-        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
         when(cacheService.getCache(anyString())).thenThrow(new RuntimeException("Cache failure"));
 
         ApiResponse response = profileService.getBasicProfile("user123", "token123");

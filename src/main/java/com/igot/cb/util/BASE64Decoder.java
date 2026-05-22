@@ -82,6 +82,7 @@ public class BASE64Decoder extends CharacterDecoder {
                 b = pem_convert_array[decode_buffer[1] & 0xff];
                 a = pem_convert_array[decode_buffer[0] & 0xff];
                 break;
+            default:
         }
 
         switch (rem) {
@@ -96,6 +97,8 @@ public class BASE64Decoder extends CharacterDecoder {
                 outStream.write((byte) (((a << 2) & 0xfc) | ((b >>> 4) & 3)));
                 outStream.write((byte) (((b << 4) & 0xf0) | ((c >>> 2) & 0xf)));
                 outStream.write((byte) (((c << 6) & 0xc0) | (d & 0x3f)));
+                break;
+            default:
                 break;
         }
         return;
