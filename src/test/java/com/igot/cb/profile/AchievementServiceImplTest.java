@@ -1,7 +1,7 @@
 package com.igot.cb.profile;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.igot.cb.authentication.util.AccessTokenValidator;
+import org.igot.common.auth.AccessTokenValidator;
 import com.igot.cb.common.KafkaEventPublisher;
 import com.igot.cb.profile.service.AchievementServiceImpl;
 import com.igot.cb.transactional.cassandrautils.CassandraOperation;

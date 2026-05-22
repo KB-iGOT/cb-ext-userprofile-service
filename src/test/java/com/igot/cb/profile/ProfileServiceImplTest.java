@@ -15,9 +15,9 @@ import com.igot.cb.util.CbServerProperties;
 import com.igot.cb.util.Constants;
 import com.igot.cb.util.ProfilePreference;
 
-import org.igot.common.model.ApiResponse;
-import org.igot.common.util.AccessTokenValidator;
-import org.igot.common.util.ProjectUtil;
+import com.igot.cb.util.ApiResponse;
+import org.igot.common.auth.AccessTokenValidator;
+import com.igot.cb.util.ProjectUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -83,39 +83,6 @@ class ProfileServiceImplTest {
                 "basicDetailsFilteredKeys",
                 "profileCompletionPercentage,karmaPoints,certificateCount,postCount"
         );
-        // Ensure service never gets a null ApiResponse from ProjectUtil
-        lenient().when(projectUtil.createDefaultResponse(anyString())).thenReturn(new ApiResponse());
-        // Make errorResponse populate response code and error message to satisfy assertions
-        lenient().doAnswer(invocation -> {
-            ApiResponse resp = invocation.getArgument(0);
-            String msg = invocation.getArgument(1);
-            HttpStatus status = invocation.getArgument(2);
-            resp.setResponseCode(status);
-            try {
-                if (resp.getParams() != null) {
-                    resp.getParams().setErrMsg(msg);
-                    if (status != HttpStatus.OK) {
-                        resp.getParams().setStatus(Constants.FAILED);
-                    }
-                }
-            } catch (Throwable ignored) {}
-            return null;
-        }).when(projectUtil).errorResponse(any(ApiResponse.class), anyString(), any(HttpStatus.class));
-
-        // Default behavior for blank/empty tokens: mark response as UNAUTHORIZED with message
-        lenient().doAnswer(invocation -> {
-            String tok = invocation.getArgument(0);
-            ApiResponse resp = invocation.getArgument(1);
-            if (tok == null || tok.trim().isEmpty()) {
-                resp.setResponseCode(HttpStatus.UNAUTHORIZED);
-                if (resp.getParams() != null) {
-                    resp.getParams().setErrMsg("Invalid or missing access token");
-                    resp.getParams().setStatus(Constants.FAILED);
-                }
-                return null;
-            }
-            return null; // leave to test-specific stubs for non-blank tokens
-        }).when(accessTokenValidator).fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class));
     }
 
     static class TestContext {
@@ -165,15 +132,7 @@ class ProfileServiceImplTest {
 
     @Test
      void testGetBasicProfile_invalidToken_returnsError() {
-    doAnswer(invocation -> {
-            ApiResponse resp = invocation.getArgument(1);
-            resp.setResponseCode(HttpStatus.UNAUTHORIZED);
-            if (resp.getParams() != null) {
-                resp.getParams().setStatus(Constants.FAILED);
-                resp.getParams().setErrMsg("Invalid or missing access token");
-            }
-            return null;
-        }).when(accessTokenValidator).fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class));
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(null);
 
         ApiResponse response = profileService.getBasicProfile(userID, token);
 
@@ -186,7 +145,7 @@ class ProfileServiceImplTest {
         String[] contextTypes = { "education" };
         List<Map<String, Object>> dataList = List.of(Map.of("field", "value"));
 
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn(userID);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
         when(cacheService.getCache(anyString())).thenReturn(null);
         when(serverProperties.getContextType()).thenReturn(contextTypes);
         when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), isNull(), isNull()))
@@ -213,7 +172,7 @@ class ProfileServiceImplTest {
         ApiResponse mockResponse = new ApiResponse();
         mockResponse.put(Constants.RESPONSE, Constants.SUCCESS);
 
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn(userID);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
         when(serverProperties.getContextType()).thenReturn(new String[] { "education" });
         when(serverProperties.getEducationalQualificationMandatoryFields()).thenReturn("");
         when(serverProperties.getAchievementsMandatoryFields()).thenReturn("");
@@ -248,7 +207,7 @@ class ProfileServiceImplTest {
         ApiResponse mockResponse = new ApiResponse();
         mockResponse.put(Constants.RESPONSE, Constants.SUCCESS);
 
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn(userID);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
         when(serverProperties.getContextType()).thenReturn(new String[] { "education" });
         when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), anyMap(), any(), any()))
                 .thenReturn(List.of(Map.of(Constants.CONTEXT_DATA, "[]")));
@@ -276,7 +235,7 @@ class ProfileServiceImplTest {
         ApiResponse mockResponse = new ApiResponse();
         mockResponse.put(Constants.RESPONSE, Constants.SUCCESS);
 
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn(userID);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
         when(serverProperties.getContextType()).thenReturn(new String[] { "education" });
         when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), anyMap(), any(), any()))
                 .thenReturn(List.of(Map.of(Constants.CONTEXT_DATA, "[]")));
@@ -295,7 +254,7 @@ class ProfileServiceImplTest {
         String localContextType = "education";
         List<Map<String, Object>> data = List.of(Map.of("degree", "MSc"));
 
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn(userID);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
         when(cacheService.getCache(anyString())).thenReturn("[{'degree':'MSc'}]");
         when(projectUtil.parseListOfMap(anyString())).thenReturn(data);
 
@@ -318,7 +277,7 @@ class ProfileServiceImplTest {
         ApiResponse mockResponse = new ApiResponse();
         mockResponse.put(Constants.RESPONSE, Constants.SUCCESS);
 
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn(userID);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
         when(serverProperties.getContextType()).thenReturn(new String[]{ testContext.contextKey });
         when(serverProperties.getEducationalQualificationMandatoryFields()).thenReturn("dummyField");
         when(serverProperties.getAchievementsMandatoryFields()).thenReturn("dummyField");
@@ -337,25 +296,17 @@ class ProfileServiceImplTest {
 
     @Test
     void testListCompetencies_invalidToken() {
-    doAnswer(invocation -> {
-            ApiResponse resp = invocation.getArgument(1);
-            resp.setResponseCode(HttpStatus.UNAUTHORIZED);
-            if (resp.getParams() != null) {
-                resp.getParams().setStatus(Constants.FAILED);
-                resp.getParams().setErrMsg("Invalid or missing access token");
-            }
-            return null;
-        }).when(accessTokenValidator).fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class));
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(null);
 
         ApiResponse response = profileService.listCompetencies(userID, token);
 
         assertEquals(HttpStatus.UNAUTHORIZED, response.getResponseCode());
-        assertEquals("Invalid or missing access token", response.getParams().getErrMsg());
+        assertEquals("Access token is expired", response.getParams().getErrMsg());
     }
 
     @Test
     void testListCompetencies_noCoursesCompleted() {
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn(userID);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
         lenient().when(cacheService.getCache(CACHE_KEY)).thenReturn(null);
 
         Map<String, Object> dbRecord = Map.of(
@@ -387,7 +338,7 @@ class ProfileServiceImplTest {
 
     @Test
     void testListCompetencies_cacheHit() {
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn(userID);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
         lenient().when(cacheService.getCache(CACHE_KEY)).thenReturn("{\"dummy\":1}");
 
         ApiResponse response = profileService.listCompetencies(userID, token);
@@ -398,7 +349,7 @@ class ProfileServiceImplTest {
 
     @Test
     void testListCompetencies_exception() {
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn(userID);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
         when(cacheService.getCache(CACHE_KEY)).thenThrow(new RuntimeException("Redis down"));
 
         ApiResponse response = profileService.listCompetencies(userID, token);
@@ -409,7 +360,7 @@ class ProfileServiceImplTest {
 
     @Test
     void testExtendedProfile_invalidToken() {
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn(null);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(null);
 
         ApiResponse response = profileService.getExtendedProfileSummary(userID, token);
 
@@ -419,7 +370,7 @@ class ProfileServiceImplTest {
 
     @Test
     void testExtendedProfile_cacheHit() throws Exception {
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn(userID);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
         String cachedJson = "{\"contextA\":{\"count\":3,\"data\":[{\"a\":1},{\"b\":2},{\"c\":3}]}}";
 
         String redisKey = "user:extendedProfile:all:user-123"; // Correct key
@@ -443,7 +394,7 @@ class ProfileServiceImplTest {
 
     @Test
     void testExtendedProfile_cacheWriteFails() throws Exception {
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn(userID);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
         when(cacheService.getCache(anyString())).thenReturn(null);
         when(serverProperties.getContextType()).thenReturn(contextType);
 
@@ -462,7 +413,7 @@ class ProfileServiceImplTest {
 
     @Test
     void testExtendedProfile_emptyData() {
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn(userID);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
         when(cacheService.getCache(anyString())).thenReturn(null);
         when(serverProperties.getContextType()).thenReturn(contextType);
         when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
@@ -476,7 +427,7 @@ class ProfileServiceImplTest {
 
     @Test
     void testExtendedProfile_cacheError_thenCassandraData() throws Exception {
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn(userID);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
         when(cacheService.getCache(anyString())).thenThrow(new RuntimeException("Simulated"));
 
         when(serverProperties.getContextType()).thenReturn(contextType);
@@ -499,26 +450,18 @@ class ProfileServiceImplTest {
 
     @Test
     void testInvalidToken() {
-    doAnswer(invocation -> {
-            ApiResponse resp = invocation.getArgument(1);
-            resp.setResponseCode(HttpStatus.BAD_REQUEST);
-            if (resp.getParams() != null) {
-                resp.getParams().setStatus(Constants.FAILED);
-                resp.getParams().setErrMsg(Constants.INVALID_USERID);
-            }
-            return null;
-        }).when(accessTokenValidator).fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class));
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(null);
 
         ApiResponse response = profileService.readFullExtendedProfile(userID, Arrays.toString(contextType), token);
 
-        assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getResponseCode());
         assertEquals(Constants.FAILED, response.getParams().getStatus());
     }
 
     @Test
     void testCacheHit() throws Exception {
         String cachedJson = "[{\"data\": \"test\"}]";
-        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn(userID);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
         when(cacheService.getCache(anyString())).thenReturn(cachedJson);
 
         List<Map<String, Object>> contextList = List.of(Map.of("data", "test"));
@@ -532,7 +475,7 @@ class ProfileServiceImplTest {
 
     @Test
     void testCacheMiss_thenFetchFromCassandra_success() throws Exception {
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn(userID);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
         when(cacheService.getCache(anyString())).thenReturn(null);
 
         String json = "[{\"data\": \"test\"}]";
@@ -552,7 +495,7 @@ class ProfileServiceImplTest {
 
     @Test
     void testCacheMiss_thenFetchFromCassandra_emptyResult() {
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn(userID);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
         when(cacheService.getCache(anyString())).thenReturn(null);
         when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
                 .thenReturn(Collections.emptyList());
@@ -565,7 +508,7 @@ class ProfileServiceImplTest {
 
     @Test
     void testParseListOfMapException() throws Exception {
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn(userID);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
         when(cacheService.getCache(REDIS_KEY)).thenReturn("[invalid_json]");
         when(projectUtil.parseListOfMap("[invalid_json]")).thenThrow(new IOException("fail"));
 
@@ -587,7 +530,7 @@ class ProfileServiceImplTest {
         String localContextType = Constants.LOCATION_DETAILS;
         String json = "[{\"location\": \"India\"}]";
 
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn(userID);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
         when(cacheService.getCache(any())).thenReturn(null);
         when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
                 .thenReturn(List.of(Map.of(Constants.CONTEXT_DATA, json)));
@@ -608,20 +551,12 @@ class ProfileServiceImplTest {
         String userId = "user-123";
         String localToken = "invalid-token";
 
-    doAnswer(invocation -> {
-            ApiResponse resp = invocation.getArgument(1);
-            resp.setResponseCode(HttpStatus.UNAUTHORIZED);
-            if (resp.getParams() != null) {
-                resp.getParams().setStatus(Constants.FAILED);
-                resp.getParams().setErrMsg("Invalid or missing access token");
-            }
-            return null;
-        }).when(accessTokenValidator).fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class));
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(null);
 
         ApiResponse response = profileService.getBasicProfile(userId, localToken);
 
         assertEquals(HttpStatus.UNAUTHORIZED, response.getResponseCode());
-        assertEquals("Invalid or missing access token", response.getParams().getErrMsg());
+        assertEquals("Access token is expired", response.getParams().getErrMsg());
     }
 
     // Use reflection to test private methods:
@@ -644,7 +579,7 @@ class ProfileServiceImplTest {
         Map<String, Object> request = new HashMap<>();
         request.put("request", requestData);
 
-            when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn("wrongUser");
+            when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("wrongUser");
 
         ApiResponse response = profileService.saveExtendedProfile(request, userToken);
 
@@ -660,7 +595,7 @@ class ProfileServiceImplTest {
         inner.put(Constants.USER_ID_RQST, userID);
         req.put(Constants.REQUEST, inner);
 
-        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any())).thenReturn("wrong-user");
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("wrong-user");
 
         ApiResponse response = profileService.saveExtendedProfile(req, "token");
 
@@ -677,7 +612,7 @@ class ProfileServiceImplTest {
         inner.put("invalidContext", new ArrayList<>());
         req.put(Constants.REQUEST, inner);
 
-        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any())).thenReturn(userID);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
         when(serverProperties.getContextType()).thenReturn(new String[] {"validContext"});
 
         ApiResponse response = profileService.saveExtendedProfile(req, "token");
@@ -690,7 +625,7 @@ class ProfileServiceImplTest {
     void testSaveExtendedProfile_validationFails() {
         Map<String, Object> req = Map.of(Constants.REQUEST, Map.of(Constants.USER_ID_RQST, userID));
 
-        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any())).thenReturn(userID);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
         when(serverProperties.getContextType()).thenReturn(new String[] {});
 
         ApiResponse response = profileService.saveExtendedProfile(req, "token");
@@ -706,7 +641,7 @@ class ProfileServiceImplTest {
 
         Map<String, Object> req = Map.of(Constants.REQUEST, requestData);
 
-        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any())).thenReturn(userID);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userID);
         when(serverProperties.getContextType()).thenReturn(new String[] {"contextA"});
 
         ApiResponse response = profileService.saveExtendedProfile(req, "token");
@@ -725,7 +660,7 @@ class ProfileServiceImplTest {
         requestData.put(Constants.EDUCATIONAL_QUALIFICATIONS, List.of(educationItem));
         Map<String, Object> request = new HashMap<>();
         request.put(Constants.REQUEST, requestData);
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn(userId);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userId);
         when(serverProperties.getContextType()).thenReturn(new String[]{Constants.EDUCATIONAL_QUALIFICATIONS});
         when(serverProperties.getEducationalQualificationMandatoryFields()).thenReturn("degree,institute");
         when(serverProperties.getAchievementsMandatoryFields()).thenReturn("");
@@ -749,7 +684,7 @@ class ProfileServiceImplTest {
         requestData.put("otherContextType", List.of(validItem));
         Map<String, Object> request = new HashMap<>();
         request.put(Constants.REQUEST, requestData);
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn(userId);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userId);
         when(serverProperties.getContextType()).thenReturn(new String[]{
                 Constants.EDUCATIONAL_QUALIFICATIONS, "otherContextType"
         });
@@ -791,7 +726,7 @@ class ProfileServiceImplTest {
         requestData.put(localContextType, List.of(educationItem));
         Map<String, Object> request = new HashMap<>();
         request.put(Constants.REQUEST, requestData);
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn(userId);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userId);
         when(serverProperties.getContextType()).thenReturn(new String[]{localContextType});
         when(serverProperties.getEducationalQualificationMandatoryFields()).thenReturn("degree,institute");
         when(serverProperties.getAchievementsMandatoryFields()).thenReturn("");
@@ -822,12 +757,12 @@ class ProfileServiceImplTest {
         requestData.put(Constants.USER_ID_RQST, requestUserId);
         Map<String, Object> request = new HashMap<>();
         request.put(Constants.REQUEST, requestData);
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn(tokenUserId);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(tokenUserId);
         ApiResponse response = profileService.saveExtendedProfile(request, userToken);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
         assertEquals(Constants.FAILED, response.getParams().getStatus());
         assertEquals("Invalid UserId in the request", response.getParams().getErrMsg());
-    verify(accessTokenValidator).fetchUserIdFromAccessToken(eq(userToken), any(org.igot.common.model.ApiResponse.class));
+    verify(accessTokenValidator).fetchUserIdFromAccessToken(eq(userToken));
         verifyNoMoreInteractions(cassandraOperation, cacheService);
     }
 
@@ -845,7 +780,7 @@ class ProfileServiceImplTest {
         requestData.put(Constants.ACHIEVEMENTS, List.of(achievementItem));
         Map<String, Object> request = new HashMap<>();
         request.put(Constants.REQUEST, requestData);
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn(userId);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userId);
         when(serverProperties.getContextType()).thenReturn(new String[]{
                 Constants.EDUCATIONAL_QUALIFICATIONS,
                 Constants.SERVICE_HISTORY,
@@ -906,7 +841,7 @@ class ProfileServiceImplTest {
         requestData.put(localContextType, List.of(update));
         Map<String, Object> request = new HashMap<>();
         request.put(Constants.REQUEST, requestData);
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn(userId);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userId);
         when(serverProperties.getContextType()).thenReturn(new String[]{localContextType});
         when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), isNull(), isNull()))
                 .thenReturn(List.of(Map.of(Constants.CONTEXT_DATA, "[]")));
@@ -955,7 +890,7 @@ class ProfileServiceImplTest {
         requestData.put(localContextType, List.of(updateItem));
         Map<String, Object> request = new HashMap<>();
         request.put(Constants.REQUEST, requestData);
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn(userId);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userId);
         when(serverProperties.getContextType()).thenReturn(new String[]{localContextType});
         when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), isNull(), isNull()))
                 .thenReturn(List.of(Map.of(Constants.CONTEXT_DATA, "[]")));
@@ -986,7 +921,7 @@ class ProfileServiceImplTest {
         requestData.put(localContextType, List.of(updateItem));
         Map<String, Object> request = new HashMap<>();
         request.put(Constants.REQUEST, requestData);
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn(userId);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userId);
         when(serverProperties.getContextType()).thenReturn(new String[]{localContextType});
         when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), isNull(), isNull()))
                 .thenReturn(List.of(Map.of(Constants.CONTEXT_DATA, "[]")));
@@ -1014,7 +949,7 @@ class ProfileServiceImplTest {
         requestData.put(Constants.USER_ID_RQST, requestUserId);
         Map<String, Object> request = new HashMap<>();
         request.put(Constants.REQUEST, requestData);
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn(tokenUserId);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(tokenUserId);
         ApiResponse response = profileService.updateExtendedProfile(request, userToken);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
         assertEquals(Constants.FAILED, response.getParams().getStatus());
@@ -1036,7 +971,7 @@ class ProfileServiceImplTest {
         requestData.put(contextType2, null);  // Null list
         Map<String, Object> request = new HashMap<>();
         request.put(Constants.REQUEST, requestData);
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn(userId);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userId);
         when(serverProperties.getContextType()).thenReturn(new String[]{contextType1, contextType2});
         ApiResponse response = profileService.updateExtendedProfile(request, userToken);
         assertEquals(HttpStatus.OK, response.getResponseCode());
@@ -1057,7 +992,7 @@ class ProfileServiceImplTest {
         requestData.put(localContextType, List.of(updateWithNullUuid));
         Map<String, Object> request = new HashMap<>();
         request.put(Constants.REQUEST, requestData);
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn(userId);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userId);
         when(serverProperties.getContextType()).thenReturn(new String[]{localContextType});
         when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), any(), any()))
                 .thenReturn(new ArrayList<>());
@@ -1081,7 +1016,7 @@ class ProfileServiceImplTest {
         requestData.put(localContextType, List.of(deleteItem));
         Map<String, Object> request = new HashMap<>();
         request.put(Constants.REQUEST, requestData);
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn(userId);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userId);
         when(serverProperties.getContextType()).thenReturn(new String[]{localContextType});
         when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), any(), any()))
                 .thenReturn(List.of(Map.of(Constants.CONTEXT_DATA, "[]")));
@@ -1107,7 +1042,7 @@ class ProfileServiceImplTest {
         when(projectUtil.parseListOfMap(anyString())).thenReturn(
                 new ArrayList<>(List.of(new HashMap<>(Map.of("field", "value"))))
         );
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn(userId);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userId);
         doThrow(new RuntimeException("Cache error")).when(cacheService).putCache(anyString(), any());
         ApiResponse response = profileService.getExtendedProfileSummary(userId, userToken);
         assertEquals(HttpStatus.OK, response.getResponseCode());
@@ -1124,7 +1059,7 @@ class ProfileServiceImplTest {
         requestData.put(Constants.USER_ID_RQST, requestUserId);
         Map<String, Object> request = new HashMap<>();
         request.put(Constants.REQUEST, requestData);
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn(tokenUserId);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(tokenUserId);
         ApiResponse response = profileService.deleteExtendedProfile(request, userToken);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
         assertEquals("Invalid UserId in the request", response.getParams().getErrMsg());
@@ -1142,7 +1077,7 @@ class ProfileServiceImplTest {
         requestData.put(contextType2, Collections.emptyList()); // empty list
         Map<String, Object> request = new HashMap<>();
         request.put(Constants.REQUEST, requestData);
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn(userId);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userId);
         when(serverProperties.getContextType()).thenReturn(new String[]{contextType1, contextType2});
         ApiResponse response = profileService.deleteExtendedProfile(request, userToken);
         assertEquals(HttpStatus.OK, response.getResponseCode());
@@ -1158,7 +1093,7 @@ class ProfileServiceImplTest {
         String userToken = "valid-token";
         String localContextType = "education";
         String redisKey = "user:extendedProfile:" + localContextType + ":" + userId;
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn(userId);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userId);
         when(cacheService.getCache(redisKey)).thenReturn(null);
         when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), any(), any()))
                 .thenReturn(null); // or Collections.emptyList()
@@ -2046,7 +1981,7 @@ class ProfileServiceImplTest {
     @Test
     void testGetAdditionalFieldsByOrg_UserIdMismatch()  {
         // Arrange
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn("differentUser");
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("differentUser");
 
         // Act
         ApiResponse response = profileService.getAdditionalFieldsByOrg("user1", "org1", "token123");
@@ -2058,7 +1993,7 @@ class ProfileServiceImplTest {
     @Test
     void testGetAdditionalFieldsByOrg_OrgDataNotFound() throws Exception {
         // Arrange
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn("user1");
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user1");
         
         // Mock cassandra operation to return data for different org
         Map<String, Object> contextData = Map.of(
@@ -2083,7 +2018,7 @@ class ProfileServiceImplTest {
     @Test
     void testGetAdditionalFieldsByOrg_OrgDataFound() throws Exception {
         // Arrange
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn("user1");
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user1");
         
         // Mock cassandra operation to return organization data
         Map<String, Object> contextData = Map.of(
@@ -2921,7 +2856,7 @@ class ProfileServiceImplTest {
     @Test
     void updateAdditionalFields_returnsBadRequest_whenValidationFails() {
         Map<String, Object> req = Map.of(); // missing required params
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn("user1");
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user1");
         String result = ReflectionTestUtils.invokeMethod(profileService, "validateAdditionalFieldsRequest", req);
         assertEquals("Failed Due To Missing Params - [userId, organisationId, customFieldValues].", result);
         ApiResponse response = profileService.updateAdditionalFields(req, "token");
@@ -2930,7 +2865,7 @@ class ProfileServiceImplTest {
 
     @Test
     void updateAdditionalFields_returnsInternalServerError_whenSaveFails() {
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn("user1");
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user1");
         Map<String, Object> req = Map.of(
                 Constants.USER_ID, "user1",
                 Constants.ORGANISATION_ID, "org1",
@@ -2948,7 +2883,7 @@ class ProfileServiceImplTest {
                 Constants.ORGANISATION_ID, "org1",
                 Constants.CUSTOM_FIELD_VALUES, List.of()
         );
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn("userX");
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("userX");
         ReflectionTestUtils.setField(profileService, "accessTokenValidator", accessTokenValidator);
         ApiResponse response = profileService.updateAdditionalFields(req, "token");
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
@@ -2956,7 +2891,7 @@ class ProfileServiceImplTest {
 
     @Test
     void updateAdditionalFields_returnsInternalServerError_whenESUpdateFails() {
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(org.igot.common.model.ApiResponse.class))).thenReturn("user1");
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user1");
         Map<String, Object> req = Map.of(
                 Constants.USER_ID, "user1",
                 Constants.ORGANISATION_ID, "org1",

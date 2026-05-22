@@ -4,8 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.profile.service.ProfileService;
 import com.igot.cb.util.Constants;
 
-import org.igot.common.model.ApiResponse;
-import org.igot.common.util.ProjectUtil;
+import com.igot.cb.util.ApiResponse;
+import com.igot.cb.util.ProjectUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

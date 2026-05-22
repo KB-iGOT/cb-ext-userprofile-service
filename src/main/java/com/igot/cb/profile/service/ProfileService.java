@@ -2,7 +2,7 @@ package com.igot.cb.profile.service;
 
 import java.util.Map;
 
-import org.igot.common.model.ApiResponse;
+import com.igot.cb.util.ApiResponse;
 
 public interface ProfileService {
 

@@ -11,9 +11,9 @@ import com.igot.cb.common.OutboundRequestHandlerServiceImpl;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.igot.common.model.ApiResponse;
-import org.igot.common.util.AccessTokenValidator;
-import org.igot.common.util.ProjectUtil;
+import com.igot.cb.util.ApiResponse;
+import org.igot.common.auth.AccessTokenValidator;
+import com.igot.cb.util.ProjectUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -83,9 +83,10 @@ public class ProfileServiceImpl implements ProfileService {
         ApiResponse response = projectUtil.createDefaultResponse("api.extendedProfile.create");
         Map<String, Object> requestData = (Map<String, Object>) request.get(Constants.REQUEST);
         String userId = (String) requestData.get(Constants.USER_ID_RQST);
-        String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken, response);
+        String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
 
         if (StringUtils.isBlank(userIdFromToken)) {
+            projectUtil.errorResponse(response, "Access token is expired", HttpStatus.UNAUTHORIZED);
             return response;
         }
         
@@ -143,9 +144,10 @@ public class ProfileServiceImpl implements ProfileService {
         ApiResponse response = projectUtil.createDefaultResponse("api.extendedProfile.update");
         Map<String, Object> requestData = (Map<String, Object>) request.get(Constants.REQUEST);
         String userId = (String) requestData.get(Constants.USER_ID_RQST);
-        String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken, response);
+        String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
 
         if (StringUtils.isBlank(userIdFromToken)) {
+            projectUtil.errorResponse(response, "Access token is expired", HttpStatus.UNAUTHORIZED);
             return response;
         }
 
@@ -201,9 +203,10 @@ public class ProfileServiceImpl implements ProfileService {
         ApiResponse response = projectUtil.createDefaultResponse("api.extendedProfile.delete");
         Map<String, Object> requestData = (Map<String, Object>) request.get(Constants.REQUEST);
         String userId = (String) requestData.get(Constants.USER_ID_RQST);
-        String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken, response);
+        String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
 
         if (StringUtils.isBlank(userIdFromToken)) {
+            projectUtil.errorResponse(response, "Access token is expired", HttpStatus.UNAUTHORIZED);
             return response;
         }
         
@@ -245,7 +248,7 @@ public class ProfileServiceImpl implements ProfileService {
     public ApiResponse getExtendedProfileSummary(String userId, String userToken) {
         ApiResponse response = projectUtil.createDefaultResponse("api.extendedProfile.read");
 
-        if (accessTokenValidator.fetchUserIdFromAccessToken(userToken, response) == null) {
+        if (StringUtils.isEmpty(accessTokenValidator.fetchUserIdFromAccessToken(userToken))) {
             projectUtil.errorResponse(response, Constants.INVALID_USERID, HttpStatus.BAD_REQUEST);
             return response;
         }
@@ -295,9 +298,10 @@ public class ProfileServiceImpl implements ProfileService {
     @Override
     public ApiResponse readFullExtendedProfile(String userId, String contextType, String userToken) {
         ApiResponse response = projectUtil.createDefaultResponse("api.extendedProfile.read");
-        String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken, response);
+        String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
 
-        if (userIdFromToken == null) {
+        if (StringUtils.isEmpty(userIdFromToken)) {
+            projectUtil.errorResponse(response, "Access token is expired", HttpStatus.UNAUTHORIZED);
             return response;
         }
 
@@ -340,9 +344,10 @@ public class ProfileServiceImpl implements ProfileService {
     @Override
     public ApiResponse getBasicProfile(String userId, String userToken) {
         ApiResponse response = projectUtil.createDefaultResponse("api.getBasicProfile.read");
-        String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken, response);
+        String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
 
-        if (userIdFromToken == null) {
+        if (StringUtils.isEmpty(userIdFromToken)) {
+            projectUtil.errorResponse(response, "Access token is expired", HttpStatus.UNAUTHORIZED);
             return response;
         }
 
@@ -409,9 +414,10 @@ public class ProfileServiceImpl implements ProfileService {
     @Override
     public ApiResponse listCompetencies(String userId, String userToken) {
         ApiResponse response = projectUtil.createDefaultResponse("api.listCompetencies.read");
-        String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken, response);
+        String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
 
-        if (userIdFromToken == null) {
+        if (StringUtils.isEmpty(userIdFromToken)) {
+            projectUtil.errorResponse(response, "Access token is expired", HttpStatus.UNAUTHORIZED);
             return response;
         }
 
@@ -1132,9 +1138,10 @@ public class ProfileServiceImpl implements ProfileService {
     @Override
     public ApiResponse updateAdditionalFields(Map<String, Object> request, String authToken) {
         ApiResponse response = projectUtil.createDefaultResponse("api.update.additionalFields");
-        String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(authToken, response);
+        String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(authToken);
 
-        if (StringUtils.isBlank(authToken)) {
+        if (StringUtils.isEmpty(userIdFromToken)) {
+            projectUtil.errorResponse(response, "Access token is expired", HttpStatus.UNAUTHORIZED);
             return response;
         }
 
@@ -1428,9 +1435,10 @@ public class ProfileServiceImpl implements ProfileService {
     @Override
     public ApiResponse getAdditionalFieldsByOrg(String userId, String orgId, String authToken) {
         ApiResponse response = projectUtil.createDefaultResponse("api.get.additionalFieldsByOrg");
-        String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(authToken, response);
+        String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(authToken);
 
-        if (StringUtils.isBlank(authToken)) {
+        if (StringUtils.isEmpty(userIdFromToken)) {
+            projectUtil.errorResponse(response, "Access token is expired", HttpStatus.UNAUTHORIZED);
             return response;
         }
 

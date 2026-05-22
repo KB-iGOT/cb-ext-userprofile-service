@@ -9,9 +9,9 @@ import com.igot.cb.util.CbServerProperties;
 import com.igot.cb.util.Constants;
 import com.igot.cb.util.UserUtility;
 
-import org.igot.common.model.ApiResponse;
-import org.igot.common.util.AccessTokenValidator;
-import org.igot.common.util.ProjectUtil;
+import com.igot.cb.util.ApiResponse;
+import org.igot.common.auth.AccessTokenValidator;
+import com.igot.cb.util.ProjectUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -54,30 +54,11 @@ class ProfileServiceImplPrivateMethodTest {
         // Set private fields via ReflectionTestUtils
         ReflectionTestUtils.setField(profileService, "profileVisibleAllowedFields", "name,email");
         ReflectionTestUtils.setField(profileService, "basicDetailsFilteredKeys", "password,ssn");
-
-        // Ensure non-null ApiResponse and that errorResponse sets status codes
-        Mockito.lenient().when(projectUtil.createDefaultResponse(anyString())).thenReturn(new ApiResponse());
-        Mockito.lenient().doAnswer(invocation -> {
-            ApiResponse resp = invocation.getArgument(0);
-            String msg = invocation.getArgument(1);
-            HttpStatus status = invocation.getArgument(2);
-            resp.setResponseCode(status);
-            try {
-                if (resp.getParams() != null) {
-                    resp.getParams().setErrMsg(msg);
-                }
-            } catch (Throwable ignored) {}
-            return null;
-        }).when(projectUtil).errorResponse(any(ApiResponse.class), anyString(), any(HttpStatus.class));
     }
 
     @Test
     void testGetBasicProfile_InvalidToken() {
-        Mockito.doAnswer(invocation -> {
-            ApiResponse resp = invocation.getArgument(1);
-            resp.setResponseCode(HttpStatus.UNAUTHORIZED);
-            return null;
-        }).when(accessTokenValidator).fetchUserIdFromAccessToken(eq("badToken"), any(ApiResponse.class));
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq("badToken"))).thenReturn(null);
 
         ApiResponse response = profileService.getBasicProfile("user123", "badToken");
 
@@ -89,7 +70,7 @@ class ProfileServiceImplPrivateMethodTest {
         String userId = "user123";
         String userToken = "token123";
 
-        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(ApiResponse.class))).thenReturn(userId);
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userId);
 
         // Simulate cache hit with some missing fields
         Map<String, Object> cachedMap = new HashMap<>();
@@ -122,7 +103,7 @@ class ProfileServiceImplPrivateMethodTest {
         String userId = "user123";
         String userToken = "token123";
 
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(ApiResponse.class))).thenReturn(userId);
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn(userId);
         when(cacheService.getCache(anyString())).thenReturn(null);
 
         ProfileServiceImpl spyService = Mockito.spy(profileService);
@@ -140,7 +121,7 @@ class ProfileServiceImplPrivateMethodTest {
         String userId = "user123";
         String userToken = "token123";
 
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(ApiResponse.class))).thenReturn("otherUser");
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("otherUser");
         when(cacheService.getCache(anyString())).thenReturn(null);
 
         ProfileServiceImpl spyService = Mockito.spy(profileService);
@@ -160,7 +141,7 @@ class ProfileServiceImplPrivateMethodTest {
 
     @Test
     void testGetBasicProfile_Exception() {
-    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString(), any(ApiResponse.class))).thenReturn("user123");
+    when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
         when(cacheService.getCache(anyString())).thenThrow(new RuntimeException("Cache failure"));
 
         ApiResponse response = profileService.getBasicProfile("user123", "token123");
