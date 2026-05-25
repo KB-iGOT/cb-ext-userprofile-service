@@ -280,6 +280,8 @@ public class EsClientServiceImpl implements EsClientService {
                                         case Constants.SEARCH_OPERATION_LESS_THAN:
                                             rangeQuery.lt(JsonData.of( rangeValue));
                                             break;
+                                        default:
+                                            log.warn("Unsupported range operator '{}' for field '{}'", rangeOperator, field);
                                     }
                                 });
                                 rangeOrNullQuery.should(rangeQuery.build()._toQuery());

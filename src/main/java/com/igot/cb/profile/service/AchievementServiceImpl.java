@@ -109,7 +109,7 @@ public class AchievementServiceImpl implements AchievementService{
         }
         // Cache record
         cacheService.putCache(
-                buildCacheKey("user:achievement", userId, (String) requestData.get(Constants.CONTEXT_TYPE), id),
+                buildCacheKey(Constants.USER_ACHIEVEMENT_CACHE_PREFIX, userId, (String) requestData.get(Constants.CONTEXT_TYPE), id),
                 achievementRecord, cbServerProperties.getAchievementCacheTtl()
         );
         // Publish competency event for creation
@@ -178,7 +178,7 @@ public class AchievementServiceImpl implements AchievementService{
         if (cbServerProperties.isRequireEs()) {
             updateAchievementInElasticsearch(id, existingRecord, userId, updateOnTimestamp);
         }
-        cacheService.putCache(buildCacheKey("user:achievement", userId, contextType, id), existingRecord,cbServerProperties.getAchievementCacheTtl());
+        cacheService.putCache(buildCacheKey(Constants.USER_ACHIEVEMENT_CACHE_PREFIX, userId, contextType, id), existingRecord,cbServerProperties.getAchievementCacheTtl());
 
         // Publish competency update event only if there are actual changes (added or removed)
         if (hasCompetencyChanges(competencyDelta) || isUrlChanged) {
@@ -204,7 +204,7 @@ public class AchievementServiceImpl implements AchievementService{
         }
         Map<String, Object> achievement = null;
         if (StringUtils.isNotBlank(contextType)) {
-            String cacheKey = buildCacheKey("user:achievement", userId, contextType, achievementId);
+            String cacheKey = buildCacheKey(Constants.USER_ACHIEVEMENT_CACHE_PREFIX, userId, contextType, achievementId);
             achievement = getAchievementFromCache(cacheKey);
         }
         if (MapUtils.isEmpty(achievement)) {
@@ -258,7 +258,7 @@ public class AchievementServiceImpl implements AchievementService{
             return response;
         }
         // Remove from cache
-        String cacheKey = buildCacheKey("user:achievement", userId, contextType, achievementId);
+        String cacheKey = buildCacheKey(Constants.USER_ACHIEVEMENT_CACHE_PREFIX, userId, contextType, achievementId);
         cacheService.removeCache(cacheKey);
         // Remove from ES
         if (cbServerProperties.isRequireEs()) {
@@ -294,7 +294,7 @@ public class AchievementServiceImpl implements AchievementService{
         try {
             String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(authToken);
             if (StringUtils.isBlank(userIdFromToken)) {
-                ProjectUtil.errorResponse(response, "Invalid or missing access token", HttpStatus.UNAUTHORIZED);
+                ProjectUtil.errorResponse(response, Constants.INVALID_OR_MISSING_ACCESS_TOKEN, HttpStatus.UNAUTHORIZED);
                 return response;
             }
             if (!validateStatusUpdateRequest(request, response)) {
@@ -392,7 +392,7 @@ public class AchievementServiceImpl implements AchievementService{
                 } else if (createdOnObj instanceof LocalDate) {
                     createdOnFormatted = ((LocalDate) createdOnObj)
                             .atStartOfDay(ZoneId.of("UTC"))
-                            .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ"));
+                            .format(DateTimeFormatter.ofPattern(Constants.DATE_TIME_FORMAT));
                 }
             }
             String updatedOn = (String) esDoc.get(Constants.UPDATED_ON);
@@ -570,7 +570,7 @@ public class AchievementServiceImpl implements AchievementService{
                 String reqJsonString = objectMapper.writeValueAsString(requestPayload);
                 return JWT.create()
                         .withClaim(Constants.REQUEST, reqJsonString)
-                        .sign(Algorithm.HMAC256(Constants.JWT_SECRET_KEY));
+                        .sign(Algorithm.HMAC256(cbServerProperties.getJwtSecretKey()));
             } catch (JsonProcessingException e) {
                 log.error("Error occurred while converting json object to json string", e);
             }
@@ -700,7 +700,7 @@ public class AchievementServiceImpl implements AchievementService{
         if (achievement != null && StringUtils.isNotBlank(contextType)) {
             try {
                 String achievementJson = objectMapper.writeValueAsString(achievement);
-                cacheService.putCache(buildCacheKey("user:achievement", userId, contextType, achievementId), achievementJson,cbServerProperties.getAchievementCacheTtl());
+                cacheService.putCache(buildCacheKey(Constants.USER_ACHIEVEMENT_CACHE_PREFIX, userId, contextType, achievementId), achievementJson,cbServerProperties.getAchievementCacheTtl());
             } catch (Exception e) {
                 log.error("Failed to serialize achievement for caching", e);
             }
@@ -713,7 +713,7 @@ public class AchievementServiceImpl implements AchievementService{
      */
     private String getCurrentUtcTimestampFormatted() {
         ZonedDateTime now = ZonedDateTime.now(ZoneId.of("UTC"));
-        return now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ"));
+        return now.format(DateTimeFormatter.ofPattern(Constants.DATE_TIME_FORMAT));
     }
 
     /**
@@ -768,7 +768,7 @@ public class AchievementServiceImpl implements AchievementService{
         ApiResponse response = ProjectUtil.createDefaultResponse(Constants.API_ACHIEVEMENT_LIST);
         String userId = accessTokenValidator.fetchUserIdFromAccessToken(authToken);
         if (StringUtils.isBlank(userId)) {
-            ProjectUtil.errorResponse(response, "Invalid or missing access token", HttpStatus.UNAUTHORIZED);
+            ProjectUtil.errorResponse(response, Constants.INVALID_OR_MISSING_ACCESS_TOKEN, HttpStatus.UNAUTHORIZED);
             return response;
         }
         if (StringUtils.isNotBlank(id)) {
@@ -965,7 +965,7 @@ public class AchievementServiceImpl implements AchievementService{
         if (createdOnObj instanceof LocalDate) {
             return ((LocalDate) createdOnObj)
                     .atStartOfDay(ZoneId.of("UTC"))
-                    .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ"));
+                    .format(DateTimeFormatter.ofPattern(Constants.DATE_TIME_FORMAT));
         }
         return null;
     }
@@ -1466,7 +1466,7 @@ public class AchievementServiceImpl implements AchievementService{
         ApiResponse response = ProjectUtil.createDefaultResponse(Constants.API_ACHIEVEMENT_V2_LIST);
         String userId = accessTokenValidator.fetchUserIdFromAccessToken(authToken);
         if (StringUtils.isBlank(userId)) {
-            ProjectUtil.errorResponse(response, "Invalid or missing access token", HttpStatus.UNAUTHORIZED);
+            ProjectUtil.errorResponse(response, Constants.INVALID_OR_MISSING_ACCESS_TOKEN, HttpStatus.UNAUTHORIZED);
             return response;
         }
         List<String> achievementIds = null;
@@ -1490,7 +1490,7 @@ public class AchievementServiceImpl implements AchievementService{
                 if (StringUtils.isBlank(achievementId)) {
                     continue;
                 }
-                String cacheKey = buildCacheKey("user:achievement", userId, Constants.ACHIEVEMENTS, achievementId);
+                String cacheKey = buildCacheKey(Constants.USER_ACHIEVEMENT_CACHE_PREFIX, userId, Constants.ACHIEVEMENTS, achievementId);
                 Map<String, Object> achievement = getAchievementFromCache(cacheKey);
                 if (MapUtils.isNotEmpty(achievement)) {
                     log.info("AchievementServiceImpl::getUserAchievementsByUserIds: fetched from cache for achievementId: {}", achievementId);

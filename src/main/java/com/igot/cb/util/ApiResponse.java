@@ -2,6 +2,7 @@ package com.igot.cb.util;
 
 import lombok.Getter;
 import lombok.Setter;
+import org.igot.common.ApiRespParam;
 import org.springframework.http.HttpStatus;
 
 import java.sql.Timestamp;
