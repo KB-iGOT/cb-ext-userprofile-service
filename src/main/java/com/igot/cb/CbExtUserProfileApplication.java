@@ -17,6 +17,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Primary;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
@@ -46,10 +47,10 @@ public class CbExtUserProfileApplication {
     }
 
     @Bean
-    public PropertiesCache propertiesCache() {
+    @Primary
+    public PropertiesCache cbPropertiesCache() {
         return PropertiesCache.getInstance();
     }
-
     private ClientHttpRequestFactory getClientHttpRequestFactory() {
         int timeout = serverProperties.getRequestTimeoutMs();
         RequestConfig config = RequestConfig.custom()
@@ -65,12 +66,13 @@ public class CbExtUserProfileApplication {
         return new HttpComponentsClientHttpRequestFactory(client);
     }
 
-     @Bean
-    public ObjectMapper objectMapper() {
+    @Bean
+    @Primary
+    public ObjectMapper cbObjectMapper() {
         ObjectMapper mapper = new ObjectMapper();
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-         mapper.registerModule(new JavaTimeModule());
-         mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        mapper.registerModule(new JavaTimeModule());
+        mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         return mapper;
     }
 }

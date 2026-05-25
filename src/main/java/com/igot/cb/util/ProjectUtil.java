@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.igot.cb.exceptions.CustomException;
+import org.igot.common.CustomException;
 import com.igot.cb.exceptions.ResponseCode;
 
 import lombok.extern.slf4j.Slf4j;
@@ -50,12 +50,12 @@ public class ProjectUtil {
      */
     public static CustomException createServerError(ResponseCode responseCode) {
         return new CustomException(responseCode.getErrorCode(), responseCode.getErrorMessage(),
-                ResponseCode.SERVER_ERROR.getHttpStatusCode());
+                HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
     public static CustomException createClientException(ResponseCode responseCode) {
         return new CustomException(responseCode.getErrorCode(), responseCode.getErrorMessage(),
-                ResponseCode.CLIENT_ERROR.getHttpStatusCode());
+                HttpStatus.BAD_REQUEST);
     }
 
     public static ApiResponse createDefaultResponse(String api) {

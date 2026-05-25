@@ -4,7 +4,7 @@ import com.datastax.oss.driver.api.core.ConsistencyLevel;
 import com.datastax.oss.driver.api.core.CqlSession;
 import com.datastax.oss.driver.api.core.DefaultConsistencyLevel;
 import com.datastax.oss.driver.api.core.metadata.Metadata;
-import com.igot.cb.exceptions.CustomException;
+import org.igot.common.CustomException;
 import com.igot.cb.util.Constants;
 import com.igot.cb.util.PropertiesCache;
 import org.junit.Before;
@@ -130,8 +130,7 @@ public class CassandraConnectionManagerImplTest {
             } catch (CustomException e) {
                 assertEquals("ERROR", e.getCode());
                 assertEquals("Cassandra host is not configured", e.getMessage());
-                // Match actual implementation behavior
-                assertEquals(0, e.getResponseCode());
+                assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, e.getHttpStatusCode());
             }
         }
     }
@@ -147,7 +146,7 @@ public class CassandraConnectionManagerImplTest {
         } catch (CustomException e) {
             assertEquals("ERROR", e.getCode());
             assertEquals("Test exception", e.getMessage());
-            assertEquals(0, e.getResponseCode());
+            assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, e.getHttpStatusCode());
         }
     }
 
