@@ -34,7 +34,7 @@ import java.util.stream.Collectors;
  * @author Mahesh RV
  * @author Ruksana
  */
-@Component
+@Component("cbCassandraOperation")
 public class CassandraOperationImpl implements CassandraOperation {
 
     private Logger logger = LoggerFactory.getLogger(CassandraOperationImpl.class);

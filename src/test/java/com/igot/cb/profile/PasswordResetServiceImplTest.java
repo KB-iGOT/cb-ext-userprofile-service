@@ -1,7 +1,7 @@
 package com.igot.cb.profile;
 
 import org.igot.common.auth.AccessTokenValidator;
-import com.igot.cb.common.OutboundRequestHandlerServiceImpl;
+import org.igot.common.service.OutboundRequestHandlerServiceImpl;
 import com.igot.cb.profile.service.PasswordResetServiceImpl;
 import com.igot.cb.util.ApiResponse;
 import com.igot.cb.util.CbServerProperties;

@@ -22,7 +22,7 @@ import co.elastic.clients.json.JsonData;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.igot.cb.exceptions.CustomException;
+import org.igot.common.CustomException;
 import com.igot.cb.transactional.elasticsearch.config.EsClientConfig;
 import com.igot.cb.transactional.elasticsearch.dto.FacetDTO;
 import com.igot.cb.transactional.elasticsearch.dto.SearchCriteria;

@@ -18,7 +18,7 @@ import co.elastic.clients.elasticsearch.indices.ElasticsearchIndicesClient;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.igot.cb.exceptions.CustomException;
+import org.igot.common.CustomException;
 import com.igot.cb.transactional.elasticsearch.config.EsClientConfig;
 import com.igot.cb.transactional.elasticsearch.dto.SearchCriteria;
 import com.igot.cb.transactional.elasticsearch.dto.SearchResult;

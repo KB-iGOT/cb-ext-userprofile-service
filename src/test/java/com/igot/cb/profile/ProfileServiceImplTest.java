@@ -3,7 +3,7 @@ package com.igot.cb.profile;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.igot.cb.common.OutboundRequestHandlerServiceImpl;
+import org.igot.common.service.OutboundRequestHandlerServiceImpl;
 import com.igot.cb.profile.entity.CustomFieldEntity;
 import com.igot.cb.profile.repository.CustomFieldRepository;
 import com.igot.cb.profile.service.ProfileServiceImpl;

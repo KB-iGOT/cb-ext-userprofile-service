@@ -17,7 +17,7 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.igot.cb.exceptions.CustomException;
+import org.igot.common.CustomException;
 import com.igot.cb.exceptions.ResponseCode;
 
 @RunWith(MockitoJUnitRunner.class)
@@ -34,10 +34,9 @@ public class ProjectUtilTest {
         ResponseCode responseCode = ResponseCode.SERVER_ERROR;
         CustomException exception = ProjectUtil.createServerError(responseCode);
         assertNotNull(exception);
-        assertEquals(responseCode.getErrorCode(), exception.getErrorCode());
+        assertEquals(responseCode.getErrorCode(), exception.getCode());
         assertEquals(responseCode.getErrorMessage(), exception.getMessage());
-        assertEquals(Integer.valueOf(ResponseCode.SERVER_ERROR.getHttpStatusCode()),
-                Integer.valueOf(exception.getResponseCode()));
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, exception.getHttpStatusCode());
     }
 
     @Test
@@ -45,10 +44,9 @@ public class ProjectUtilTest {
         ResponseCode responseCode = ResponseCode.CLIENT_ERROR;
         CustomException exception = ProjectUtil.createClientException(responseCode);
         assertNotNull(exception);
-        assertEquals(responseCode.getErrorCode(), exception.getErrorCode());
+        assertEquals(responseCode.getErrorCode(), exception.getCode());
         assertEquals(responseCode.getErrorMessage(), exception.getMessage());
-        assertEquals(Integer.valueOf(ResponseCode.CLIENT_ERROR.getHttpStatusCode()),
-                Integer.valueOf(exception.getResponseCode()));
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getHttpStatusCode());
     }
 
     @Test

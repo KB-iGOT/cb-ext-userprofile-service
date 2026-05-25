@@ -70,7 +70,7 @@ public class CbExtUserProfileApplicationTest {
         CbServerProperties mockProps = mock(CbServerProperties.class);
         CbExtUserProfileApplication app = new CbExtUserProfileApplication(mockProps);
 
-        ObjectMapper mapper = app.objectMapper();
+        ObjectMapper mapper = app.cbObjectMapper();
 
         assertNotNull(mapper);
         assertFalse(mapper.isEnabled(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES),

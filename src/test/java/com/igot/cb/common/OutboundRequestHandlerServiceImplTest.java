@@ -1,5 +1,6 @@
 package com.igot.cb.common;
 
+import org.igot.common.service.OutboundRequestHandlerServiceImpl;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
