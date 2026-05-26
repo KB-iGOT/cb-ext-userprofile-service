@@ -227,4 +227,7 @@ public class CbServerProperties {
     @Value("${achievement.cache.ttl}")
     private int achievementCacheTtl;
 
+    @Value("${jwt.secret.key}")
+    private String jwtSecretKey;
+
 }

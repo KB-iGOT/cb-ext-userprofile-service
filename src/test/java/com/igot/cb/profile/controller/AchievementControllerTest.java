@@ -58,7 +58,7 @@ class AchievementControllerTest {
         ApiResponse apiResponse = new ApiResponse();
         apiResponse.setResponseCode(HttpStatus.OK);
         when(achievementService.readLearnerAchievement(anyString(), anyString(), anyString())).thenReturn(apiResponse);
-        ResponseEntity<Object> response = achievementController.readLearnerAchievement("achId", "token", "contextType");
+        ResponseEntity<?> response = achievementController.readLearnerAchievement("achId", "token", "contextType");
         assertEquals(HttpStatus.OK, response.getStatusCode());
         verify(achievementService).readLearnerAchievement("achId", "token", "contextType");
     }

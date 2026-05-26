@@ -24,7 +24,7 @@ public class ValidationService {
 
         try {
             if (MapUtils.isEmpty(requestBody)) {
-                ProjectUtil.errorResponse(apiResponse, "Invalid request", HttpStatus.BAD_REQUEST);
+                ProjectUtil.errorResponse(apiResponse, Constants.INVALID_REQUEST, HttpStatus.BAD_REQUEST);
                 return false;
             }
             Map<String, Object> searchRequest = (Map<String, Object>) requestBody.get(Constants.REQUEST);
@@ -109,12 +109,12 @@ public class ValidationService {
 
         // -------- Validate requestBody --------
         if (MapUtils.isEmpty(requestBody)) {
-            ProjectUtil.errorResponse(apiResponse, "Invalid request", HttpStatus.BAD_REQUEST);
+            ProjectUtil.errorResponse(apiResponse, Constants.INVALID_REQUEST, HttpStatus.BAD_REQUEST);
             return false;
         }
         Object reqObj = requestBody.get(Constants.REQUEST);
         if (!(reqObj instanceof Map) || MapUtils.isEmpty((Map<?, ?>) reqObj)) {
-            ProjectUtil.errorResponse(apiResponse, "Invalid request", HttpStatus.BAD_REQUEST);
+            ProjectUtil.errorResponse(apiResponse, Constants.INVALID_REQUEST, HttpStatus.BAD_REQUEST);
             return false;
         }
         Map<String, Object> requestMap = (Map<String, Object>) reqObj;
@@ -163,12 +163,12 @@ public class ValidationService {
 
         // -------- Validate requestBody --------
         if (MapUtils.isEmpty(requestBody)) {
-            ProjectUtil.errorResponse(apiResponse, "Invalid request", HttpStatus.BAD_REQUEST);
+            ProjectUtil.errorResponse(apiResponse, Constants.INVALID_REQUEST, HttpStatus.BAD_REQUEST);
             return false;
         }
         Object reqObj = requestBody.get(Constants.REQUEST);
         if (!(reqObj instanceof Map) || MapUtils.isEmpty((Map<?, ?>) reqObj)) {
-            ProjectUtil.errorResponse(apiResponse, "Invalid request", HttpStatus.BAD_REQUEST);
+            ProjectUtil.errorResponse(apiResponse, Constants.INVALID_REQUEST, HttpStatus.BAD_REQUEST);
             return false;
         }
         Map<String, Object> requestMap = (Map<String, Object>) reqObj;

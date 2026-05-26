@@ -53,7 +53,6 @@ public class Constants {
     public static final String REDIS_KEY_PREFIX = "cbpores_";
     public static final String KEYWORD = ".keyword";
     public static final String ASC = "asc";
-    public static final String JWT_SECRET_KEY = "demand_search_result";
     public static final String CONTENT_PROVIDER_ID = "id";
     public static final String INTEREST_COUNT = "interestCount";
     public static final String INTERESTS = "demand_search_result";
@@ -523,6 +522,11 @@ public class Constants {
     public static final String USER_BADGE_COUNT = "user:badgeCount_";
     public static final String UPLOAD_DOCUMENT_URL = "uploadedDocumentUrl";
     public static final String URL = "url";
+    public static final String INVALID_REQUEST = "Invalid request";
+    public static final String USER_ACHIEVEMENT_CACHE_PREFIX = "user:achievement";
+    public static final String DATE_TIME_FORMAT = "yyyy-MM-dd'T'HH:mm:ss.SSSZ";
+    public static final String ACCESS_TOKEN_EXPIRED = "Access token is expired";
+    public static final String JWT_SECRET_KEY_PROP = "jwt.secret.key";
 
     private Constants() {
     }

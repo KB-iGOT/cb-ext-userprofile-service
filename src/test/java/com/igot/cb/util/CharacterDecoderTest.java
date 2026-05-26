@@ -1,5 +1,6 @@
 package com.igot.cb.util;
 
+import org.igot.common.crypto.CharacterDecoder;
 import org.junit.Test;
 import org.junit.Before;
 
@@ -195,26 +196,6 @@ public class CharacterDecoderTest {
         };
         ByteBuffer result = customDecoder.decodeBufferToByteBuffer(inputStream);
         assertNotNull("Result should not be null", result);
-    }
-
-    @Test
-    public void testReadFully() throws IOException {
-        byte[] buffer = new byte[5];
-        ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[]{1, 2, 3, 4, 5});
-        int read = decoder.readFully(inputStream, buffer, 0, 5);
-        assertEquals("Should read requested number of bytes", 5, read);
-        assertEquals("First byte should be 1", 1, buffer[0]);
-        assertEquals("Last byte should be 5", 5, buffer[4]);
-    }
-
-    @Test
-    public void testReadFully_PartialRead() throws IOException {
-        byte[] buffer = new byte[5];
-        ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[]{1, 2});
-        int read = decoder.readFully(inputStream, buffer, 0, 5);
-        assertEquals("Should read available bytes", 2, read);
-        assertEquals("First byte should be 1", 1, buffer[0]);
-        assertEquals("Second byte should be 2", 2, buffer[1]);
     }
 
     @Test

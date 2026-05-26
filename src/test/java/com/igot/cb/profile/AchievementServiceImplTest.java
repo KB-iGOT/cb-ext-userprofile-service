@@ -63,7 +63,10 @@ class AchievementServiceImplTest {
         when(cbServerProperties.getSearchResultRedisTtl()).thenReturn(1000L);
         when(cbServerProperties.getUserCompetencyTopicName()).thenReturn("user-competency-mapping-event");
         when(cbServerProperties.getAchievementCacheTtl()).thenReturn(100);
+        when(cbServerProperties.getJwtSecretKey()).thenReturn("test-jwt-secret-key-1234567890123456");
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+        when(cacheService.hget(any())).thenReturn(Collections.emptyList());
 
         achievementService = new AchievementServiceImpl(
                 accessTokenValidator, cbServerProperties, cassandraOperation,

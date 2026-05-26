@@ -3,6 +3,7 @@ package com.igot.cb.util;
 import com.igot.cb.exceptions.ProjectCommonException;
 import com.igot.cb.exceptions.ResponseCode;
 import org.apache.commons.lang3.StringUtils;
+import org.igot.common.crypto.BASE64Decoder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
