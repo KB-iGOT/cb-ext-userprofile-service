@@ -527,6 +527,17 @@ public class Constants {
     public static final String DATE_TIME_FORMAT = "yyyy-MM-dd'T'HH:mm:ss.SSSZ";
     public static final String ACCESS_TOKEN_EXPIRED = "Access token is expired";
     public static final String JWT_SECRET_KEY_PROP = "jwt.secret.key";
+    // Response error codes
+    public static final String UNAUTHORIZED_USER_CODE = "UNAUTHORIZED_USER";
+    public static final String INTERNAL_ERROR_CODE = "INTERNAL_ERROR";
+    public static final String RESOURCE_NOT_FOUND_CODE = "0013";
+    public static final String INVALID_PARAMETER_VALUE_CODE = "0017";
+    // Response error messages
+    public static final String UNAUTHORIZED_USER_MSG = "You are not authorized.";
+    public static final String INTERNAL_ERROR_MSG = "Process failed,please try again later.";
+    public static final String RESOURCE_NOT_FOUND_MSG = "Requested {0} resource not found";
+    public static final String INVALID_PARAMETER_VALUE_MSG =
+            "Invalid value {0} for parameter {1}. Please provide a valid value.";
 
     private Constants() {
     }
