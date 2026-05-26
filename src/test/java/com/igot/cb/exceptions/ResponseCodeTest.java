@@ -24,10 +24,10 @@ public class ResponseCodeTest {
     
     @Test
     public void testStringConstructor() {
-        assertEquals(ResponseMessage.Key.UNAUTHORIZED_USER, ResponseCode.UNAUTHORIZED.getErrorCode());
-        assertEquals(ResponseMessage.Message.UNAUTHORIZED_USER, ResponseCode.UNAUTHORIZED.getErrorMessage());
-        assertEquals(ResponseMessage.Key.INTERNAL_ERROR, ResponseCode.INTERNAL_SERVER_ERROR.getErrorCode());
-        assertEquals(ResponseMessage.Message.INTERNAL_ERROR, ResponseCode.INTERNAL_SERVER_ERROR.getErrorMessage());
+        assertEquals(Constants.UNAUTHORIZED_USER_CODE, ResponseCode.UNAUTHORIZED.getErrorCode());
+        assertEquals(Constants.UNAUTHORIZED_USER_MSG, ResponseCode.UNAUTHORIZED.getErrorMessage());
+        assertEquals(Constants.INTERNAL_ERROR_CODE, ResponseCode.INTERNAL_SERVER_ERROR.getErrorCode());
+        assertEquals(Constants.INTERNAL_ERROR_MSG, ResponseCode.INTERNAL_SERVER_ERROR.getErrorMessage());
     }
     
     @Test
@@ -69,9 +69,9 @@ public class ResponseCodeTest {
     @Test
     public void testGetResponseWithValidErrorCode() {
         assertEquals(ResponseCode.UNAUTHORIZED,
-                    ResponseCode.getResponse(ResponseMessage.Key.UNAUTHORIZED_USER));
+                    ResponseCode.getResponse(Constants.UNAUTHORIZED_USER_CODE));
         assertEquals(ResponseCode.INTERNAL_SERVER_ERROR,
-                    ResponseCode.getResponse(ResponseMessage.Key.INTERNAL_ERROR));
+                    ResponseCode.getResponse(Constants.INTERNAL_ERROR_CODE));
     }
 
     @Test
@@ -103,11 +103,11 @@ public class ResponseCodeTest {
         assertNull(ResponseCode.getResponse("   "));
         assertEquals(ResponseCode.UNAUTHORIZED, ResponseCode.getResponse(Constants.UNAUTHORIZED));
         assertEquals(ResponseCode.INTERNAL_SERVER_ERROR,
-                ResponseCode.getResponse(ResponseMessage.Key.INTERNAL_ERROR));
+                ResponseCode.getResponse(Constants.INTERNAL_ERROR_CODE));
         assertEquals(ResponseCode.UNAUTHORIZED,
-                ResponseCode.getResponse(ResponseMessage.Key.UNAUTHORIZED_USER));
+                ResponseCode.getResponse(Constants.UNAUTHORIZED_USER_CODE));
         assertEquals(ResponseCode.RESOURCE_NOT_FOUND,
-                ResponseCode.getResponse(ResponseMessage.Key.RESOURCE_NOT_FOUND));
+                ResponseCode.getResponse(Constants.RESOURCE_NOT_FOUND_CODE));
         assertNull(ResponseCode.getResponse("INVALID_CODE"));
         assertNull(ResponseCode.getResponse(ResponseCode.OK.getErrorCode()));
         assertNull(ResponseCode.getResponse(ResponseCode.CLIENT_ERROR.getErrorCode()));
