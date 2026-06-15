@@ -106,9 +106,9 @@ public class ProfileServiceImpl implements ProfileService {
             List<Map<String, Object>> dataWithUUIDs = addUUIDs(incomingList);
             List<Map<String, Object>> existingList = getExistingContextData(userId, contextType);
 
-            if (Constants.ACHIEVEMENTS.equalsIgnoreCase(contextType)) {
+            if(Constants.ACHIEVEMENTS.equalsIgnoreCase(contextType)) {
                 mergeAndSortByIssuedDateOrTitle(existingList, dataWithUUIDs);
-            } else {
+            }else{
                 existingList.addAll(dataWithUUIDs);
             }
 
@@ -338,8 +338,7 @@ public class ProfileServiceImpl implements ProfileService {
             String cachedJson = cacheService.getCache(cacheKey);
             Map<String, Object> userProfile;
             if (StringUtils.isNotEmpty(cachedJson)) {
-                userProfile = mapper.readValue(cachedJson, new TypeReference<>() {
-                });
+                userProfile = mapper.readValue(cachedJson, new TypeReference<>() {});
                 Set<String> cachedKeysLower = userProfile.keySet().stream()
                         .map(String::toLowerCase)
                         .collect(Collectors.toSet());
@@ -374,13 +373,13 @@ public class ProfileServiceImpl implements ProfileService {
             }
             userProfile.put(Constants.POSTCOUNT, getUserPostCount(userId));
             userProfile.put(Constants.BADGE_COUNT, getUserBadgeCount(userId));
-            userProfile.put(Constants.ROLES, getUserRoles(userId, (String) userProfile.get(Constants.ROOT_ORG_ID)));
+            userProfile.put(Constants.ROLES, getUserRoles(userId,(String)userProfile.get(Constants.ROOT_ORG_ID)));
 
             if (!isSelfUser) {
                 sanitizeProfile(userProfile, userToken);
             }
 
-            Map<String, Object> responseMap = new HashMap<>();
+            Map<String,Object> responseMap = new HashMap<>();
             responseMap.put(Constants.RESPONSE, userProfile);
             response.setResponse(responseMap);
         } catch (Exception e) {
@@ -495,11 +494,11 @@ public class ProfileServiceImpl implements ProfileService {
     private Comparator<Map<String, Object>> getSortingComparator(String contextType) {
         return switch (contextType) {
             case Constants.SERVICE_HISTORY ->
-                    Comparator.comparing(map -> OffsetDateTime.parse((String) map.get(Constants.START_DATE)));
+                Comparator.comparing(map -> OffsetDateTime.parse((String) map.get(Constants.START_DATE)));
             case Constants.EDUCATIONAL_QUALIFICATIONS ->
-                    Comparator.comparing(map -> Integer.parseInt((String) map.get(Constants.START_YEAR)));
+                Comparator.comparing(map -> Integer.parseInt((String) map.get(Constants.START_YEAR)));
             case Constants.ACHIVEMENTS ->
-                    Comparator.comparing(map -> OffsetDateTime.parse((String) map.get(Constants.ISSUED_DATE)));
+                Comparator.comparing(map -> OffsetDateTime.parse((String) map.get(Constants.ISSUED_DATE)));
             default -> null;
         };
     }
@@ -509,13 +508,13 @@ public class ProfileServiceImpl implements ProfileService {
     }
 
     private void updateExtendedProfileAllCache(String userId, String contextType,
-                                               List<Map<String, Object>> updatedContextData) {
+            List<Map<String, Object>> updatedContextData) {
         String allKey = "user:extendedProfile:all:" + userId;
         try {
             String allJson = cacheService.getCache(allKey);
             Map<String, Object> allProfileData = (allJson != null && !allJson.isEmpty())
                     ? mapper.readValue(allJson, new TypeReference<>() {
-            })
+                    })
                     : new HashMap<>();
             Map<String, Object> updatedContext = new HashMap<>();
             updatedContext.put(Constants.DATA, updatedContextData);
@@ -541,7 +540,7 @@ public class ProfileServiceImpl implements ProfileService {
     }
 
     private void validateFieldsForList(Map<String, Object> requestData, String listKey, String mandatoryFields,
-                                       List<String> errList, boolean allowSkipEndDate) {
+            List<String> errList, boolean allowSkipEndDate) {
         List<Map<String, Object>> dataList = (List<Map<String, Object>>) requestData.get(listKey);
         if (dataList != null) {
             for (Map<String, Object> data : dataList) {
@@ -749,7 +748,7 @@ public class ProfileServiceImpl implements ProfileService {
                                 .map(Object::toString)
                                 .filter(aboutMe -> !aboutMe.trim().isEmpty())
                                 .isPresent();
-                    } else {
+                    }else {
                         Object value = profileData.getOrDefault(field, nestedData.get(field));
                         isFilled = value != null && !value.toString().trim().isEmpty();
                     }
@@ -788,7 +787,7 @@ public class ProfileServiceImpl implements ProfileService {
     }
 
     public Map<String, Map<String, Object>> getCourseMetadataBatched(List<String> courseIds, int batchSize,
-                                                                     List<String> fields) {
+            List<String> fields) {
         Map<String, Map<String, Object>> allResults = new LinkedHashMap<>();
         if (courseIds == null || courseIds.isEmpty())
             return allResults;
@@ -929,11 +928,11 @@ public class ProfileServiceImpl implements ProfileService {
                 return Integer.parseInt(redisValue);
             }
 
-            List<Map<String, Object>> records = cassandraOperation.getRecordsByPropertiesByKey(Constants.KEYSPACE_SUNBIRD, Constants.USER_KARMA_POINTS_SUMMARY_TABLE,
+            List<Map<String, Object>> records = cassandraOperation.getRecordsByPropertiesByKey(Constants.KEYSPACE_SUNBIRD,Constants.USER_KARMA_POINTS_SUMMARY_TABLE,
                     Map.of(Constants.USERID_KEY, userId), List.of(Constants.TOTAL_POINTS), userId);
             int totalPoints = 0;
-            if (!CollectionUtils.isEmpty(records)) {
-                totalPoints = (int) records.get(0).get(Constants.TOTAL_POINTS);
+            if(!CollectionUtils.isEmpty(records)){
+                totalPoints=(int) records.get(0).get(Constants.TOTAL_POINTS);
             }
 
             cacheService.putCache(redisKey, totalPoints);
@@ -970,14 +969,14 @@ public class ProfileServiceImpl implements ProfileService {
                     Constants.KEYSPACE_SUNBIRD_COURSES,
                     Constants.USER_ENTITY_ENROLMENTS,
                     Map.of(Constants.USERID_KEY, userId),
-                    List.of(Constants.ISSUED_CERTIFICATES, Constants.PROGRESS_KEY, Constants.STATUS),
+                    List.of(Constants.ISSUED_CERTIFICATES,Constants.PROGRESS_KEY,Constants.STATUS),
                     userId
             );
 
             int certificatesFromEvents = (int) eventRecords.stream()
                     .filter(MapUtils::isNotEmpty)
-                    .filter(r -> r.get(Constants.STATUS) instanceof Number && ((Number) r.get(Constants.STATUS)).intValue() == 2)
-                    .filter(r -> r.get(Constants.PROGRESS_KEY) instanceof Number && ((Number) r.get(Constants.PROGRESS_KEY)).intValue() == 100)
+                    .filter(r -> r.get(Constants.STATUS) instanceof Number && ((Number)r.get(Constants.STATUS)).intValue() == 2)
+                    .filter(r -> r.get(Constants.PROGRESS_KEY) instanceof Number && ((Number)r.get(Constants.PROGRESS_KEY)).intValue() == 100)
                     .map(r -> r.get(Constants.ISSUED_CERTIFICATES_KEY))
                     .filter(obj -> obj instanceof List<?>)
                     .map(obj -> (List<?>) obj)
@@ -988,14 +987,14 @@ public class ProfileServiceImpl implements ProfileService {
                     Constants.KEYSPACE_SUNBIRD_COURSES,
                     Constants.USER_EXTERNAL_COURSE_ENROLMENTS,
                     Map.of(Constants.USERID_KEY, userId),
-                    List.of(Constants.ISSUED_CERTIFICATES, Constants.PROGRESS_KEY, Constants.STATUS),
+                    List.of(Constants.ISSUED_CERTIFICATES,Constants.PROGRESS_KEY,Constants.STATUS),
                     userId
             );
 
             int certificatesFromExternalCourses = (int) externalCourseRecords.stream()
                     .filter(MapUtils::isNotEmpty)
-                    .filter(r -> r.get(Constants.STATUS) instanceof Number && ((Number) r.get(Constants.STATUS)).intValue() == 2)
-                    .filter(r -> r.get(Constants.PROGRESS_KEY) instanceof Number && ((Number) r.get(Constants.PROGRESS_KEY)).intValue() == 100)
+                    .filter(r -> r.get(Constants.STATUS) instanceof Number && ((Number)r.get(Constants.STATUS)).intValue() == 2)
+                    .filter(r -> r.get(Constants.PROGRESS_KEY) instanceof Number && ((Number)r.get(Constants.PROGRESS_KEY)).intValue() == 100)
                     .map(r -> r.get(Constants.ISSUED_CERTIFICATES_KEY))
                     .filter(obj -> obj instanceof List<?>)
                     .map(obj -> (List<?>) obj)
@@ -1111,8 +1110,7 @@ public class ProfileServiceImpl implements ProfileService {
         if (dateObj instanceof String str && !str.isBlank()) {
             try {
                 return OffsetDateTime.parse(str);
-            } catch (Exception ignored) {
-            }
+            } catch (Exception ignored) {}
         }
         return null;
     }
@@ -1501,11 +1499,11 @@ public class ProfileServiceImpl implements ProfileService {
                 return Integer.parseInt(cachedValue);
             }
 
-            List<Map<String, Object>> records = cassandraOperation.getRecordsByPropertiesByKey(Constants.KEYSPACE_SUNBIRD_COURSES, Constants.USER_BADGE_LOOKUP_TABLE,
+            List<Map<String, Object>> records = cassandraOperation.getRecordsByPropertiesByKey(Constants.KEYSPACE_SUNBIRD_COURSES,Constants.USER_BADGE_LOOKUP_TABLE,
                     Map.of(Constants.USERID_KEY, userId), List.of(Constants.COURSE_ID), userId);
             int totalPoints = 0;
-            if (!CollectionUtils.isEmpty(records)) {
-                totalPoints = records.size();
+            if(!CollectionUtils.isEmpty(records)){
+                totalPoints= records.size();
             }
             cacheService.putCache(redisKey, totalPoints, serverConfig.getBadgeCountRedisTtl());
             return totalPoints;
