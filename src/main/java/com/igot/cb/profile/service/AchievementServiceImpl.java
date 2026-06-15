@@ -1635,4 +1635,10 @@ public class AchievementServiceImpl implements AchievementService{
                 .toLowerCase();
     }
 
+    @Override
+    public ApiResponse getVolunteerUserAchievements(String authToken, Map<String, Object> request) {
+        Map<String, Object> requestData = (Map<String, Object>) request.get(Constants.REQUEST);
+        String userId = (String) requestData.get(Constants.USER_ID_RQST);
+        return getUserAchievements(userId, authToken);
+    }
 }

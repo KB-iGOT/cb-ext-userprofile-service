@@ -85,4 +85,13 @@ public class AchievementController {
         return ResponseEntity.status(response.getResponseCode()).body(response);
     }
 
+
+    @PostMapping("/volunteer/achievements")
+    public ResponseEntity<?> listVolunteerLearnerAchievements(
+            @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken,
+            @RequestBody Map<String, Object> request) {
+        ApiResponse response = achievementService.getVolunteerUserAchievements(authToken, request);
+        return new ResponseEntity<>(response, response.getResponseCode());
+    }
+
 }

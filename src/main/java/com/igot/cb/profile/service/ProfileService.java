@@ -23,4 +23,10 @@ public interface ProfileService {
     ApiResponse updateAdditionalFields(Map<String, Object> request, String userToken);
 
     ApiResponse getAdditionalFieldsByOrg(String userId, String orgId, String authToken);
+
+    ApiResponse getVolunteerUserBasicProfile(Map<String, Object> request, String userToken);
+
+    ApiResponse getVolunteerExtendedProfileSummary(Map<String, Object> request, String authToken);
+
+    ApiResponse getVolunteerUserAdditionalFields(Map<String, Object> request, String authToken);
 }

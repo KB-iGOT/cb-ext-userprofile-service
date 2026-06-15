@@ -108,4 +108,27 @@ public class ProfileController {
         ApiResponse response = profileService.getAdditionalFieldsByOrg(userId, orgId, authToken);
         return new ResponseEntity<>(response, response.getResponseCode());
     }
+
+    @PostMapping("volunteerUser/basic")
+    public ResponseEntity<Object> getVolunteerUserBasicProfile(@RequestBody Map<String, Object> request,
+                                                  @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken) {
+        ApiResponse response = profileService.getVolunteerUserBasicProfile(request, authToken);
+        return new ResponseEntity<>(response, response.getResponseCode());
+    }
+
+    @PostMapping("/extended/all")
+    public ResponseEntity<Object> getVolunteerExtendedProfileSummary(@RequestBody Map<String, Object> request,
+                                                            @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken) {
+        ApiResponse response = profileService.getVolunteerExtendedProfileSummary(request, authToken);
+        return new ResponseEntity<>(response, HttpStatus.valueOf(response.getResponseCode().value()));
+    }
+
+    @PostMapping("/getVolunteerUserAdditionalFields")
+    public ResponseEntity<Object> getVolunteerUserAdditionalFields(
+            @RequestBody Map<String, Object> request,
+            @RequestHeader(value = Constants.X_AUTH_TOKEN) String authToken) {
+        ApiResponse response = profileService.getVolunteerUserAdditionalFields(request, authToken);
+        return new ResponseEntity<>(response, response.getResponseCode());
+    }
+
 }
