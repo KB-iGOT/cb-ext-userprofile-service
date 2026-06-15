@@ -116,7 +116,7 @@ public class ProfileController {
         return new ResponseEntity<>(response, response.getResponseCode());
     }
 
-    @PostMapping("/extended/all")
+    @PostMapping("volunteerUser/extended/all")
     public ResponseEntity<Object> getVolunteerExtendedProfileSummary(@RequestBody Map<String, Object> request,
                                                             @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken) {
         ApiResponse response = profileService.getVolunteerExtendedProfileSummary(request, authToken);
