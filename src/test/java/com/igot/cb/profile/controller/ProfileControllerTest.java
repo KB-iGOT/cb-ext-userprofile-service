@@ -210,6 +210,64 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         verify(profileService).listCompetencies((userId), (authToken));
     }
 
+    @Test
+     void testGetVolunteerUserBasicProfile() throws Exception {
+        String authToken = "test-auth-token";
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, Map.of(Constants.USER_ID_RQST, "user-123"));
 
+        ApiResponse mockResponse = ProjectUtil.createDefaultResponse("GET_VOLUNTEER_BASIC_PROFILE");
+
+        when(profileService.getVolunteerUserBasicProfile((request), (authToken))).thenReturn(mockResponse);
+
+        mockMvc.perform(post("/user/profile/volunteerUser/basic")
+                        .header(Constants.X_AUTH_TOKEN, authToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk());
+
+        verify(profileService).getVolunteerUserBasicProfile((request), (authToken));
+    }
+
+    @Test
+     void testGetVolunteerExtendedProfileSummary() throws Exception {
+        String authToken = "test-auth-token";
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, Map.of(Constants.USER_ID_RQST, "user-123"));
+
+        ApiResponse mockResponse = ProjectUtil.createDefaultResponse("GET_VOLUNTEER_EXTENDED_PROFILE");
+
+        when(profileService.getVolunteerExtendedProfileSummary((request), (authToken))).thenReturn(mockResponse);
+
+        mockMvc.perform(post("/user/profile/volunteerUser/extended/all")
+                        .header(Constants.X_AUTH_TOKEN, authToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk());
+
+        verify(profileService).getVolunteerExtendedProfileSummary((request), (authToken));
+    }
+
+    @Test
+     void testGetVolunteerUserAdditionalFields() throws Exception {
+        String authToken = "test-auth-token";
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, Map.of(
+                Constants.USER_ID_RQST, "user-123",
+                Constants.ORG_ID, "org-456"
+        ));
+
+        ApiResponse mockResponse = ProjectUtil.createDefaultResponse("GET_VOLUNTEER_ADDITIONAL_FIELDS");
+
+        when(profileService.getVolunteerUserAdditionalFields((request), (authToken))).thenReturn(mockResponse);
+
+        mockMvc.perform(post("/user/profile/getVolunteerUserAdditionalFields")
+                        .header(Constants.X_AUTH_TOKEN, authToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk());
+
+        verify(profileService).getVolunteerUserAdditionalFields((request), (authToken));
+    }
 
 }
