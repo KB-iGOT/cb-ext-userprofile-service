@@ -40,25 +40,25 @@ public class ProfileServiceImpl implements ProfileService {
 
     @Autowired
     private CbServerProperties serverConfig;
-    
+
     @Autowired
     private CassandraOperation cassandraOperation;
-    
+
     @Autowired
     private CacheService cacheService;
-    
+
     @Autowired
     private ObjectMapper mapper;
-    
+
     @Autowired
     private ProjectUtil projectUtil;
-    
+
     @Autowired
     private RequestHandlerServiceImpl requestHandlerService;
-    
+
     @Autowired
     private CustomFieldRepository customFieldRepository;
-    
+
     @Autowired
     private EsUtilServiceImpl esUtilService;
 
@@ -427,7 +427,7 @@ public class ProfileServiceImpl implements ProfileService {
                         Arrays.asList(Constants.COURSE_ID, Constants.COURSE_CATEGORY, Constants.COMPETENCIES_V6,
                                 Constants.NAME));
                 competencies = analyzeCompetencies(courseMetadata);
-                
+
                 if (competencies.isEmpty()) {
                     ProjectUtil.errorResponse(response, "No competencies found for user.", HttpStatus.NO_CONTENT);
                     return response;
@@ -587,7 +587,7 @@ public class ProfileServiceImpl implements ProfileService {
         List<Map<String, Object>> userList = cassandraOperation.getRecordsByPropertiesByKey(
                 Constants.KEYSPACE_SUNBIRD, Constants.USER, queryParams, keyList, null);
 
-        if (CollectionUtils.isEmpty(userList)) { 
+        if (CollectionUtils.isEmpty(userList)) {
             return Map.of();
         }
         Map<String, Object> userObj = userList.get(0);
@@ -1512,5 +1512,27 @@ public class ProfileServiceImpl implements ProfileService {
             log.warn("Failed to fetch badge count for userId {}: {}", userId, e.getMessage());
             return 0;
         }
+    }
+
+    @Override
+    public ApiResponse getVolunteerUserBasicProfile(Map<String, Object> request, String userToken) {
+        Map<String, Object> requestData = (Map<String, Object>) request.get(Constants.REQUEST);
+        String userId = (String) requestData.get(Constants.USER_ID_RQST);
+        return getBasicProfile(userId, userToken);
+    }
+
+    @Override
+    public ApiResponse getVolunteerExtendedProfileSummary(Map<String, Object> request, String authToken) {
+        Map<String, Object> requestData = (Map<String, Object>) request.get(Constants.REQUEST);
+        String userId = (String) requestData.get(Constants.USER_ID_RQST);
+        return getExtendedProfileSummary(userId, authToken);
+    }
+
+    @Override
+    public ApiResponse getVolunteerUserAdditionalFields(Map<String, Object> request, String authToken) {
+        Map<String, Object> requestData = (Map<String, Object>) request.get(Constants.REQUEST);
+        String userId = (String) requestData.get(Constants.USER_ID_RQST);
+        String orgId = (String) requestData.get(Constants.ORG_ID);
+        return getAdditionalFieldsByOrg(userId, orgId, authToken);
     }
 }
