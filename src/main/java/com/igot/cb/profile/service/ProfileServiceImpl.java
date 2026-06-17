@@ -227,10 +227,12 @@ public class ProfileServiceImpl implements ProfileService {
     @Override
     public ApiResponse getExtendedProfileSummary(String userId, String userToken) {
         ApiResponse response = ProjectUtil.createDefaultResponse("api.extendedProfile.read");
-
-        if (accessTokenValidator.fetchUserIdFromAccessToken(userToken) == null) {
-            ProjectUtil.errorResponse(response, "Invalid UserId in the request", HttpStatus.BAD_REQUEST);
+        String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
+        if (StringUtils.isBlank(userIdFromToken)) {
+            ProjectUtil.errorResponse(response, "Invalid or missing access token", HttpStatus.BAD_REQUEST);
             return response;
+        }else {
+            userId = userIdFromToken;
         }
 
         String redisKey = buildCacheKey("user:extendedProfile", "all", userId);
@@ -322,13 +324,17 @@ public class ProfileServiceImpl implements ProfileService {
     }
 
     @Override
-    public ApiResponse getBasicProfile(String userId, String userToken) {
+    public ApiResponse getBasicProfile(String userId, String userToken,boolean isNgo) {
         ApiResponse response = ProjectUtil.createDefaultResponse("api.getBasicProfile.read");
         String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
 
         if (userIdFromToken == null) {
             ProjectUtil.errorResponse(response, "Invalid or missing access token", HttpStatus.UNAUTHORIZED);
             return response;
+        }
+
+        if(isNgo && StringUtils.isBlank(userId)){
+            userId = userIdFromToken;
         }
 
         boolean isSelfUser = userIdFromToken.equalsIgnoreCase(userId);
@@ -1416,7 +1422,7 @@ public class ProfileServiceImpl implements ProfileService {
     }
 
     @Override
-    public ApiResponse getAdditionalFieldsByOrg(String userId, String orgId, String authToken) {
+    public ApiResponse getAdditionalFieldsByOrg(String userId, String orgId, String authToken,boolean userOrAdmin) {
         ApiResponse response = ProjectUtil.createDefaultResponse("api.get.additionalFieldsByOrg");
         String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(authToken);
 
@@ -1425,10 +1431,13 @@ public class ProfileServiceImpl implements ProfileService {
             return response;
         }
 
-        if (!StringUtils.equalsIgnoreCase(userIdFromToken, userId)) {
-            ProjectUtil.errorResponse(response, "User ID in token does not match request", HttpStatus.UNAUTHORIZED);
+        if (userOrAdmin) {
+            userId = userIdFromToken;
+        } else if (StringUtils.isBlank(userId)) {
+            ProjectUtil.errorResponse(response, "Invalid UserId in the request", HttpStatus.UNAUTHORIZED);
             return response;
         }
+
 
         try {
             String contextType = Constants.ORG_ADDITIONAL_PROPERTIES;
@@ -1512,27 +1521,5 @@ public class ProfileServiceImpl implements ProfileService {
             log.warn("Failed to fetch badge count for userId {}: {}", userId, e.getMessage());
             return 0;
         }
-    }
-
-    @Override
-    public ApiResponse getVolunteerUserBasicProfile(Map<String, Object> request, String userToken) {
-        Map<String, Object> requestData = (Map<String, Object>) request.get(Constants.REQUEST);
-        String userId = (String) requestData.get(Constants.USER_ID_RQST);
-        return getBasicProfile(userId, userToken);
-    }
-
-    @Override
-    public ApiResponse getVolunteerExtendedProfileSummary(Map<String, Object> request, String authToken) {
-        Map<String, Object> requestData = (Map<String, Object>) request.get(Constants.REQUEST);
-        String userId = (String) requestData.get(Constants.USER_ID_RQST);
-        return getExtendedProfileSummary(userId, authToken);
-    }
-
-    @Override
-    public ApiResponse getVolunteerUserAdditionalFields(Map<String, Object> request, String authToken) {
-        Map<String, Object> requestData = (Map<String, Object>) request.get(Constants.REQUEST);
-        String userId = (String) requestData.get(Constants.USER_ID_RQST);
-        String orgId = (String) requestData.get(Constants.ORG_ID);
-        return getAdditionalFieldsByOrg(userId, orgId, authToken);
     }
 }

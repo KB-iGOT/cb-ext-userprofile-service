@@ -23,6 +23,4 @@ public interface AchievementService {
     ApiResponse  getUserAchievements(String authToken, String id);
 
     ApiResponse getUserAchievementsByUserIds(String authToken, Map<String, Object> request);
-
-    ApiResponse getVolunteerUserAchievements(String authToken, Map<String, Object> request);
 }

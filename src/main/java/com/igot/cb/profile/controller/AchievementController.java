@@ -70,7 +70,7 @@ public class AchievementController {
     }
 
     @GetMapping("/list")
-    public ResponseEntity<?> listLearnerAchievements(
+    public ResponseEntity<?> listLearnerAchievementsForAdmin(
             @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken,
             @RequestParam(value = Constants.ID, required = false) String id) {
         ApiResponse response = achievementService.getUserAchievements(authToken, id);
@@ -86,11 +86,10 @@ public class AchievementController {
     }
 
 
-    @PostMapping("/volunteer/achievements")
-    public ResponseEntity<?> listVolunteerLearnerAchievements(
-            @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken,
-            @RequestBody Map<String, Object> request) {
-        ApiResponse response = achievementService.getVolunteerUserAchievements(authToken, request);
+    @GetMapping("v1/list")
+    public ResponseEntity<?> listLearnerAchievementsForUser(
+            @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken) {
+        ApiResponse response = achievementService.getUserAchievements(authToken, "");
         return new ResponseEntity<>(response, response.getResponseCode());
     }
 

@@ -3,6 +3,7 @@ package com.igot.cb.authentication.util;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.igot.cb.util.ApiResponse;
 import com.igot.cb.util.Constants;
 import com.igot.cb.util.PropertiesCache;
 import org.apache.commons.lang3.StringUtils;
@@ -10,6 +11,7 @@ import org.keycloak.common.util.Time;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -155,6 +157,40 @@ public class AccessTokenValidator {
             } catch (Exception ex) {
                 String errMsg = "Exception occurred while fetching the userid from the access token. Exception: " + ex.getMessage();
                 logger.error(errMsg, ex);
+                clientAccessTokenId = null;
+            }
+        }
+        return clientAccessTokenId;
+    }
+
+    /**
+     * Fetches the user ID from the provided access token.
+     *
+     * @param accessToken The access token from which to fetch the user ID.
+     * @return The user ID fetched from the access token, or null if the token is invalid or an exception occurs.
+     */
+    public String fetchUserIdFromAccessToken(String accessToken, ApiResponse response) {
+        // Initialize clientAccessTokenId to null
+        String clientAccessTokenId = null;
+        // Check if the accessToken is not null
+        if (accessToken != null) {
+            try {
+                // Verify the access token to fetch the user ID
+                clientAccessTokenId = verifyUserToken(accessToken);
+                // If the user ID is UNAUTHORIZED, set it to null
+                if (Constants.UNAUTHORIZED.equalsIgnoreCase(clientAccessTokenId)) {
+                    response.getParams().setStatus(Constants.FAILED);
+                    response.getParams().setErrMsg(Constants.ACCESS_TOKEN_IS_EXPIRED);
+                    response.setResponseCode(HttpStatus.UNAUTHORIZED);
+                    clientAccessTokenId = null;
+                }
+            } catch (Exception ex) {
+                String errMsg = "Exception occurred while fetching the userid from the access token. Exception: " + ex.getMessage();
+                logger.error(errMsg, ex);
+                response.getParams().setStatus(Constants.FAILED);
+                response.getParams().setErrMsg(Constants.ACCESS_TOKEN_VALIDATION_FAILED);
+                response.setResponseCode(HttpStatus.INTERNAL_SERVER_ERROR);
+
                 clientAccessTokenId = null;
             }
         }
