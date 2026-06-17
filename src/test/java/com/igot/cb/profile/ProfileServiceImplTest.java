@@ -129,7 +129,7 @@ class ProfileServiceImplTest {
      void testGetBasicProfile_invalidToken_returnsError() {
         when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(null);
 
-        ApiResponse response = profileService.getBasicProfile(userID, token);
+        ApiResponse response = profileService.getBasicProfile(userID, token, false);
 
         assertEquals(HttpStatus.UNAUTHORIZED, response.getResponseCode());
         assertEquals(Constants.FAILED, response.getParams().getStatus());
@@ -548,7 +548,7 @@ class ProfileServiceImplTest {
 
         when(accessTokenValidator.fetchUserIdFromAccessToken(localToken)).thenReturn(null);
 
-        ApiResponse response = profileService.getBasicProfile(userId, localToken);
+        ApiResponse response = profileService.getBasicProfile(userId, localToken, false);
 
         assertEquals(HttpStatus.UNAUTHORIZED, response.getResponseCode());
         assertEquals("Invalid or missing access token", response.getParams().getErrMsg());
@@ -2006,7 +2006,7 @@ class ProfileServiceImplTest {
     @Test
     void testGetAdditionalFieldsByOrg_BlankAuthToken() {
         // Act
-        ApiResponse response = profileService.getAdditionalFieldsByOrg("user1", "org1", "");
+        ApiResponse response = profileService.getAdditionalFieldsByOrg("user1", "org1", "", false);
 
         // Assert
         assertEquals(HttpStatus.UNAUTHORIZED, response.getResponseCode());
@@ -2019,7 +2019,7 @@ class ProfileServiceImplTest {
         when(accessTokenValidator.fetchUserIdFromAccessToken("token123")).thenReturn("differentUser");
 
         // Act
-        ApiResponse response = profileService.getAdditionalFieldsByOrg("user1", "org1", "token123");
+        ApiResponse response = profileService.getAdditionalFieldsByOrg("", "org1", "token123", false);
 
         // Assert
         assertEquals(HttpStatus.UNAUTHORIZED, response.getResponseCode());
@@ -2043,7 +2043,7 @@ class ProfileServiceImplTest {
                 .thenReturn(Collections.singletonList(differentOrgData));
 
         // Act
-        ApiResponse response = profileService.getAdditionalFieldsByOrg("user1", "org1", "token123");
+        ApiResponse response = profileService.getAdditionalFieldsByOrg("user1", "org1", "token123", false);
 
         // Assert
         assertEquals(HttpStatus.OK, response.getResponseCode());
@@ -2068,7 +2068,7 @@ class ProfileServiceImplTest {
                 .thenReturn(Collections.singletonList(orgData));
 
         // Act
-        ApiResponse response = profileService.getAdditionalFieldsByOrg("user1", "org1", "token123");
+        ApiResponse response = profileService.getAdditionalFieldsByOrg("user1", "org1", "token123", false);
 
         // Assert
         assertEquals(HttpStatus.OK, response.getResponseCode());
@@ -2951,113 +2951,4 @@ class ProfileServiceImplTest {
         ApiResponse response = profileService.updateAdditionalFields(req, "token");
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
     }
-
-    // ==================== VOLUNTEER USER TESTS ====================
-
-    @Test
-    void testGetVolunteerUserBasicProfile_success() {
-        String userId = "user-123";
-        String token = "test-token";
-        Map<String, Object> request = new HashMap<>();
-        request.put(Constants.REQUEST, Map.of(Constants.USER_ID_RQST, userId));
-
-        ApiResponse mockBasicProfileResponse = ProjectUtil.createDefaultResponse("api.getBasicProfile.read");
-        mockBasicProfileResponse.setResponseCode(HttpStatus.OK);
-
-        doReturn(mockBasicProfileResponse).when(profileService).getBasicProfile(userId, token);
-
-        ApiResponse response = profileService.getVolunteerUserBasicProfile(request, token);
-
-        assertEquals(HttpStatus.OK, response.getResponseCode());
-        verify(profileService).getBasicProfile(userId, token);
-    }
-
-    @Test
-    void testGetVolunteerExtendedProfileSummary_success() {
-        String userId = "user-123";
-        String token = "test-token";
-        Map<String, Object> request = new HashMap<>();
-        request.put(Constants.REQUEST, Map.of(Constants.USER_ID_RQST, userId));
-
-        ApiResponse mockExtendedProfileResponse = ProjectUtil.createDefaultResponse("api.extendedProfile.read");
-        mockExtendedProfileResponse.setResponseCode(HttpStatus.OK);
-
-        doReturn(mockExtendedProfileResponse).when(profileService).getExtendedProfileSummary(userId, token);
-
-        ApiResponse response = profileService.getVolunteerExtendedProfileSummary(request, token);
-
-        assertEquals(HttpStatus.OK, response.getResponseCode());
-        verify(profileService).getExtendedProfileSummary(userId, token);
-    }
-
-    @Test
-    void testGetVolunteerUserAdditionalFields_success() {
-        String userId = "user-123";
-        String orgId = "org-456";
-        String token = "test-token";
-        Map<String, Object> request = new HashMap<>();
-        request.put(Constants.REQUEST, Map.of(
-                Constants.USER_ID_RQST, userId,
-                Constants.ORG_ID, orgId
-        ));
-
-        ApiResponse mockAdditionalFieldsResponse = ProjectUtil.createDefaultResponse("api.get.additionalFieldsByOrg");
-        mockAdditionalFieldsResponse.setResponseCode(HttpStatus.OK);
-
-        doReturn(mockAdditionalFieldsResponse).when(profileService).getAdditionalFieldsByOrg(userId, orgId, token);
-
-        ApiResponse response = profileService.getVolunteerUserAdditionalFields(request, token);
-
-        assertEquals(HttpStatus.OK, response.getResponseCode());
-        verify(profileService).getAdditionalFieldsByOrg(userId, orgId, token);
-    }
-
-    @Test
-    void testGetVolunteerUserBasicProfile_withNullRequestData() {
-        String token = "test-token";
-        Map<String, Object> request = new HashMap<>();
-        request.put(Constants.REQUEST, null);
-
-        // This should handle null gracefully
-        try {
-            profileService.getVolunteerUserBasicProfile(request, token);
-            // If it doesn't throw, the test passes
-        } catch (NullPointerException e) {
-            // Expected behavior - null request data
-            assertNull(request.get(Constants.REQUEST));
-        }
-    }
-
-    @Test
-    void testGetVolunteerExtendedProfileSummary_withNullRequestData() {
-        String token = "test-token";
-        Map<String, Object> request = new HashMap<>();
-        request.put(Constants.REQUEST, null);
-
-        // This should handle null gracefully
-        try {
-            profileService.getVolunteerExtendedProfileSummary(request, token);
-            // If it doesn't throw, the test passes
-        } catch (NullPointerException e) {
-            // Expected behavior - null request data
-            assertNull(request.get(Constants.REQUEST));
-        }
-    }
-
-    @Test
-    void testGetVolunteerUserAdditionalFields_withNullRequestData() {
-        String token = "test-token";
-        Map<String, Object> request = new HashMap<>();
-        request.put(Constants.REQUEST, null);
-
-        // This should handle null gracefully
-        try {
-            profileService.getVolunteerUserAdditionalFields(request, token);
-            // If it doesn't throw, the test passes
-        } catch (NullPointerException e) {
-            // Expected behavior - null request data
-            assertNull(request.get(Constants.REQUEST));
-        }
-    }
-
 }

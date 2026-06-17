@@ -518,7 +518,8 @@ public class Constants {
     public static final String USER_BADGE_COUNT = "user:badgeCount_";
     public static final String UPLOAD_DOCUMENT_URL = "uploadedDocumentUrl";
     public static final String URL = "url";
-
+    public static final String ACCESS_TOKEN_IS_EXPIRED = "Access token is expired";
+    public static final String ACCESS_TOKEN_VALIDATION_FAILED = "Access token validation is failed";
     private Constants() {
     }
 }
