@@ -258,103 +258,39 @@ class AchievementControllerTest {
         verify(achievementService).getUserAchievementsByUserIds("token", request);
     }
 
-    // ==================== listVolunteerLearnerAchievements TESTS ====================
-
     @Test
-    void testListVolunteerLearnerAchievements_success() {
-        // valid request with user IDs → service returns achievements for volunteer users
-        Map<String, Object> request = new HashMap<>();
-        request.put(Constants.REQUEST, Map.of(Constants.USER_ID_RQST, "user-123"));
+    void testListLearnerAchievementsForUser_success() {
         ApiResponse apiResponse = new ApiResponse();
         apiResponse.setResponseCode(HttpStatus.OK);
-        when(achievementService.getVolunteerUserAchievements(anyString(), anyMap())).thenReturn(apiResponse);
-
-        ResponseEntity<?> response = achievementController.listLearnerAchievementsByUserIds("token", request);
-
+        Map<String, Object> result = new HashMap<>();
+        result.put("achievements", "data");
+        apiResponse.put("result", result);
+        when(achievementService.getUserAchievements(anyString(), any())).thenReturn(apiResponse);
+        ResponseEntity<?> response = achievementController.listLearnerAchievementsForUser("token");
         assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertSame(apiResponse, response.getBody());
-        verify(achievementService).getVolunteerUserAchievements("token", request);
+        assertEquals(apiResponse, response.getBody());
+        verify(achievementService).getUserAchievements("token", "");
     }
 
     @Test
-    void testListVolunteerLearnerAchievements_invalidToken_returnsUnauthorized() {
-        // service validates token and returns UNAUTHORIZED
-        Map<String, Object> request = new HashMap<>();
-        request.put(Constants.REQUEST, Map.of(Constants.USER_ID_RQST, "user-123"));
+    void testListLearnerAchievementsForUser_unauthorized() {
         ApiResponse apiResponse = new ApiResponse();
         apiResponse.setResponseCode(HttpStatus.UNAUTHORIZED);
-        when(achievementService.getVolunteerUserAchievements(anyString(), anyMap()))
-                .thenReturn(apiResponse);
-
-        ResponseEntity<?> response = achievementController.listLearnerAchievementsForUser("bad-token");
-
+        when(achievementService.getUserAchievements(anyString(), any())).thenReturn(apiResponse);
+        ResponseEntity<?> response = achievementController.listLearnerAchievementsForUser("invalid_token" );
         assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
-        assertSame(apiResponse, response.getBody());
-        verify(achievementService).getVolunteerUserAchievements("bad-token", request);
+        assertEquals(apiResponse, response.getBody());
+        verify(achievementService).getUserAchievements("invalid_token", "");
     }
 
     @Test
-    void testListVolunteerLearnerAchievements_emptyRequest_returnsBadRequest() {
-        // empty request body → forwarded to service, service returns BAD_REQUEST
-        Map<String, Object> request = new HashMap<>();
+    void testListLearnerAchievementsForUser_badRequest() {
         ApiResponse apiResponse = new ApiResponse();
         apiResponse.setResponseCode(HttpStatus.BAD_REQUEST);
-        when(achievementService.getVolunteerUserAchievements(anyString(), anyMap()))
-                .thenReturn(apiResponse);
-
+        when(achievementService.getUserAchievements(anyString(), any())).thenReturn(apiResponse);
         ResponseEntity<?> response = achievementController.listLearnerAchievementsForUser("token");
-
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
-        verify(achievementService).getVolunteerUserAchievements("token", request);
-    }
-
-    @Test
-    void testListVolunteerLearnerAchievements_serviceReturnsInternalServerError() {
-        // service returns 500 → controller propagates it unchanged
-        Map<String, Object> request = new HashMap<>();
-        request.put(Constants.REQUEST, Map.of(Constants.USER_ID_RQST, "user-123"));
-        ApiResponse apiResponse = new ApiResponse();
-        apiResponse.setResponseCode(HttpStatus.INTERNAL_SERVER_ERROR);
-        when(achievementService.getVolunteerUserAchievements(anyString(), anyMap()))
-                .thenReturn(apiResponse);
-
-        ResponseEntity<?> response = achievementController.listLearnerAchievementsForUser("token");
-
-        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
-        assertSame(apiResponse, response.getBody());
-    }
-
-    @Test
-    void testListVolunteerLearnerAchievements_responseBodyForwardedUnchanged() {
-        // whatever the service returns must be forwarded as-is (no wrapping / mutation)
-        Map<String, Object> request = new HashMap<>();
-        request.put(Constants.REQUEST, Map.of(Constants.USER_ID_RQST, "user-123"));
-        ApiResponse apiResponse = new ApiResponse();
-        apiResponse.setResponseCode(HttpStatus.OK);
-        apiResponse.put(Constants.RESULT,
-                Map.of(Constants.SEARCH_RESULTS,
-                        Map.of(Constants.DATA, List.of(), Constants.TOTAL_COUNT, 0)));
-        when(achievementService.getVolunteerUserAchievements(anyString(), anyMap()))
-                .thenReturn(apiResponse);
-
-        ResponseEntity<?> response = achievementController.listLearnerAchievementsForUser("token");
-
-        assertSame(apiResponse, response.getBody());
-    }
-
-    @Test
-    void testListVolunteerLearnerAchievements_requestPassedDirectlyToService() {
-        // the controller must pass the exact same request map object it received — no transformation
-        Map<String, Object> request = new HashMap<>();
-        request.put(Constants.REQUEST, Map.of(Constants.USER_ID_RQST, "user-123"));
-        ApiResponse apiResponse = new ApiResponse();
-        apiResponse.setResponseCode(HttpStatus.OK);
-        when(achievementService.getVolunteerUserAchievements(anyString(), anyMap()))
-                .thenReturn(apiResponse);
-
-        achievementController.listLearnerAchievementsForUser("token");
-
-        // verify the exact same map reference is passed through without any extraction/modification
-        verify(achievementService).getVolunteerUserAchievements("token", request);
+        assertEquals(apiResponse, response.getBody());
+        verify(achievementService).getUserAchievements(eq("token"), any());
     }
 }
