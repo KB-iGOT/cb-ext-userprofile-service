@@ -20,7 +20,7 @@ public interface ProfileService {
 
     ApiResponse listCompetencies(String userId, String userToken);
 
-    ApiResponse updateAdditionalFields(Map<String, Object> request, String userToken);
+    ApiResponse updateAdditionalFields(Map<String, Object> request, String orgId, String userToken);
 
     ApiResponse getAdditionalFieldsByOrg(String userId, String orgId, String authToken, boolean userOrAdmin);
 }

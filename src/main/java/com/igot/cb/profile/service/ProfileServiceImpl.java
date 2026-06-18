@@ -1125,7 +1125,7 @@ public class ProfileServiceImpl implements ProfileService {
      * Updates additional fields for a user in an organization
      */
     @Override
-    public ApiResponse updateAdditionalFields(Map<String, Object> request, String authToken) {
+    public ApiResponse updateAdditionalFields(Map<String, Object> request,String orgId, String authToken) {
         ApiResponse response = ProjectUtil.createDefaultResponse("api.update.additionalFields");
         String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(authToken);
 
@@ -1146,6 +1146,10 @@ public class ProfileServiceImpl implements ProfileService {
 
         if (!StringUtils.equalsIgnoreCase(userIdFromToken, userId)) {
             ProjectUtil.errorResponse(response, "User ID in token does not match request", HttpStatus.UNAUTHORIZED);
+            return response;
+        }
+        if(!StringUtils.equalsIgnoreCase(organisationId,orgId)){
+            ProjectUtil.errorResponse(response, Constants.INVALID_ORGID, HttpStatus.UNAUTHORIZED);
             return response;
         }
 
