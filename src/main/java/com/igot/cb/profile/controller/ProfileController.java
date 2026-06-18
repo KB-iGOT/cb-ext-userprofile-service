@@ -95,8 +95,9 @@ public class ProfileController {
     @PostMapping(value = "/update/additionalFields")
     public ResponseEntity<ApiResponse> updateAdditionalFields(
             @RequestHeader(Constants.X_AUTH_TOKEN) String authToken,
+            @RequestHeader(Constants.X_AUTH_USER_ORG_ID) String orgId,
             @RequestBody Map<String, Object> requestBody) {
-        ApiResponse response = profileService.updateAdditionalFields(requestBody, authToken);
+        ApiResponse response = profileService.updateAdditionalFields(requestBody,orgId, authToken);
         return new ResponseEntity<>(response, response.getResponseCode());
     }
 
