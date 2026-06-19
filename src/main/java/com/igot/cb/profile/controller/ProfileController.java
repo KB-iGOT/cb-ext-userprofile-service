@@ -144,7 +144,7 @@ public class ProfileController {
         return new ResponseEntity<>(response, HttpStatus.valueOf(response.getResponseCode().value()));
     }
 
-    @GetMapping("/getAdditionalFields")
+    @GetMapping("/v2/getAdditionalFields")
     public ResponseEntity<Object> getAdditionalFieldsByOrgForUser(
             @RequestHeader(Constants.X_AUTH_USER_ORG_ID)String userOrgId,
             @RequestHeader(value = Constants.X_AUTH_TOKEN) String authToken) {

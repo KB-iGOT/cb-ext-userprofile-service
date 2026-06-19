@@ -86,7 +86,7 @@ public class AchievementController {
     }
 
 
-    @GetMapping("/list/achievements")
+    @GetMapping("/ngo/list")
     public ResponseEntity<?> listLearnerAchievementsForNgo(
             @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken) {
         ApiResponse response = achievementService.getUserAchievements(authToken, "");
