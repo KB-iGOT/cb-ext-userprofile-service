@@ -532,11 +532,59 @@ public class ProfileServiceImpl implements ProfileService {
         List<String> errList = new ArrayList<>();
         validateFieldsForList(requestData, Constants.EDUCATIONAL_QUALIFICATIONS,
                 serverConfig.getEducationalQualificationMandatoryFields(), errList, false);
-        validateFieldsForList(requestData, Constants.ACHIVEMENTS, serverConfig.getAchievementsMandatoryFields(),
-                errList, false);
-        validateFieldsForList(requestData, Constants.SERVICE_HISTORY, serverConfig.getServiceHistoryMandatoryFields(),
-                errList, true);
-        return errList.isEmpty() ? "" : "Failed Due To Missing or Invalid Params - " + String.join(", ", errList) + ".";
+        validateFieldsForList(requestData, Constants.ACHIVEMENTS,
+                serverConfig.getAchievementsMandatoryFields(), errList, false);
+        validateFieldsForList(requestData, Constants.SERVICE_HISTORY,
+                serverConfig.getServiceHistoryMandatoryFields(), errList, true);
+
+        String regexError =
+                validateExtendedProfileFieldsRegex(requestData, Constants.EDUCATIONAL_QUALIFICATIONS);
+
+        if (CollectionUtils.isEmpty(errList) && StringUtils.isBlank(regexError)) {
+            return "";
+        }
+
+        StringBuilder errorMessage = new StringBuilder();
+        if (CollectionUtils.isNotEmpty(errList)) {
+            errorMessage.append(Constants.MISSING_OR_INVALID_PARAMS)
+                    .append(String.join(", ", errList))
+                    .append(".");
+        }
+
+        if (StringUtils.isNotBlank(regexError)) {
+            if (!errorMessage.isEmpty()) {
+                errorMessage.append(" ");
+            }
+            errorMessage.append(regexError).append(".");
+        }
+        return errorMessage.toString();
+    }
+
+    private String validateExtendedProfileFieldsRegex(Map<String, Object> requestData, String listKey) {
+        List<Map<String, Object>> dataList = (List<Map<String, Object>>) requestData.get(listKey);
+
+        if (CollectionUtils.isEmpty(dataList)) {
+            return "";
+        }
+
+        Set<String> invalidFields = new LinkedHashSet<>();
+
+        for (Map<String, Object> data : dataList) {
+            for (Map.Entry<String, Object> entry : data.entrySet()) {
+                Object value = entry.getValue();
+
+                if (value instanceof String
+                        && StringUtils.isNotBlank((String) value)
+                        && !((String) value).matches(serverConfig.getExtendedProfileFieldRegex())) {
+                    invalidFields.add(entry.getKey());
+                }
+            }
+        }
+
+        if (CollectionUtils.isEmpty(invalidFields)) {
+            return "";
+        }
+        return Constants.INVALID_CHARACTERS_ERROR + String.join(", ", invalidFields);
     }
 
     private void validateFieldsForList(Map<String, Object> requestData, String listKey, String mandatoryFields,
