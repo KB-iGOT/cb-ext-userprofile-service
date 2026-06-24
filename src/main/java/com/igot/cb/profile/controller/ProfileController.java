@@ -131,7 +131,7 @@ public class ProfileController {
         return new ResponseEntity<>(response, response.getResponseCode());
     }
 
-    @GetMapping("/basic")
+    @GetMapping("/v2/basic")
     public ResponseEntity<Object> getBasicProfileForPublic(
             @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken) {
         ApiResponse response = profileService.getBasicProfile("", authToken, true);
