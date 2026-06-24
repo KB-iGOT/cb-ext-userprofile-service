@@ -227,4 +227,6 @@ public class CbServerProperties {
     @Value("${achievement.cache.ttl}")
     private int achievementCacheTtl;
 
+    @Value("${validation.extended-profile.field.regex}")
+    private String extendedProfileFieldRegex;
 }
