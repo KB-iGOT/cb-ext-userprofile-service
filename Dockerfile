@@ -1,4 +1,4 @@
-FROM sivaprakash123/openjdk:17-slim-debian11
+FROM openjdk:17-slim-debian11
 
 RUN useradd -ms /bin/bash appuser
 
