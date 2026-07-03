@@ -138,7 +138,7 @@ public class ProfileController {
         return new ResponseEntity<>(response, response.getResponseCode());
     }
 
-    @GetMapping("/extended/all")
+    @GetMapping("/v2/extended/all")
     public ResponseEntity<Object> getExtendedProfileSummaryForUser(@RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken) {
         ApiResponse response = profileService.getExtendedProfileSummary("", authToken);
         return new ResponseEntity<>(response, HttpStatus.valueOf(response.getResponseCode().value()));
