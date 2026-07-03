@@ -520,6 +520,7 @@ public class Constants {
     public static final String URL = "url";
     public static final String MISSING_OR_INVALID_PARAMS = "Failed Due To Missing or Invalid Params - ";
     public static final String INVALID_CHARACTERS_ERROR = "Invalid characters found in fields: ";
+    public static final String FIELD_OF_STUDY = "fieldOfStudy";
 
     private Constants() {
     }

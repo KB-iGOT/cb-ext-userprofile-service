@@ -575,7 +575,7 @@ public class ProfileServiceImpl implements ProfileService {
 
                 if (value instanceof String
                         && StringUtils.isNotBlank((String) value)
-                        && !((String) value).matches(serverConfig.getExtendedProfileFieldRegex())) {
+                        && !((String) value).matches(resolveFieldRegex(listKey, entry.getKey()))) {
                     invalidFields.add(entry.getKey());
                 }
             }
@@ -1560,5 +1560,19 @@ public class ProfileServiceImpl implements ProfileService {
             log.warn("Failed to fetch badge count for userId {}: {}", userId, e.getMessage());
             return 0;
         }
+    }
+
+    private String resolveFieldRegex(String listKey, String fieldName) {
+        String regex = null;
+        if (Constants.EDUCATIONAL_QUALIFICATIONS.equals(listKey)) {
+            if (Constants.DEGREE.equals(fieldName)) {
+                regex = serverConfig.getDegreeNameRegex();
+            } else if (Constants.INSTITUTE_NAME.equals(fieldName)) {
+                regex = serverConfig.getInstituteNameRegex();
+            } else if (Constants.FIELD_OF_STUDY.equals(fieldName)) {
+                regex = serverConfig.getFieldOfStudyRegex();
+            }
+        }
+        return StringUtils.isNotBlank(regex) ? regex : serverConfig.getExtendedProfileFieldRegex();
     }
 }
