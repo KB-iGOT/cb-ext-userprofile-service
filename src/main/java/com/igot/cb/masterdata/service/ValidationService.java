@@ -146,6 +146,11 @@ public class ValidationService {
                 ProjectUtil.errorResponse(apiResponse, "Degree name cannot be empty", HttpStatus.BAD_REQUEST);
                 return false;
             }
+            String degreeRegex = cbServerProperties.getDegreeNameRegex();
+            if (StringUtils.isNotBlank(degreeRegex) && !name.matches(degreeRegex)) {
+                ProjectUtil.errorResponse(apiResponse, "Degree name contains invalid characters", HttpStatus.BAD_REQUEST);
+                return false;
+            }
             // -------- Validate degree description (optional) --------
             Object descObj = requestMap.get(Constants.DESCRIPTION);
             if (ObjectUtils.isNotEmpty(descObj)) {
@@ -198,6 +203,11 @@ public class ValidationService {
             String name = nameObj == null ? "" : String.valueOf(nameObj).trim();
             if (StringUtils.isEmpty(name)) {
                 ProjectUtil.errorResponse(apiResponse, "Institute name cannot be empty", HttpStatus.BAD_REQUEST);
+                return false;
+            }
+            String instituteRegex = cbServerProperties.getInstituteNameRegex();
+            if (StringUtils.isNotBlank(instituteRegex) && !name.matches(instituteRegex)) {
+                ProjectUtil.errorResponse(apiResponse, "Institute name contains invalid characters", HttpStatus.BAD_REQUEST);
                 return false;
             }
             // -------- Validate institute description (optional) --------

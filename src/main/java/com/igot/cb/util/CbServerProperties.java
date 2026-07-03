@@ -229,4 +229,13 @@ public class CbServerProperties {
 
     @Value("${validation.extended-profile.field.regex}")
     private String extendedProfileFieldRegex;
+
+    @Value("${validation.regex.degree}")
+    private String degreeNameRegex;
+
+    @Value("${validation.regex.institute}")
+    private String instituteNameRegex;
+
+    @Value("${validation.regex.fieldOfStudy}")
+    private String fieldOfStudyRegex;
 }
