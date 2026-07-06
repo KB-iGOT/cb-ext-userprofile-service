@@ -40,25 +40,25 @@ public class ProfileServiceImpl implements ProfileService {
 
     @Autowired
     private CbServerProperties serverConfig;
-    
+
     @Autowired
     private CassandraOperation cassandraOperation;
-    
+
     @Autowired
     private CacheService cacheService;
-    
+
     @Autowired
     private ObjectMapper mapper;
-    
+
     @Autowired
     private ProjectUtil projectUtil;
-    
+
     @Autowired
     private RequestHandlerServiceImpl requestHandlerService;
-    
+
     @Autowired
     private CustomFieldRepository customFieldRepository;
-    
+
     @Autowired
     private EsUtilServiceImpl esUtilService;
 
@@ -227,10 +227,12 @@ public class ProfileServiceImpl implements ProfileService {
     @Override
     public ApiResponse getExtendedProfileSummary(String userId, String userToken) {
         ApiResponse response = ProjectUtil.createDefaultResponse("api.extendedProfile.read");
-
-        if (accessTokenValidator.fetchUserIdFromAccessToken(userToken) == null) {
-            ProjectUtil.errorResponse(response, "Invalid UserId in the request", HttpStatus.BAD_REQUEST);
+        String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
+        if (StringUtils.isBlank(userIdFromToken)) {
+            ProjectUtil.errorResponse(response, "Invalid or missing access token", HttpStatus.BAD_REQUEST);
             return response;
+        }else {
+            userId = userIdFromToken;
         }
 
         String redisKey = buildCacheKey("user:extendedProfile", "all", userId);
@@ -322,13 +324,17 @@ public class ProfileServiceImpl implements ProfileService {
     }
 
     @Override
-    public ApiResponse getBasicProfile(String userId, String userToken) {
+    public ApiResponse getBasicProfile(String userId, String userToken,boolean isNgo) {
         ApiResponse response = ProjectUtil.createDefaultResponse("api.getBasicProfile.read");
         String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
 
         if (userIdFromToken == null) {
             ProjectUtil.errorResponse(response, "Invalid or missing access token", HttpStatus.UNAUTHORIZED);
             return response;
+        }
+
+        if(isNgo && StringUtils.isBlank(userId)){
+            userId = userIdFromToken;
         }
 
         boolean isSelfUser = userIdFromToken.equalsIgnoreCase(userId);
@@ -427,7 +433,7 @@ public class ProfileServiceImpl implements ProfileService {
                         Arrays.asList(Constants.COURSE_ID, Constants.COURSE_CATEGORY, Constants.COMPETENCIES_V6,
                                 Constants.NAME));
                 competencies = analyzeCompetencies(courseMetadata);
-                
+
                 if (competencies.isEmpty()) {
                     ProjectUtil.errorResponse(response, "No competencies found for user.", HttpStatus.NO_CONTENT);
                     return response;
@@ -587,7 +593,7 @@ public class ProfileServiceImpl implements ProfileService {
         List<Map<String, Object>> userList = cassandraOperation.getRecordsByPropertiesByKey(
                 Constants.KEYSPACE_SUNBIRD, Constants.USER, queryParams, keyList, null);
 
-        if (CollectionUtils.isEmpty(userList)) { 
+        if (CollectionUtils.isEmpty(userList)) {
             return Map.of();
         }
         Map<String, Object> userObj = userList.get(0);
@@ -1119,7 +1125,7 @@ public class ProfileServiceImpl implements ProfileService {
      * Updates additional fields for a user in an organization
      */
     @Override
-    public ApiResponse updateAdditionalFields(Map<String, Object> request, String authToken) {
+    public ApiResponse updateAdditionalFields(Map<String, Object> request,String orgId, String authToken) {
         ApiResponse response = ProjectUtil.createDefaultResponse("api.update.additionalFields");
         String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(authToken);
 
@@ -1140,6 +1146,10 @@ public class ProfileServiceImpl implements ProfileService {
 
         if (!StringUtils.equalsIgnoreCase(userIdFromToken, userId)) {
             ProjectUtil.errorResponse(response, "User ID in token does not match request", HttpStatus.UNAUTHORIZED);
+            return response;
+        }
+        if(!StringUtils.equalsIgnoreCase(organisationId,orgId)){
+            ProjectUtil.errorResponse(response, Constants.INVALID_ORGID, HttpStatus.UNAUTHORIZED);
             return response;
         }
 
@@ -1416,7 +1426,7 @@ public class ProfileServiceImpl implements ProfileService {
     }
 
     @Override
-    public ApiResponse getAdditionalFieldsByOrg(String userId, String orgId, String authToken) {
+    public ApiResponse getAdditionalFieldsByOrg(String userId, String orgId, String authToken,boolean userOrAdmin) {
         ApiResponse response = ProjectUtil.createDefaultResponse("api.get.additionalFieldsByOrg");
         String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(authToken);
 
@@ -1425,10 +1435,13 @@ public class ProfileServiceImpl implements ProfileService {
             return response;
         }
 
-        if (!StringUtils.equalsIgnoreCase(userIdFromToken, userId)) {
-            ProjectUtil.errorResponse(response, "User ID in token does not match request", HttpStatus.UNAUTHORIZED);
+        if (userOrAdmin) {
+            userId = userIdFromToken;
+        } else if (StringUtils.isBlank(userId)) {
+            ProjectUtil.errorResponse(response, "Invalid UserId in the request", HttpStatus.UNAUTHORIZED);
             return response;
         }
+
 
         try {
             String contextType = Constants.ORG_ADDITIONAL_PROPERTIES;

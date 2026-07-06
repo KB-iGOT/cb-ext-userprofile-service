@@ -56,7 +56,7 @@ class ProfileServiceImplPrivateMethodTest {
     void testGetBasicProfile_InvalidToken() {
         when(accessTokenValidator.fetchUserIdFromAccessToken("badToken")).thenReturn(null);
 
-        ApiResponse response = profileService.getBasicProfile("user123", "badToken");
+        ApiResponse response = profileService.getBasicProfile("user123", "badToken",false);
 
         assertEquals(HttpStatus.UNAUTHORIZED, response.getResponseCode());
     }
@@ -88,7 +88,7 @@ class ProfileServiceImplPrivateMethodTest {
         try (MockedStatic<UserUtility> mockedUtility = Mockito.mockStatic(UserUtility.class)) {
             mockedUtility.when(() -> UserUtility.decryptSpecificUserData(anyMap(), anyList())).then(inv -> null);
 
-            ApiResponse response = spyService.getBasicProfile(userId, userToken);
+            ApiResponse response = spyService.getBasicProfile(userId, userToken, false);
             // Cache hit with difference list merges missing fields from DB and returns successfully
             assertEquals(HttpStatus.OK, response.getResponseCode());
         }
@@ -107,7 +107,7 @@ class ProfileServiceImplPrivateMethodTest {
 
         try (MockedStatic<UserUtility> mockedUtility = Mockito.mockStatic(UserUtility.class)) {
             mockedUtility.when(() -> UserUtility.decryptSpecificUserData(anyMap(), anyList())).then(inv -> null);
-            ApiResponse response = spyService.getBasicProfile(userId, userToken);
+            ApiResponse response = spyService.getBasicProfile(userId, userToken, false);
             assertEquals(HttpStatus.NOT_FOUND, response.getResponseCode());
         }
     }
@@ -129,7 +129,7 @@ class ProfileServiceImplPrivateMethodTest {
         try (MockedStatic<UserUtility> mockedUtility = Mockito.mockStatic(UserUtility.class)) {
             mockedUtility.when(() -> UserUtility.decryptSpecificUserData(anyMap(), anyList())).then(inv -> null);
 
-            ApiResponse response = spyService.getBasicProfile(userId, userToken);
+            ApiResponse response = spyService.getBasicProfile(userId, userToken, false);
             // Non-self user path calls sanitizeProfile but still returns 200 OK on success
             assertEquals(HttpStatus.OK, response.getResponseCode());
         }
@@ -140,7 +140,7 @@ class ProfileServiceImplPrivateMethodTest {
         when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
         when(cacheService.getCache(anyString())).thenThrow(new RuntimeException("Cache failure"));
 
-        ApiResponse response = profileService.getBasicProfile("user123", "token123");
+        ApiResponse response = profileService.getBasicProfile("user123", "token123", false);
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
     }
 

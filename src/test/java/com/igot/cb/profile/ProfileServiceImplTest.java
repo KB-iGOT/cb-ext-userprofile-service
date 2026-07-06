@@ -129,7 +129,7 @@ class ProfileServiceImplTest {
      void testGetBasicProfile_invalidToken_returnsError() {
         when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(null);
 
-        ApiResponse response = profileService.getBasicProfile(userID, token);
+        ApiResponse response = profileService.getBasicProfile(userID, token, false);
 
         assertEquals(HttpStatus.UNAUTHORIZED, response.getResponseCode());
         assertEquals(Constants.FAILED, response.getParams().getStatus());
@@ -360,7 +360,7 @@ class ProfileServiceImplTest {
         ApiResponse response = profileService.getExtendedProfileSummary(userID, token);
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
-        assertEquals("Invalid UserId in the request", response.getParams().getErrMsg());
+        assertEquals("Invalid or missing access token", response.getParams().getErrMsg());
     }
 
     @Test
@@ -548,7 +548,7 @@ class ProfileServiceImplTest {
 
         when(accessTokenValidator.fetchUserIdFromAccessToken(localToken)).thenReturn(null);
 
-        ApiResponse response = profileService.getBasicProfile(userId, localToken);
+        ApiResponse response = profileService.getBasicProfile(userId, localToken, false);
 
         assertEquals(HttpStatus.UNAUTHORIZED, response.getResponseCode());
         assertEquals("Invalid or missing access token", response.getParams().getErrMsg());
@@ -2006,7 +2006,7 @@ class ProfileServiceImplTest {
     @Test
     void testGetAdditionalFieldsByOrg_BlankAuthToken() {
         // Act
-        ApiResponse response = profileService.getAdditionalFieldsByOrg("user1", "org1", "");
+        ApiResponse response = profileService.getAdditionalFieldsByOrg("user1", "org1", "", false);
 
         // Assert
         assertEquals(HttpStatus.UNAUTHORIZED, response.getResponseCode());
@@ -2019,7 +2019,7 @@ class ProfileServiceImplTest {
         when(accessTokenValidator.fetchUserIdFromAccessToken("token123")).thenReturn("differentUser");
 
         // Act
-        ApiResponse response = profileService.getAdditionalFieldsByOrg("user1", "org1", "token123");
+        ApiResponse response = profileService.getAdditionalFieldsByOrg("", "org1", "token123", false);
 
         // Assert
         assertEquals(HttpStatus.UNAUTHORIZED, response.getResponseCode());
@@ -2043,7 +2043,7 @@ class ProfileServiceImplTest {
                 .thenReturn(Collections.singletonList(differentOrgData));
 
         // Act
-        ApiResponse response = profileService.getAdditionalFieldsByOrg("user1", "org1", "token123");
+        ApiResponse response = profileService.getAdditionalFieldsByOrg("user1", "org1", "token123", false);
 
         // Assert
         assertEquals(HttpStatus.OK, response.getResponseCode());
@@ -2068,7 +2068,7 @@ class ProfileServiceImplTest {
                 .thenReturn(Collections.singletonList(orgData));
 
         // Act
-        ApiResponse response = profileService.getAdditionalFieldsByOrg("user1", "org1", "token123");
+        ApiResponse response = profileService.getAdditionalFieldsByOrg("user1", "org1", "token123", false);
 
         // Assert
         assertEquals(HttpStatus.OK, response.getResponseCode());
@@ -2883,7 +2883,7 @@ class ProfileServiceImplTest {
     }
     @Test
     void updateAdditionalFields_returnsUnauthorized_whenAuthTokenBlank() {
-        ApiResponse response = profileService.updateAdditionalFields(Map.of(), "");
+        ApiResponse response = profileService.updateAdditionalFields(Map.of(), "orgId","");
         assertEquals(HttpStatus.UNAUTHORIZED, response.getResponseCode());
     }
 
@@ -2894,7 +2894,7 @@ class ProfileServiceImplTest {
         when(accessTokenValidator.fetchUserIdFromAccessToken("token")).thenReturn("user1");
         String result = ReflectionTestUtils.invokeMethod(profileService, "validateAdditionalFieldsRequest", req);
         assertEquals("Failed Due To Missing Params - [userId, organisationId, customFieldValues].", result);
-        ApiResponse response = profileService.updateAdditionalFields(req, "token");
+        ApiResponse response = profileService.updateAdditionalFields(req, "orgIdtest","token");
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
     }
 
@@ -2906,7 +2906,7 @@ class ProfileServiceImplTest {
                 Constants.ORGANISATION_ID, "org1",
                 Constants.CUSTOM_FIELD_VALUES, List.of(Map.of())
         );
-        ApiResponse response = profileService.updateAdditionalFields(req, "token");
+        ApiResponse response = profileService.updateAdditionalFields(req, "orgIdtest","token");
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
     }
 
@@ -2920,7 +2920,7 @@ class ProfileServiceImplTest {
         );
         when(accessTokenValidator.fetchUserIdFromAccessToken("token")).thenReturn("userX");
         ReflectionTestUtils.setField(profileService, "accessTokenValidator", accessTokenValidator);
-        ApiResponse response = profileService.updateAdditionalFields(req, "token");
+        ApiResponse response = profileService.updateAdditionalFields(req,"orgIdtest", "token");
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
     }
 
@@ -2948,8 +2948,7 @@ class ProfileServiceImplTest {
         EsUtilServiceImpl esUtilService = mock(EsUtilServiceImpl.class);
         ReflectionTestUtils.setField(profileService, "esUtilService", esUtilService);
         lenient().when(esUtilService.updateUserOrgCustomFields(any(), any(), any())).thenReturn(false);
-        ApiResponse response = profileService.updateAdditionalFields(req, "token");
+        ApiResponse response = profileService.updateAdditionalFields(req, "org1","token");
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
     }
-
 }

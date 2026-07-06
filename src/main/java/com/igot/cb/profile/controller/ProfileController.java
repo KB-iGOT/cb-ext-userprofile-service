@@ -79,9 +79,9 @@ public class ProfileController {
     }
 
     @GetMapping("/basic/{userId}")
-    public ResponseEntity<Object> getBasicProfile(@PathVariable(Constants.USER_ID_RQST) String userId,
+    public ResponseEntity<Object> getBasicProfileForAdmin(@PathVariable(Constants.USER_ID_RQST) String userId,
             @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken) {
-        ApiResponse response = profileService.getBasicProfile(userId, authToken);
+        ApiResponse response = profileService.getBasicProfile(userId, authToken,false);
         return new ResponseEntity<>(response, response.getResponseCode());
     }
 
@@ -95,8 +95,9 @@ public class ProfileController {
     @PostMapping(value = "/update/additionalFields")
     public ResponseEntity<ApiResponse> updateAdditionalFields(
             @RequestHeader(Constants.X_AUTH_TOKEN) String authToken,
+            @RequestHeader(Constants.X_AUTH_USER_ORG_ID) String orgId,
             @RequestBody Map<String, Object> requestBody) {
-        ApiResponse response = profileService.updateAdditionalFields(requestBody, authToken);
+        ApiResponse response = profileService.updateAdditionalFields(requestBody,orgId, authToken);
         return new ResponseEntity<>(response, response.getResponseCode());
     }
 
@@ -105,7 +106,50 @@ public class ProfileController {
             @PathVariable String userId,
             @PathVariable String orgId,
             @RequestHeader(value = Constants.X_AUTH_TOKEN) String authToken) {
-        ApiResponse response = profileService.getAdditionalFieldsByOrg(userId, orgId, authToken);
+        ApiResponse response = profileService.getAdditionalFieldsByOrg(userId, orgId, authToken,false);
+        return new ResponseEntity<>(response, response.getResponseCode());
+    }
+
+    @GetMapping("/v1/basic")
+    public ResponseEntity<Object> getBasicProfileForVolunteer(
+            @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken) {
+        ApiResponse response = profileService.getBasicProfile("", authToken, true);
+        return new ResponseEntity<>(response, response.getResponseCode());
+    }
+
+    @GetMapping("/v1/extended/all")
+    public ResponseEntity<Object> getExtendedProfileSummaryForNgo(@RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken) {
+        ApiResponse response = profileService.getExtendedProfileSummary("", authToken);
+        return new ResponseEntity<>(response, HttpStatus.valueOf(response.getResponseCode().value()));
+    }
+
+    @GetMapping("/v1/getAdditionalFields")
+    public ResponseEntity<Object> getAdditionalFieldsByOrgForNgo(
+            @RequestHeader(Constants.X_AUTH_USER_ORG_ID)String userOrgId,
+            @RequestHeader(value = Constants.X_AUTH_TOKEN) String authToken) {
+        ApiResponse response = profileService.getAdditionalFieldsByOrg("", userOrgId, authToken,true);
+        return new ResponseEntity<>(response, response.getResponseCode());
+    }
+
+    @GetMapping("/v2/basic")
+    public ResponseEntity<Object> getBasicProfileForPublic(
+            @RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken) {
+        ApiResponse response = profileService.getBasicProfile("", authToken, true);
+        return new ResponseEntity<>(response, response.getResponseCode());
+    }
+
+    @GetMapping("/v2/extended/all")
+    public ResponseEntity<Object> getExtendedProfileSummaryForUser(@RequestHeader(value = Constants.X_AUTH_TOKEN, required = true) String authToken) {
+        ApiResponse response = profileService.getExtendedProfileSummary("", authToken);
+        return new ResponseEntity<>(response, HttpStatus.valueOf(response.getResponseCode().value()));
+    }
+
+    @GetMapping("/v2/getAdditionalFields")
+    public ResponseEntity<Object> getAdditionalFieldsByOrgForUser(
+            @RequestHeader(Constants.X_AUTH_USER_ORG_ID)String userOrgId,
+            @RequestHeader(value = Constants.X_AUTH_TOKEN) String authToken) {
+        ApiResponse response = profileService.getAdditionalFieldsByOrg("", userOrgId, authToken,true);
         return new ResponseEntity<>(response, response.getResponseCode());
     }
 }
+
