@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.igot.cb.authentication.util.AccessTokenValidator;
 import com.igot.cb.common.OutboundRequestHandlerServiceImpl;
+import com.igot.cb.exceptions.ProjectCommonException;
 import com.igot.cb.profile.entity.CustomFieldEntity;
 import com.igot.cb.profile.repository.CustomFieldRepository;
 import com.igot.cb.profile.service.ProfileServiceImpl;
@@ -20,6 +21,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -273,14 +275,14 @@ class ProfileServiceImplTest {
         mockResponse.put(Constants.RESPONSE, Constants.SUCCESS);
 
         when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
-        when(serverProperties.getContextType()).thenReturn(new String[]{ testContext.contextKey });
-        when(serverProperties.getEducationalQualificationMandatoryFields()).thenReturn("dummyField");
-        when(serverProperties.getAchievementsMandatoryFields()).thenReturn("dummyField");
-        when(serverProperties.getServiceHistoryMandatoryFields()).thenReturn("dummyField");
+        when(serverProperties.getContextType()).thenReturn(new String[]{testContext.contextKey});
+        lenient().when(serverProperties.getEducationalQualificationMandatoryFields()).thenReturn("dummyField");
+        lenient().when(serverProperties.getAchievementsMandatoryFields()).thenReturn("dummyField");
+        lenient().when(serverProperties.getServiceHistoryMandatoryFields()).thenReturn("dummyField");
 
+        lenient().when(serverProperties.getExtendedProfileFieldRegex()).thenReturn("^[a-zA-Z0-9\\s\\(\\)\\-\\.,&'/]+$");
         when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), anyMap(), any(), any()))
                 .thenReturn(new ArrayList<>());
-
         when(cassandraOperation.insertRecord(any(), any(), any())).thenReturn(mockResponse);
 
         ApiResponse response = profileService.saveExtendedProfile(request, token);
@@ -660,6 +662,7 @@ class ProfileServiceImplTest {
         when(serverProperties.getEducationalQualificationMandatoryFields()).thenReturn("degree,institute");
         when(serverProperties.getAchievementsMandatoryFields()).thenReturn("");
         when(serverProperties.getServiceHistoryMandatoryFields()).thenReturn("");
+        when(serverProperties.getExtendedProfileFieldRegex()).thenReturn("^[a-zA-Z0-9\\s\\(\\)\\-\\.,&'/]+$");
         ApiResponse response = profileService.saveExtendedProfile(request, userToken);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
         assertEquals(Constants.FAILED, response.getParams().getStatus());
@@ -726,6 +729,7 @@ class ProfileServiceImplTest {
         when(serverProperties.getEducationalQualificationMandatoryFields()).thenReturn("degree,institute");
         when(serverProperties.getAchievementsMandatoryFields()).thenReturn("");
         when(serverProperties.getServiceHistoryMandatoryFields()).thenReturn("");
+        when(serverProperties.getExtendedProfileFieldRegex()).thenReturn("^[a-zA-Z0-9\\s\\(\\)\\-\\.,&'/]+$");
         when(cassandraOperation.getRecordsByPropertiesByKey(
                 anyString(), anyString(), anyMap(), isNull(), isNull()))
                 .thenReturn(new ArrayList<>());
@@ -2950,6 +2954,158 @@ class ProfileServiceImplTest {
         lenient().when(esUtilService.updateUserOrgCustomFields(any(), any(), any())).thenReturn(false);
         ApiResponse response = profileService.updateAdditionalFields(req, "token");
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
+    }
+
+    @Test
+    void testSaveExtendedProfile_WithValidEducationalQualification_ShouldSucceed() {
+        Map<String, Object> qualification = new HashMap<>();
+        qualification.put("degree", "B.Tech");
+        qualification.put("institutionName", "IIT Delhi");
+
+        Map<String, Object> requestMap = new HashMap<>();
+        requestMap.put(Constants.USER_ID_RQST, userID);
+        requestMap.put(Constants.EDUCATIONAL_QUALIFICATIONS,
+                Collections.singletonList(qualification));
+
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestMap);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(token))
+                .thenReturn(userID);
+
+        when(serverProperties.getContextType())
+                .thenReturn(new String[]{Constants.EDUCATIONAL_QUALIFICATIONS});
+
+        when(serverProperties.getEducationalQualificationMandatoryFields())
+                .thenReturn("degree,institutionName");
+
+        when(serverProperties.getExtendedProfileFieldRegex())
+                .thenReturn("^[a-zA-Z0-9\\s\\(\\)\\-\\.,&'/]+$");
+
+        when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), anyMap(), any(), any()))
+                .thenReturn(new ArrayList<>());
+
+        ApiResponse mockResponse = new ApiResponse();
+        mockResponse.put(Constants.RESPONSE, Constants.SUCCESS);
+
+        when(cassandraOperation.insertRecord(any(), any(), any()))
+                .thenReturn(mockResponse);
+
+        ApiResponse response = profileService.saveExtendedProfile(request, token);
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+    }
+
+    @Test
+    void testSaveExtendedProfile_InvalidDegreeCharacters_ShouldFail() {
+        Map<String, Object> qualification = new HashMap<>();
+        qualification.put("degree", "!@#$%^&*()");
+        qualification.put("institutionName", "IIT Delhi");
+
+        Map<String, Object> requestMap = new HashMap<>();
+        requestMap.put(Constants.USER_ID_RQST, userID);
+        requestMap.put(Constants.EDUCATIONAL_QUALIFICATIONS, Collections.singletonList(qualification));
+
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestMap);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
+        when(serverProperties.getContextType()).thenReturn(new String[]{Constants.EDUCATIONAL_QUALIFICATIONS});
+        when(serverProperties.getEducationalQualificationMandatoryFields()).thenReturn("degree,institutionName");
+        when(serverProperties.getDegreeNameRegex()).thenReturn("^[\\p{L}\\p{N}\\s.,'&()/-]+$");
+        lenient().when(serverProperties.getInstituteNameRegex()).thenReturn("^[\\p{L}\\p{N}\\s.,'&()/-]+$");
+
+        ApiResponse response = profileService.saveExtendedProfile(request, token);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
+        assertTrue(response.getParams().getErrMsg().contains("degree"));
+        verifyNoInteractions(cassandraOperation);
+    }
+
+    @Test
+    void testSaveExtendedProfile_InvalidInstitutionNameCharacters_ShouldFail() {
+        Map<String, Object> qualification = new HashMap<>();
+        qualification.put("degree", "B.Tech");
+        qualification.put("institutionName", "!@#$%^&*()");
+
+        Map<String, Object> requestMap = new HashMap<>();
+        requestMap.put(Constants.USER_ID_RQST, userID);
+        requestMap.put(Constants.EDUCATIONAL_QUALIFICATIONS, Collections.singletonList(qualification));
+
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestMap);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
+        when(serverProperties.getContextType()).thenReturn(new String[]{Constants.EDUCATIONAL_QUALIFICATIONS});
+        when(serverProperties.getEducationalQualificationMandatoryFields()).thenReturn("degree,institutionName");
+        lenient().when(serverProperties.getDegreeNameRegex()).thenReturn("^[\\p{L}\\p{N}\\s.,'&()/-]+$");
+        when(serverProperties.getInstituteNameRegex()).thenReturn("^[\\p{L}\\p{N}\\s.,'&()/-]+$");
+
+        ApiResponse response = profileService.saveExtendedProfile(request, token);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
+        assertTrue(response.getParams().getErrMsg().contains("institutionName"));
+        verifyNoInteractions(cassandraOperation);
+    }
+
+    @Test
+    void testSaveExtendedProfile_InvalidFieldOfStudyCharacters_ShouldFail() {
+        Map<String, Object> qualification = new HashMap<>();
+        qualification.put("degree", "B.Tech");
+        qualification.put("institutionName", "IIT Delhi");
+        qualification.put("fieldOfStudy", "!@#$%^&*()");
+
+        Map<String, Object> requestMap = new HashMap<>();
+        requestMap.put(Constants.USER_ID_RQST, userID);
+        requestMap.put(Constants.EDUCATIONAL_QUALIFICATIONS, Collections.singletonList(qualification));
+
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestMap);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
+        when(serverProperties.getContextType()).thenReturn(new String[]{Constants.EDUCATIONAL_QUALIFICATIONS});
+        when(serverProperties.getEducationalQualificationMandatoryFields()).thenReturn("degree,institutionName");
+        lenient().when(serverProperties.getDegreeNameRegex()).thenReturn("^[\\p{L}\\p{N}\\s.,'&()/-]+$");
+        lenient().when(serverProperties.getInstituteNameRegex()).thenReturn("^[\\p{L}\\p{N}\\s.,'&()/-]+$");
+        when(serverProperties.getFieldOfStudyRegex()).thenReturn("^[\\p{L}\\p{N}\\s.,'&()/:+_-]+$");
+
+        ApiResponse response = profileService.saveExtendedProfile(request, token);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
+        assertTrue(response.getParams().getErrMsg().contains("fieldOfStudy"));
+        verifyNoInteractions(cassandraOperation);
+    }
+
+    @Test
+    void testSaveExtendedProfile_ValidFieldSpecificRegexValues_ShouldSucceed() {
+        Map<String, Object> qualification = new HashMap<>();
+        qualification.put("degree", "B.Tech");
+        qualification.put("institutionName", "St. Xavier's College");
+        qualification.put("fieldOfStudy", "Computer Science: AI+ML");
+
+        Map<String, Object> requestMap = new HashMap<>();
+        requestMap.put(Constants.USER_ID_RQST, userID);
+        requestMap.put(Constants.EDUCATIONAL_QUALIFICATIONS, Collections.singletonList(qualification));
+
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestMap);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
+        when(serverProperties.getContextType()).thenReturn(new String[]{Constants.EDUCATIONAL_QUALIFICATIONS});
+        when(serverProperties.getEducationalQualificationMandatoryFields()).thenReturn("degree,institutionName");
+        when(serverProperties.getDegreeNameRegex()).thenReturn("^[\\p{L}\\p{N}\\s.,'&()/-]+$");
+        when(serverProperties.getInstituteNameRegex()).thenReturn("^[\\p{L}\\p{N}\\s.,'&()/-]+$");
+        when(serverProperties.getFieldOfStudyRegex()).thenReturn("^[\\p{L}\\p{N}\\s.,'&()/:+_-]+$");
+
+        when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), anyMap(), any(), any()))
+                .thenReturn(new ArrayList<>());
+        ApiResponse mockResponse = new ApiResponse();
+        mockResponse.put(Constants.RESPONSE, Constants.SUCCESS);
+        when(cassandraOperation.insertRecord(any(), any(), any())).thenReturn(mockResponse);
+
+        ApiResponse response = profileService.saveExtendedProfile(request, token);
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
     }
 
 }
