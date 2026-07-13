@@ -522,6 +522,9 @@ public class Constants {
     public static final String INVALID_CHARACTERS_ERROR = "Invalid characters found in fields: ";
     public static final String FIELD_OF_STUDY = "fieldOfStudy";
 
+    public static final String ACCESS_TOKEN_IS_EXPIRED = "Access token is expired";
+    public static final String ACCESS_TOKEN_VALIDATION_FAILED = "Access token validation is failed";
+    public static final String INVALID_ORGID = "Org in token does not match request";
     private Constants() {
     }
 }
