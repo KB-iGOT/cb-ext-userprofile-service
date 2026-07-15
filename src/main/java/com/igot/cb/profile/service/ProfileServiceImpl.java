@@ -370,6 +370,7 @@ public class ProfileServiceImpl implements ProfileService {
                 response.put(Constants.RESPONSE, Collections.emptyMap());
                 return response;
             }
+            userProfile.put(Constants.ROLES, getUserRoles(userId,(String)userProfile.get(Constants.ROOT_ORG_ID)));
             userProfile.put(Constants.PROFILE_COMPLETION_PERCENTAGE, calculateProfileCompletionPercentage(userProfile,
                     userId, userToken));
             userProfile.put(Constants.KARMA_POINTS, getUserKarmaPoints(userId));
@@ -379,8 +380,6 @@ public class ProfileServiceImpl implements ProfileService {
             }
             userProfile.put(Constants.POSTCOUNT, getUserPostCount(userId));
             userProfile.put(Constants.BADGE_COUNT, getUserBadgeCount(userId));
-            userProfile.put(Constants.ROLES, getUserRoles(userId,(String)userProfile.get(Constants.ROOT_ORG_ID)));
-
             if (!isSelfUser) {
                 sanitizeProfile(userProfile, userToken);
             }
@@ -718,10 +717,17 @@ public class ProfileServiceImpl implements ProfileService {
 
     protected double calculateProfileCompletionPercentage(Map<String, Object> profileData,
                                                           String userId, String userToken) {
-        List<String> requiredFields = serverConfig.getProfileCompletionRequiredFields();
-        if (profileData == null || requiredFields == null || requiredFields.isEmpty())
+        if (profileData == null) {
             return 0.0;
+        }
+        List<String> roles = (List<String>) profileData.get(Constants.ROLES);
+        List<String> requiredFields = (!CollectionUtils.isEmpty(roles) && roles.contains(Constants.VOLUNTEER))
+                ? serverConfig.getNgoUserProfileCompletionRequiredFields()
+                : serverConfig.getProfileCompletionRequiredFields();
 
+        if (CollectionUtils.isEmpty(requiredFields)) {
+            return 0.0;
+        }
         double totalCompletion = 0.0;
         Map<String, Object> nestedData = Optional.ofNullable(profileData.get(Constants.PROFILE_DETAILS))
                 .filter(Map.class::isInstance)

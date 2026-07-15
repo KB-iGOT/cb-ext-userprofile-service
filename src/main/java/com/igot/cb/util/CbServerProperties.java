@@ -227,4 +227,11 @@ public class CbServerProperties {
     @Value("${achievement.cache.ttl}")
     private int achievementCacheTtl;
 
+    @Value("${ngo.user.profile.completion.required.fields}")
+    private String ngoUserProfileCompletionRequiredFields;
+
+    public List<String> getNgoUserProfileCompletionRequiredFields() {
+        return Arrays.asList(ngoUserProfileCompletionRequiredFields.split(","));
+    }
+
 }
