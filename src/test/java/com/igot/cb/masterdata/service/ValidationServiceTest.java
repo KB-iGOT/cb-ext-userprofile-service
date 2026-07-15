@@ -152,6 +152,25 @@ class ValidationServiceTest {
         assertFalse(result);
     }
 
+    @Test
+    void upsertDegreeValidation_invalidNameCharacters() {
+        when(cbServerProperties.getDegreeNameRegex()).thenReturn("^[\\p{L}\\p{N}\\s.,'&()/-]+$");
+        ApiResponse api = new ApiResponse();
+        boolean result = validationService.upsertDegreeValidation(api,
+                Map.of(Constants.REQUEST, Map.of(Constants.NAME, "!@#$%^&*()")));
+        assertFalse(result);
+        assertEquals("Degree name contains invalid characters", api.getParams().getErrMsg());
+    }
+
+    @Test
+    void upsertDegreeValidation_validNameCharacters() {
+        when(cbServerProperties.getDegreeNameRegex()).thenReturn("^[\\p{L}\\p{N}\\s.,'&()/-]+$");
+        ApiResponse api = new ApiResponse();
+        boolean result = validationService.upsertDegreeValidation(api,
+                Map.of(Constants.REQUEST, Map.of(Constants.NAME, "B.Tech")));
+        assertTrue(result);
+    }
+
     // ---------- upsertInstituteValidation ----------
 
     @Test
@@ -168,5 +187,24 @@ class ValidationServiceTest {
         boolean result = validationService.upsertInstituteValidation(api,
                 Map.of(Constants.REQUEST, Map.of()));
         assertFalse(result);
+    }
+
+    @Test
+    void upsertInstituteValidation_invalidNameCharacters() {
+        when(cbServerProperties.getInstituteNameRegex()).thenReturn("^[\\p{L}\\p{N}\\s.,'&()/-]+$");
+        ApiResponse api = new ApiResponse();
+        boolean result = validationService.upsertInstituteValidation(api,
+                Map.of(Constants.REQUEST, Map.of(Constants.NAME, "!@#$%^&*()")));
+        assertFalse(result);
+        assertEquals("Institute name contains invalid characters", api.getParams().getErrMsg());
+    }
+
+    @Test
+    void upsertInstituteValidation_validNameCharacters() {
+        when(cbServerProperties.getInstituteNameRegex()).thenReturn("^[\\p{L}\\p{N}\\s.,'&()/-]+$");
+        ApiResponse api = new ApiResponse();
+        boolean result = validationService.upsertInstituteValidation(api,
+                Map.of(Constants.REQUEST, Map.of(Constants.NAME, "St. Xavier's College")));
+        assertTrue(result);
     }
 }

@@ -227,6 +227,18 @@ public class CbServerProperties {
     @Value("${achievement.cache.ttl}")
     private int achievementCacheTtl;
 
+    @Value("${validation.extended-profile.field.regex}")
+    private String extendedProfileFieldRegex;
+
+    @Value("${validation.regex.degree}")
+    private String degreeNameRegex;
+
+    @Value("${validation.regex.institute}")
+    private String instituteNameRegex;
+
+    @Value("${validation.regex.fieldOfStudy}")
+    private String fieldOfStudyRegex;
+  
     @Value("${ngo.user.profile.completion.required.fields}")
     private String ngoUserProfileCompletionRequiredFields;
 
