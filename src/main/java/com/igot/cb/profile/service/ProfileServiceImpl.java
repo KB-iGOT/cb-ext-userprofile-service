@@ -141,6 +141,12 @@ public class ProfileServiceImpl implements ProfileService {
             return response;
         }
 
+        String regexError = validateExtendedProfileFieldsRegex(requestData, Constants.EDUCATIONAL_QUALIFICATIONS);
+        if (StringUtils.isNotBlank(regexError)) {
+            ProjectUtil.errorResponse(response, regexError + ".", HttpStatus.BAD_REQUEST);
+            return response;
+        }
+
         for (String contextType : serverConfig.getContextType()) {
             List<Map<String, Object>> incomingList = (List<Map<String, Object>>) requestData.get(contextType);
             if (incomingList == null || incomingList.isEmpty())
