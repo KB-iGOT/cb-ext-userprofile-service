@@ -2317,8 +2317,6 @@ class ProfileServiceImplTest {
 
     @Test
     void testProfileDataNull() throws Exception {
-        when(serverProperties.getProfileCompletionRequiredFields()).thenReturn(Collections.emptyList());
-        
         Method method = ProfileServiceImpl.class.getDeclaredMethod("calculateProfileCompletionPercentage", Map.class, String.class, String.class);
         method.setAccessible(true);
         

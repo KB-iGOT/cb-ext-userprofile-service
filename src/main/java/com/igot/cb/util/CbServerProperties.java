@@ -238,4 +238,15 @@ public class CbServerProperties {
 
     @Value("${validation.regex.fieldOfStudy}")
     private String fieldOfStudyRegex;
+  
+    @Value("${ngo.user.profile.completion.required.fields}")
+    private String ngoUserProfileCompletionRequiredFields;
+
+    public List<String> getNgoUserProfileCompletionRequiredFields() {
+        return Arrays.asList(ngoUserProfileCompletionRequiredFields.split(","));
+    }
+
+    @Value("${ngo.user.profile.completion.field.weight}")
+    private double ngoUserProfileFieldWeight;
+
 }
