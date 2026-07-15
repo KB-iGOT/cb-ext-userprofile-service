@@ -721,9 +721,16 @@ public class ProfileServiceImpl implements ProfileService {
             return 0.0;
         }
         List<String> roles = (List<String>) profileData.get(Constants.ROLES);
-        List<String> requiredFields = (!CollectionUtils.isEmpty(roles) && roles.contains(Constants.VOLUNTEER))
+        boolean isVolunteer = !CollectionUtils.isEmpty(roles)
+                && roles.contains(Constants.VOLUNTEER);
+
+        List<String> requiredFields = isVolunteer
                 ? serverConfig.getNgoUserProfileCompletionRequiredFields()
                 : serverConfig.getProfileCompletionRequiredFields();
+
+        double fieldWeight = isVolunteer
+                ? serverConfig.getNgoUserProfileFieldWeight()
+                : serverConfig.getFieldWeight();
 
         if (CollectionUtils.isEmpty(requiredFields)) {
             return 0.0;
@@ -770,7 +777,7 @@ public class ProfileServiceImpl implements ProfileService {
                 isFilled = false;
             }
             if (isFilled)
-                totalCompletion += serverConfig.getFieldWeight();
+                totalCompletion += fieldWeight;
         }
 
         return Math.min(100.0, Math.round(totalCompletion * 10.0) / 10.0);

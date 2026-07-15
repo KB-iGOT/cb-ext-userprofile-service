@@ -234,4 +234,7 @@ public class CbServerProperties {
         return Arrays.asList(ngoUserProfileCompletionRequiredFields.split(","));
     }
 
+    @Value("${ngo.user.profile.completion.field.weight}")
+    private double ngoUserProfileFieldWeight;
+
 }
