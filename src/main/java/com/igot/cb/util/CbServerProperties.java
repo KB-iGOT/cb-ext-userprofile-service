@@ -227,9 +227,6 @@ public class CbServerProperties {
     @Value("${achievement.cache.ttl}")
     private int achievementCacheTtl;
 
-    @Value("${validation.extended-profile.field.regex}")
-    private String extendedProfileFieldRegex;
-
     @Value("${validation.regex.degree}")
     private String degreeNameRegex;
 
@@ -248,5 +245,11 @@ public class CbServerProperties {
 
     @Value("${ngo.user.profile.completion.field.weight}")
     private double ngoUserProfileFieldWeight;
+
+    @Value("${validation.regex.year}")
+    private String yearRegex;
+
+    @Value("${validation.regex.uuid}")
+    private String uuidRegex;
 
 }

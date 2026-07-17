@@ -280,7 +280,7 @@ class ProfileServiceImplTest {
         lenient().when(serverProperties.getAchievementsMandatoryFields()).thenReturn("dummyField");
         lenient().when(serverProperties.getServiceHistoryMandatoryFields()).thenReturn("dummyField");
 
-        lenient().when(serverProperties.getExtendedProfileFieldRegex()).thenReturn("^[a-zA-Z0-9\\s\\(\\)\\-\\.,&'/]+$");
+        lenient().when(serverProperties.getYearRegex()).thenReturn("^(19|20)[0-9]{2}$");
         when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), anyMap(), any(), any()))
                 .thenReturn(new ArrayList<>());
         when(cassandraOperation.insertRecord(any(), any(), any())).thenReturn(mockResponse);
@@ -662,7 +662,6 @@ class ProfileServiceImplTest {
         when(serverProperties.getEducationalQualificationMandatoryFields()).thenReturn("degree,institute");
         when(serverProperties.getAchievementsMandatoryFields()).thenReturn("");
         when(serverProperties.getServiceHistoryMandatoryFields()).thenReturn("");
-        when(serverProperties.getExtendedProfileFieldRegex()).thenReturn("^[a-zA-Z0-9\\s\\(\\)\\-\\.,&'/]+$");
         ApiResponse response = profileService.saveExtendedProfile(request, userToken);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
         assertEquals(Constants.FAILED, response.getParams().getStatus());
@@ -729,7 +728,7 @@ class ProfileServiceImplTest {
         when(serverProperties.getEducationalQualificationMandatoryFields()).thenReturn("degree,institute");
         when(serverProperties.getAchievementsMandatoryFields()).thenReturn("");
         when(serverProperties.getServiceHistoryMandatoryFields()).thenReturn("");
-        when(serverProperties.getExtendedProfileFieldRegex()).thenReturn("^[a-zA-Z0-9\\s\\(\\)\\-\\.,&'/]+$");
+        when(serverProperties.getDegreeNameRegex()).thenReturn("^[a-zA-Z0-9\\s\\(\\)\\-\\.,&'/]+$");
         when(cassandraOperation.getRecordsByPropertiesByKey(
                 anyString(), anyString(), anyMap(), isNull(), isNull()))
                 .thenReturn(new ArrayList<>());
@@ -2977,7 +2976,9 @@ class ProfileServiceImplTest {
         when(serverProperties.getEducationalQualificationMandatoryFields())
                 .thenReturn("degree,institutionName");
 
-        when(serverProperties.getExtendedProfileFieldRegex())
+        when(serverProperties.getDegreeNameRegex())
+                .thenReturn("^[a-zA-Z0-9\\s\\(\\)\\-\\.,&'/]+$");
+        when(serverProperties.getInstituteNameRegex())
                 .thenReturn("^[a-zA-Z0-9\\s\\(\\)\\-\\.,&'/]+$");
 
         when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), anyMap(), any(), any()))

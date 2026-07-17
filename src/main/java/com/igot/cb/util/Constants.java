@@ -370,6 +370,7 @@ public class Constants {
     public static final String UUID = "uuid";
     public static final String START_DATE = "startDate";
     public static final String START_YEAR = "startYear";
+    public static final String END_YEAR = "endYear";
     public static final String ISSUED_DATE = "issuedDate";
     public static final String ACHIVEMENTS = "achievements";
     public static final String EDUCATIONAL_QUALIFICATIONS = "educationalQualifications";
