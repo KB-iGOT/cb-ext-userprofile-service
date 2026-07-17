@@ -586,7 +586,7 @@ public class ProfileServiceImpl implements ProfileService {
 
                 if (value instanceof String
                         && StringUtils.isNotBlank((String) value)
-                        && !((String) value).matches(resolveFieldRegex(listKey, entry.getKey()))) {
+                        && !validateField(listKey, entry.getKey(), (String) value)) {
                     invalidFields.add(entry.getKey());
                 }
             }
@@ -1594,17 +1594,30 @@ public class ProfileServiceImpl implements ProfileService {
         }
     }
 
-    private String resolveFieldRegex(String listKey, String fieldName) {
-        String regex = null;
+    private boolean validateField(String listKey, String fieldName, String fieldValue) {
+        boolean retValue = true;
         if (Constants.EDUCATIONAL_QUALIFICATIONS.equals(listKey)) {
-            if (Constants.DEGREE.equals(fieldName)) {
-                regex = serverConfig.getDegreeNameRegex();
-            } else if (Constants.INSTITUTE_NAME.equals(fieldName)) {
-                regex = serverConfig.getInstituteNameRegex();
-            } else if (Constants.FIELD_OF_STUDY.equals(fieldName)) {
-                regex = serverConfig.getFieldOfStudyRegex();
+            switch (fieldName) {
+                case Constants.DEGREE:
+                    retValue = fieldValue.matches(serverConfig.getDegreeNameRegex());
+                    break;
+                case Constants.INSTITUTE_NAME:
+                    retValue = fieldValue.matches(serverConfig.getInstituteNameRegex());
+                    break;
+                case Constants.FIELD_OF_STUDY:
+                    retValue = fieldValue.matches(serverConfig.getFieldOfStudyRegex());
+                    break;
+                case Constants.START_YEAR:
+                case Constants.END_YEAR:
+                    retValue = fieldValue.matches(serverConfig.getYearRegex());
+                    break;
+                case Constants.UUID:
+                    retValue = fieldValue.matches(serverConfig.getUuidRegex());
+                    break;
+                default:
+                    break;
             }
         }
-        return StringUtils.isNotBlank(regex) ? regex : serverConfig.getExtendedProfileFieldRegex();
+        return retValue;
     }
 }
