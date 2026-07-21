@@ -828,7 +828,7 @@ public class AchievementServiceImpl implements AchievementService{
                 Constants.TOTAL_COUNT, processedAchievements.size()
         );
 
-        cacheService.putCache(Constants.ACHIEVEMENTS_REDIS_KEY + userId, searchResults);
+        cacheService.putCache(Constants.ACHIEVEMENTS_REDIS_KEY + userId, searchResults, cbServerProperties.getAchievementCacheTtl());
 
         return searchResults;
     }
