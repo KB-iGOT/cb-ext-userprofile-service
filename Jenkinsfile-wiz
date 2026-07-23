@@ -1,7 +1,6 @@
 pipeline {
     agent any
 
-
     stages {
 
         stage('Checkout') {
@@ -12,10 +11,12 @@ pipeline {
 
         stage('Scan Repository') {
             steps {
-                sh '''
-                    # Scan the entire repository
-                    wizcli dir scan .
-                '''
+{
+                    sh '''
+                        wizcli dir scan \
+                          --path .
+                    '''
+                }
             }
         }
     }
