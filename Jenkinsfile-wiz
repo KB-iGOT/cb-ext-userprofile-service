@@ -19,9 +19,11 @@ pipeline {
 
                     env.SCAN_NAME = "${env.REPO_NAME}-${params.github_release_tag}"
 
+                    echo "=========================================="
                     echo "Repository : ${env.REPO_NAME}"
                     echo "Branch/Tag : ${params.github_release_tag}"
                     echo "Scan Name  : ${env.SCAN_NAME}"
+                    echo "=========================================="
                 }
             }
         }
@@ -34,16 +36,16 @@ pipeline {
     }
 
     post {
-        always {
-            echo "Wiz scan completed."
-        }
-
         success {
-            echo "Repository scan completed successfully."
+            echo "Wiz scan completed successfully."
         }
 
         failure {
-            echo "Repository scan failed."
+            echo "Wiz scan failed."
+        }
+
+        always {
+            cleanWs()
         }
     }
 }
