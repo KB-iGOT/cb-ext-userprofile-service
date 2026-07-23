@@ -1,28 +1,34 @@
-pipeline {
-    agent any
+stage('Scan Repository') {
+    steps {
+        script {
+            env.REPO_NAME = sh(
+                script: 'basename -s .git $(git config --get remote.origin.url)',
+                returnStdout: true
+            ).trim()
 
-    stages {
-        stage('Checkout') {
-            steps {
-                checkout scm
-            }
+            env.BRANCH_NAME = sh(
+                script: 'git rev-parse --abbrev-ref HEAD',
+                returnStdout: true
+            ).trim()
+
+            env.SCAN_NAME = "${env.REPO_NAME}-${env.BRANCH_NAME}"
         }
 
-        stage('Scan Repository') {
-            steps {
-                withCredentials([
-                    string(credentialsId: 'wiz-client-id', variable: 'WIZ_CLIENT_ID'),
-                    string(credentialsId: 'wiz-client-secret', variable: 'WIZ_CLIENT_SECRET')
-                ]) {
-                    sh '''
-                        wizcli dir scan \
-                          --client-id "$WIZ_CLIENT_ID" \
-                          --client-secret "$WIZ_CLIENT_SECRET" \
-                          --name "${JOB_NAME}-${BUILD_NUMBER}" \
-                          --path .
-                    '''
-                }
-            }
+        withCredentials([
+            string(credentialsId: 'wiz-client-id', variable: 'WIZ_CLIENT_ID'),
+            string(credentialsId: 'wiz-client-secret', variable: 'WIZ_CLIENT_SECRET')
+        ]) {
+            sh '''
+                echo "Repository : $REPO_NAME"
+                echo "Branch     : $BRANCH_NAME"
+                echo "Scan Name  : $SCAN_NAME"
+
+                wizcli dir scan \
+                  --client-id "$WIZ_CLIENT_ID" \
+                  --client-secret "$WIZ_CLIENT_SECRET" \
+                  --name "$SCAN_NAME" \
+                  --path .
+            '''
         }
     }
 }
