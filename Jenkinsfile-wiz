@@ -11,12 +11,9 @@ pipeline {
 
         stage('Scan Repository') {
             steps {
-{
-                    sh '''
-                        wizcli dir scan \
-                          --path .
-                    '''
-                }
+                sh '''
+                    wizcli dir scan --path .
+                '''
             }
         }
     }
