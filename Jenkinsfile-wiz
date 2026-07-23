@@ -9,7 +9,7 @@ pipeline {
             }
         }
 
-        stage('Scan Repository') {
+        stage('Repository Information') {
             steps {
                 script {
                     env.REPO_NAME = sh(
@@ -17,23 +17,22 @@ pipeline {
                         returnStdout: true
                     ).trim()
 
-                    env.BRANCH_NAME = sh(
-                        script: 'git rev-parse --abbrev-ref HEAD',
-                        returnStdout: true
-                    ).trim()
+                    env.SCAN_NAME = "${env.REPO_NAME}-${params.github_release_tag}"
 
-                    env.SCAN_NAME = "${env.REPO_NAME}-${env.BRANCH_NAME}"
+                    echo "Repository : ${env.REPO_NAME}"
+                    echo "Branch/Tag : ${params.github_release_tag}"
+                    echo "Scan Name  : ${env.SCAN_NAME}"
                 }
+            }
+        }
 
+        stage('Wiz Scan') {
+            steps {
                 withCredentials([
                     string(credentialsId: 'wiz-client-id', variable: 'WIZ_CLIENT_ID'),
                     string(credentialsId: 'wiz-client-secret', variable: 'WIZ_CLIENT_SECRET')
                 ]) {
                     sh '''
-                        echo "Repository : $REPO_NAME"
-                        echo "Branch     : $BRANCH_NAME"
-                        echo "Scan Name  : $SCAN_NAME"
-
                         wizcli dir scan \
                           --client-id "$WIZ_CLIENT_ID" \
                           --client-secret "$WIZ_CLIENT_SECRET" \
