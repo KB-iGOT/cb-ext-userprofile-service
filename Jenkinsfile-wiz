@@ -18,6 +18,7 @@ pipeline {
                         wizcli dir scan \
                           --client-id "$WIZ_CLIENT_ID" \
                           --client-secret "$WIZ_CLIENT_SECRET" \
+                          --name "${JOB_NAME}-${BUILD_NUMBER}" \
                           --path .
                     '''
                 }
