@@ -2,7 +2,6 @@ pipeline {
     agent any
 
     stages {
-
         stage('Checkout') {
             steps {
                 checkout scm
@@ -16,15 +15,10 @@ pipeline {
                     string(credentialsId: 'wiz-client-secret', variable: 'WIZ_CLIENT_SECRET')
                 ]) {
                     sh '''
-                        echo "Authenticating to Wiz..."
-
-                        wizcli auth \
+                        wizcli dir scan \
                           --client-id "$WIZ_CLIENT_ID" \
-                          --client-secret "$WIZ_CLIENT_SECRET"
-
-                        echo "Scanning repository..."
-
-                        wizcli dir scan --path .
+                          --client-secret "$WIZ_CLIENT_SECRET" \
+                          --path .
                     '''
                 }
             }
