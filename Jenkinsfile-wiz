@@ -28,18 +28,7 @@ pipeline {
 
         stage('Wiz Scan') {
             steps {
-                withCredentials([
-                    string(credentialsId: 'wiz-client-id', variable: 'WIZ_CLIENT_ID'),
-                    string(credentialsId: 'wiz-client-secret', variable: 'WIZ_CLIENT_SECRET')
-                ]) {
-                    sh '''
-                        wizcli dir scan \
-                          --client-id "$WIZ_CLIENT_ID" \
-                          --client-secret "$WIZ_CLIENT_SECRET" \
-                          --name "$SCAN_NAME" \
-                          --path .
-                    '''
-                }
+                wizcli "dir scan --name ${env.SCAN_NAME} --path ."
             }
         }
     }
