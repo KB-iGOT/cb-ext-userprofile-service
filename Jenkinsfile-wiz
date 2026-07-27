@@ -30,7 +30,8 @@ pipeline {
 
         stage('Wiz Scan') {
             steps {
-                wizcli "dir scan --name ${env.SCAN_NAME} --path ."
+                //wizcli "dir scan --name ${env.SCAN_NAME} --path ."
+                wizcli "scan dir ./ --name ${env.SCAN_NAME}"
             }
         }
     }
