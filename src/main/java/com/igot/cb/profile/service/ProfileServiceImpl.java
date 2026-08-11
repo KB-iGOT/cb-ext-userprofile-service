@@ -237,7 +237,9 @@ public class ProfileServiceImpl implements ProfileService {
         if (StringUtils.isBlank(userIdFromToken)) {
             ProjectUtil.errorResponse(response, "Invalid or missing access token", HttpStatus.BAD_REQUEST);
             return response;
-        }else {
+        }
+
+        if (StringUtils.isBlank(userId)) {
             userId = userIdFromToken;
         }
 
