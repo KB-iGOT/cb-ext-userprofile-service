@@ -8,6 +8,7 @@ import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.util.StringUtils;
 import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPoolConfig;
 
@@ -21,16 +22,23 @@ public class RedisConfig {
     @Bean
     public JedisPool jedisPool() {
         final JedisPoolConfig poolConfig = buildPoolConfig();
-        JedisPool jedisPool = new JedisPool(poolConfig, cbProperties.getRedisHostName(),
-                Integer.parseInt(cbProperties.getRedisPort()));
-        return jedisPool;
+        return createJedisPool(poolConfig, cbProperties.getRedisHostName(), cbProperties.getRedisPort(),
+                cbProperties.getRedisPassword());
     }
 
     @Bean
     public JedisPool jedisDataPopulationPool() {
         final JedisPoolConfig poolConfig = buildPoolConfig();
-        return new JedisPool(poolConfig, cbProperties.getRedisDataHostName(),
-                Integer.parseInt(cbProperties.getRedisDataPort()));
+        return createJedisPool(poolConfig, cbProperties.getRedisDataHostName(), cbProperties.getRedisDataPort(),
+                cbProperties.getRedisDataPassword());
+    }
+
+    private JedisPool createJedisPool(JedisPoolConfig poolConfig, String host, String port, String password) {
+        int redisPort = Integer.parseInt(port);
+        if (StringUtils.hasText(password)) {
+            return new JedisPool(poolConfig, host, redisPort, null, password);
+        }
+        return new JedisPool(poolConfig, host, redisPort);
     }
 
     private JedisPoolConfig buildPoolConfig() {
