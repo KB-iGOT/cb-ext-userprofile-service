@@ -10,8 +10,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.util.StringUtils;
-import redis.clients.jedis.JedisPool;
-import redis.clients.jedis.JedisPoolConfig;
+import redis.clients.jedis.*;
 
 @Configuration
 @EnableCaching
@@ -39,7 +38,7 @@ public class RedisConfig {
         int redisPort = Integer.parseInt(port);
         if (StringUtils.hasText(password)) {
             log.info("Redis server {}:{} is configured with password authentication", host, redisPort);
-            return new JedisPool(poolConfig, host, redisPort, null, password);
+            return new JedisPool(poolConfig, host, redisPort, Protocol.DEFAULT_TIMEOUT, password);
         }
         log.warn("Redis server {}:{} is configured without password authentication", host, redisPort);
         return new JedisPool(poolConfig, host, redisPort);
