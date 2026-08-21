@@ -65,6 +65,9 @@ public class RedisConfig {
         org.springframework.data.redis.connection.jedis.JedisConnectionFactory jedisConnectionFactory = new org.springframework.data.redis.connection.jedis.JedisConnectionFactory();
         jedisConnectionFactory.setHostName(cbProperties.getRedisHostName());
         jedisConnectionFactory.setPort(Integer.parseInt(cbProperties.getRedisPort()));
+        if (StringUtils.hasText(cbProperties.getRedisPassword())) {
+            jedisConnectionFactory.setPassword(cbProperties.getRedisPassword());
+        }
         jedisConnectionFactory.afterPropertiesSet();
         RedisTemplate<String, SearchResult> template = new RedisTemplate<>();
         template.setConnectionFactory(jedisConnectionFactory);
