@@ -3,6 +3,7 @@ package com.igot.cb.transactional.redis.config;
 import com.igot.cb.transactional.elasticsearch.dto.SearchResult;
 import com.igot.cb.util.CbServerProperties;
 import com.igot.cb.util.Constants;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
@@ -14,6 +15,7 @@ import redis.clients.jedis.JedisPoolConfig;
 
 @Configuration
 @EnableCaching
+@Slf4j
 public class RedisConfig {
 
     @Autowired
@@ -36,8 +38,10 @@ public class RedisConfig {
     private JedisPool createJedisPool(JedisPoolConfig poolConfig, String host, String port, String password) {
         int redisPort = Integer.parseInt(port);
         if (StringUtils.hasText(password)) {
+            log.info("Redis server {}:{} is configured with password authentication", host, redisPort);
             return new JedisPool(poolConfig, host, redisPort, null, password);
         }
+        log.warn("Redis server {}:{} is configured without password authentication", host, redisPort);
         return new JedisPool(poolConfig, host, redisPort);
     }
 
