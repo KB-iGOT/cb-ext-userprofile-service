@@ -68,6 +68,9 @@ public class ProfileServiceImpl implements ProfileService {
     @Value("${user.basic.details.filtered}")
     private String basicDetailsFilteredKeys;
 
+    @Value("${karma.coin.cache.ttl}")
+    private int walletCacheTtl;
+
     @Autowired
     OutboundRequestHandlerServiceImpl outboundRequestHandlerService;
 
@@ -1040,7 +1043,7 @@ public class ProfileServiceImpl implements ProfileService {
                 Map<String, Object> wallet = new HashMap<>();
                 wallet.put(Constants.TOTAL_EARNED_CAMEL, totalEarned);
                 wallet.put(Constants.TOTAL_REDEEMED_CAMEL, totalRedeemed);
-                cacheService.putCache(redisKey, wallet);
+                cacheService.putCache(redisKey, wallet, walletCacheTtl);
                 return totalEarned - totalRedeemed;
             }
             return 0;

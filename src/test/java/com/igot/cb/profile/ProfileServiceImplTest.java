@@ -1485,7 +1485,7 @@ class ProfileServiceImplTest {
                 .thenReturn(Collections.singletonList(row));
         int balance = ReflectionTestUtils.invokeMethod(localService, "getUserWalletBalance", userId);
         assertEquals(472, balance);
-        verify(localCacheService).putCache(eq("user:karmaCoins:" + userId), anyMap());
+        verify(localCacheService).putCache(eq("user:karmaCoins:" + userId), anyMap(), anyInt());
     }
 
     @Test
@@ -1504,7 +1504,7 @@ class ProfileServiceImplTest {
                 .thenReturn(Collections.emptyList());
         int balance = ReflectionTestUtils.invokeMethod(localService, "getUserWalletBalance", userId);
         assertEquals(0, balance);
-        verify(localCacheService, never()).putCache(anyString(), anyMap());
+        verify(localCacheService, never()).putCache(anyString(), anyMap(), anyInt());
     }
 
     @Test
