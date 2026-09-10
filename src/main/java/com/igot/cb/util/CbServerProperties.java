@@ -85,11 +85,25 @@ public class CbServerProperties {
     @Value("${redis.port}")
     private String redisPort;
 
+    /**
+     * Optional password for the primary Redis server. An empty value keeps
+     * compatibility with Redis servers that do not require authentication.
+     */
+    @Value("${redis.password:}")
+    private String redisPassword;
+
     @Value("${redis.data.host.name}")
     private String redisDataHostName;
 
     @Value("${redis.data.port}")
     private String redisDataPort;
+
+    /**
+     * Optional password for the Redis data-population server. An empty value
+     * keeps compatibility with Redis servers that do not require authentication.
+     */
+    @Value("${redis.data.password:}")
+    private String redisDataPassword;
 
     @Value("${cb.redis.maxIdle}")
     private Integer redisMaxIdle;
