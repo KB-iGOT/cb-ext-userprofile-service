@@ -1450,32 +1450,13 @@ class ProfileServiceImplTest {
     }
 
     @Test
-    void getUserWalletBalance_returnsBalanceFromCache_whenCacheHit() {
+    void getUserWalletBalance_returnsBalanceFromCassandra() {
         ProfileServiceImpl localService = new ProfileServiceImpl();
         CacheService localCacheService = mock(CacheService.class);
         CassandraOperation localCassandraOperation = mock(CassandraOperation.class);
         ReflectionTestUtils.setField(localService, "cacheService", localCacheService);
         ReflectionTestUtils.setField(localService, "cassandraOperation", localCassandraOperation);
-        ReflectionTestUtils.setField(localService, "mapper", new ObjectMapper());
         String userId = "user-1";
-        when(localCacheService.getCache("user:karmaCoins:" + userId))
-                .thenReturn("{\"totalEarned\":1321,\"totalRedeemed\":849,\"yearMonth\":\"2026-08\",\"convertedThisMonth\":120}");
-        int balance = ReflectionTestUtils.invokeMethod(localService, "getUserWalletBalance", userId);
-        assertEquals(472, balance);
-        verify(localCacheService).getCache("user:karmaCoins:" + userId);
-        verifyNoInteractions(localCassandraOperation);
-    }
-
-    @Test
-    void getUserWalletBalance_fallsBackToCassandra_andCachesResult_whenCacheMiss() {
-        ProfileServiceImpl localService = new ProfileServiceImpl();
-        CacheService localCacheService = mock(CacheService.class);
-        CassandraOperation localCassandraOperation = mock(CassandraOperation.class);
-        ReflectionTestUtils.setField(localService, "cacheService", localCacheService);
-        ReflectionTestUtils.setField(localService, "cassandraOperation", localCassandraOperation);
-        ReflectionTestUtils.setField(localService, "mapper", new ObjectMapper());
-        String userId = "user-2";
-        when(localCacheService.getCache("user:karmaCoins:" + userId)).thenReturn(null);
         Map<String, Object> row = new HashMap<>();
         row.put("totalEarned", 1321);
         row.put("totalRedeemed", 849);
@@ -1485,7 +1466,7 @@ class ProfileServiceImplTest {
                 .thenReturn(Collections.singletonList(row));
         int balance = ReflectionTestUtils.invokeMethod(localService, "getUserWalletBalance", userId);
         assertEquals(472, balance);
-        verify(localCacheService).putCache(eq("user:karmaCoins:" + userId), anyMap(), anyInt());
+        verifyNoInteractions(localCacheService);
     }
 
     @Test
@@ -1495,26 +1476,26 @@ class ProfileServiceImplTest {
         CassandraOperation localCassandraOperation = mock(CassandraOperation.class);
         ReflectionTestUtils.setField(localService, "cacheService", localCacheService);
         ReflectionTestUtils.setField(localService, "cassandraOperation", localCassandraOperation);
-        ReflectionTestUtils.setField(localService, "mapper", new ObjectMapper());
         String userId = "user-3";
-        when(localCacheService.getCache("user:karmaCoins:" + userId)).thenReturn(null);
         when(localCassandraOperation.getRecordsByPropertiesByKey(
                 eq(Constants.KEYSPACE_SUNBIRD), eq(Constants.USER_KARMA_COIN_WALLET_TABLE),
                 anyMap(), anyList(), eq(userId)))
                 .thenReturn(Collections.emptyList());
         int balance = ReflectionTestUtils.invokeMethod(localService, "getUserWalletBalance", userId);
         assertEquals(0, balance);
-        verify(localCacheService, never()).putCache(anyString(), anyMap(), anyInt());
+        verifyNoInteractions(localCacheService);
     }
 
     @Test
     void getUserWalletBalance_returnsZero_whenExceptionThrown() {
         ProfileServiceImpl localService = new ProfileServiceImpl();
-        CacheService localCacheService = mock(CacheService.class);
-        ReflectionTestUtils.setField(localService, "cacheService", localCacheService);
-        ReflectionTestUtils.setField(localService, "mapper", new ObjectMapper());
+        CassandraOperation localCassandraOperation = mock(CassandraOperation.class);
+        ReflectionTestUtils.setField(localService, "cassandraOperation", localCassandraOperation);
         String userId = "user-4";
-        when(localCacheService.getCache("user:karmaCoins:" + userId)).thenThrow(new RuntimeException("Redis error"));
+        when(localCassandraOperation.getRecordsByPropertiesByKey(
+                eq(Constants.KEYSPACE_SUNBIRD), eq(Constants.USER_KARMA_COIN_WALLET_TABLE),
+                anyMap(), anyList(), eq(userId)))
+                .thenThrow(new RuntimeException("Cassandra error"));
         int balance = ReflectionTestUtils.invokeMethod(localService, "getUserWalletBalance", userId);
         assertEquals(0, balance);
     }

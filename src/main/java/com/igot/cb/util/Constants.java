@@ -423,7 +423,6 @@ public class Constants {
     public static final String USER_KARMA_COIN_WALLET_TABLE = "user_karma_coin_wallet";
     public static final String TOTAL_EARNED = "total_earned";
     public static final String TOTAL_REDEEMED = "total_redeemed";
-    public static final String KARMA_COINS_REDIS_KEY_PREFIX = "user:karmaCoins:";
     public static final String TOTAL_EARNED_CAMEL = "totalEarned";
     public static final String TOTAL_REDEEMED_CAMEL = "totalRedeemed";
     public static final String USER_ENTITY_ENROLMENTS = "user_entity_enrolments";

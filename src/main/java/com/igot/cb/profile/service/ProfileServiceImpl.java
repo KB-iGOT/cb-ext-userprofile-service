@@ -68,9 +68,6 @@ public class ProfileServiceImpl implements ProfileService {
     @Value("${user.basic.details.filtered}")
     private String basicDetailsFilteredKeys;
 
-    @Value("${karma.coin.cache.ttl}")
-    private int walletCacheTtl;
-
     @Autowired
     OutboundRequestHandlerServiceImpl outboundRequestHandlerService;
 
@@ -1023,15 +1020,7 @@ public class ProfileServiceImpl implements ProfileService {
     }
 
     private int getUserWalletBalance(String userId) {
-        String redisKey = Constants.KARMA_COINS_REDIS_KEY_PREFIX + userId;
         try {
-            String redisValue = cacheService.getCache(redisKey);
-            if (StringUtils.isNotBlank(redisValue)) {
-                Map<String, Object> wallet = mapper.readValue(redisValue, new TypeReference<>() {});
-                int totalEarned = toInt(wallet.get(Constants.TOTAL_EARNED_CAMEL));
-                int totalRedeemed = toInt(wallet.get(Constants.TOTAL_REDEEMED_CAMEL));
-                return totalEarned - totalRedeemed;
-            }
             List<Map<String, Object>> records = cassandraOperation.getRecordsByPropertiesByKey(
                     Constants.KEYSPACE_SUNBIRD, Constants.USER_KARMA_COIN_WALLET_TABLE,
                     Map.of(Constants.USERID_KEY, userId),
@@ -1040,10 +1029,6 @@ public class ProfileServiceImpl implements ProfileService {
                 Map<String, Object> record = records.get(0);
                 int totalEarned = toInt(record.get(Constants.TOTAL_EARNED_CAMEL));
                 int totalRedeemed = toInt(record.get(Constants.TOTAL_REDEEMED_CAMEL));
-                Map<String, Object> wallet = new HashMap<>();
-                wallet.put(Constants.TOTAL_EARNED_CAMEL, totalEarned);
-                wallet.put(Constants.TOTAL_REDEEMED_CAMEL, totalRedeemed);
-                cacheService.putCache(redisKey, wallet, walletCacheTtl);
                 return totalEarned - totalRedeemed;
             }
             return 0;
