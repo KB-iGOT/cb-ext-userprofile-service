@@ -68,6 +68,9 @@ public class ProfileServiceImpl implements ProfileService {
     @Value("${user.basic.details.filtered}")
     private String basicDetailsFilteredKeys;
 
+    @Value("${karma.coin.cache.ttl}")
+    private int walletCacheTtl;
+
     @Autowired
     OutboundRequestHandlerServiceImpl outboundRequestHandlerService;
 
@@ -382,6 +385,7 @@ public class ProfileServiceImpl implements ProfileService {
             userProfile.put(Constants.PROFILE_COMPLETION_PERCENTAGE, calculateProfileCompletionPercentage(userProfile,
                     userId, userToken));
             userProfile.put(Constants.KARMA_POINTS, getUserKarmaPoints(userId));
+            userProfile.put(Constants.WALLET_BALANCE, getUserWalletBalance(userId));
             if (!userProfile.containsKey(Constants.CERTIFICATE_COUNT)) {
                 userProfile.put(Constants.CERTIFICATE_COUNT, getIssuedCertificateCount(userId));
                 cacheService.putCache(cacheKey, userProfile);
@@ -1016,6 +1020,44 @@ public class ProfileServiceImpl implements ProfileService {
             log.warn("Failed to fetch karma points for userId {}: {}", userId, e.getMessage());
             return 0;
         }
+    }
+
+    private int getUserWalletBalance(String userId) {
+        String redisKey = Constants.KARMA_COINS_REDIS_KEY_PREFIX + userId;
+        try {
+            String redisValue = cacheService.getCache(redisKey);
+            if (StringUtils.isNotBlank(redisValue)) {
+                Map<String, Object> wallet = mapper.readValue(redisValue, new TypeReference<>() {});
+                int totalEarned = toInt(wallet.get(Constants.TOTAL_EARNED_CAMEL));
+                int totalRedeemed = toInt(wallet.get(Constants.TOTAL_REDEEMED_CAMEL));
+                return totalEarned - totalRedeemed;
+            }
+            List<Map<String, Object>> records = cassandraOperation.getRecordsByPropertiesByKey(
+                    Constants.KEYSPACE_SUNBIRD, Constants.USER_KARMA_COIN_WALLET_TABLE,
+                    Map.of(Constants.USERID_KEY, userId),
+                    List.of(Constants.TOTAL_EARNED, Constants.TOTAL_REDEEMED), userId);
+            if (!CollectionUtils.isEmpty(records)) {
+                Map<String, Object> record = records.get(0);
+                int totalEarned = toInt(record.get(Constants.TOTAL_EARNED_CAMEL));
+                int totalRedeemed = toInt(record.get(Constants.TOTAL_REDEEMED_CAMEL));
+                Map<String, Object> wallet = new HashMap<>();
+                wallet.put(Constants.TOTAL_EARNED_CAMEL, totalEarned);
+                wallet.put(Constants.TOTAL_REDEEMED_CAMEL, totalRedeemed);
+                cacheService.putCache(redisKey, wallet, walletCacheTtl);
+                return totalEarned - totalRedeemed;
+            }
+            return 0;
+        } catch (Exception e) {
+            log.warn("Failed to fetch wallet balance for userId {}: {}", userId, e.getMessage());
+            return 0;
+        }
+    }
+
+    private int toInt(Object value) {
+        if (value instanceof Number) {
+            return ((Number) value).intValue();
+        }
+        return 0;
     }
 
 

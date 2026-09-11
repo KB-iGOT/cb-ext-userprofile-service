@@ -419,6 +419,13 @@ public class Constants {
     public static final String POSTCOUNT = "postCount";
     public static final String USER_KARMA_POINTS_SUMMARY_TABLE = "user_karma_points_summary";
     public static final String TOTAL_POINTS = "total_points";
+    public static final String WALLET_BALANCE = "walletBalance";
+    public static final String USER_KARMA_COIN_WALLET_TABLE = "user_karma_coin_wallet";
+    public static final String TOTAL_EARNED = "total_earned";
+    public static final String TOTAL_REDEEMED = "total_redeemed";
+    public static final String KARMA_COINS_REDIS_KEY_PREFIX = "user:karmaCoins:";
+    public static final String TOTAL_EARNED_CAMEL = "totalEarned";
+    public static final String TOTAL_REDEEMED_CAMEL = "totalRedeemed";
     public static final String USER_ENTITY_ENROLMENTS = "user_entity_enrolments";
     public static final String ISSUED_CERTIFICATES_KEY = "issuedCertificates";
     public static final String PROGRESS_KEY = "progress";
