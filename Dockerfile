@@ -1,19 +1,18 @@
-FROM openjdk:17.0.1-jdk-slim
+FROM eclipse-temurin:17-jdk-jammy
 
 RUN useradd -ms /bin/bash appuser
 
-RUN apt-get update \
-    && apt-get install -y \
+RUN apt-get update && \
+    apt-get install -y \
         curl \
         libxrender1 \
-        libjpeg62-turbo \
+        libjpeg-turbo8 \
         fontconfig \
         libxtst6 \
         xfonts-75dpi \
         xfonts-base \
-        xz-utils \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+        xz-utils && \
+    rm -rf /var/lib/apt/lists/*
 
 COPY cb-ext-userprofile-service-1.0-SNAPSHOT.jar /opt/
 

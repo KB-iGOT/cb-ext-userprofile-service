@@ -382,6 +382,7 @@ public class ProfileServiceImpl implements ProfileService {
             userProfile.put(Constants.PROFILE_COMPLETION_PERCENTAGE, calculateProfileCompletionPercentage(userProfile,
                     userId, userToken));
             userProfile.put(Constants.KARMA_POINTS, getUserKarmaPoints(userId));
+            userProfile.put(Constants.WALLET_BALANCE, getUserWalletBalance(userId));
             if (!userProfile.containsKey(Constants.CERTIFICATE_COUNT)) {
                 userProfile.put(Constants.CERTIFICATE_COUNT, getIssuedCertificateCount(userId));
                 cacheService.putCache(cacheKey, userProfile);
@@ -1016,6 +1017,32 @@ public class ProfileServiceImpl implements ProfileService {
             log.warn("Failed to fetch karma points for userId {}: {}", userId, e.getMessage());
             return 0;
         }
+    }
+
+    private int getUserWalletBalance(String userId) {
+        try {
+            List<Map<String, Object>> records = cassandraOperation.getRecordsByPropertiesByKey(
+                    Constants.KEYSPACE_SUNBIRD, Constants.USER_KARMA_COIN_WALLET_TABLE,
+                    Map.of(Constants.USERID_KEY, userId),
+                    List.of(Constants.TOTAL_EARNED, Constants.TOTAL_REDEEMED), userId);
+            if (!CollectionUtils.isEmpty(records)) {
+                Map<String, Object> walletRecord = records.get(0);
+                int totalEarned = toInt(walletRecord.get(Constants.TOTAL_EARNED_CAMEL));
+                int totalRedeemed = toInt(walletRecord.get(Constants.TOTAL_REDEEMED_CAMEL));
+                return totalEarned - totalRedeemed;
+            }
+            return 0;
+        } catch (Exception e) {
+            log.warn("Failed to fetch wallet balance for userId {}: {}", userId, e.getMessage());
+            return 0;
+        }
+    }
+
+    private int toInt(Object value) {
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        return 0;
     }
 
 

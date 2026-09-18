@@ -1450,6 +1450,57 @@ class ProfileServiceImplTest {
     }
 
     @Test
+    void getUserWalletBalance_returnsBalanceFromCassandra() {
+        ProfileServiceImpl localService = new ProfileServiceImpl();
+        CacheService localCacheService = mock(CacheService.class);
+        CassandraOperation localCassandraOperation = mock(CassandraOperation.class);
+        ReflectionTestUtils.setField(localService, "cacheService", localCacheService);
+        ReflectionTestUtils.setField(localService, "cassandraOperation", localCassandraOperation);
+        String userId = "user-1";
+        Map<String, Object> row = new HashMap<>();
+        row.put("totalEarned", 1321);
+        row.put("totalRedeemed", 849);
+        when(localCassandraOperation.getRecordsByPropertiesByKey(
+                eq(Constants.KEYSPACE_SUNBIRD), eq(Constants.USER_KARMA_COIN_WALLET_TABLE),
+                anyMap(), anyList(), eq(userId)))
+                .thenReturn(Collections.singletonList(row));
+        int balance = ReflectionTestUtils.invokeMethod(localService, "getUserWalletBalance", userId);
+        assertEquals(472, balance);
+        verifyNoInteractions(localCacheService);
+    }
+
+    @Test
+    void getUserWalletBalance_returnsZero_whenNoWalletRecord() {
+        ProfileServiceImpl localService = new ProfileServiceImpl();
+        CacheService localCacheService = mock(CacheService.class);
+        CassandraOperation localCassandraOperation = mock(CassandraOperation.class);
+        ReflectionTestUtils.setField(localService, "cacheService", localCacheService);
+        ReflectionTestUtils.setField(localService, "cassandraOperation", localCassandraOperation);
+        String userId = "user-3";
+        when(localCassandraOperation.getRecordsByPropertiesByKey(
+                eq(Constants.KEYSPACE_SUNBIRD), eq(Constants.USER_KARMA_COIN_WALLET_TABLE),
+                anyMap(), anyList(), eq(userId)))
+                .thenReturn(Collections.emptyList());
+        int balance = ReflectionTestUtils.invokeMethod(localService, "getUserWalletBalance", userId);
+        assertEquals(0, balance);
+        verifyNoInteractions(localCacheService);
+    }
+
+    @Test
+    void getUserWalletBalance_returnsZero_whenExceptionThrown() {
+        ProfileServiceImpl localService = new ProfileServiceImpl();
+        CassandraOperation localCassandraOperation = mock(CassandraOperation.class);
+        ReflectionTestUtils.setField(localService, "cassandraOperation", localCassandraOperation);
+        String userId = "user-4";
+        when(localCassandraOperation.getRecordsByPropertiesByKey(
+                eq(Constants.KEYSPACE_SUNBIRD), eq(Constants.USER_KARMA_COIN_WALLET_TABLE),
+                anyMap(), anyList(), eq(userId)))
+                .thenThrow(new RuntimeException("Cassandra error"));
+        int balance = ReflectionTestUtils.invokeMethod(localService, "getUserWalletBalance", userId);
+        assertEquals(0, balance);
+    }
+
+    @Test
     void getSortingComparator_returnsServiceHistoryComparator_andSortsByStartDateDescending() {
         ProfileServiceImpl localService = new ProfileServiceImpl();
         Comparator<Map<String, Object>> comparator = ReflectionTestUtils.invokeMethod(localService, "getSortingComparator", Constants.SERVICE_HISTORY);
