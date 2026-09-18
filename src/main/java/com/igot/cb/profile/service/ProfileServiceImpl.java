@@ -1026,9 +1026,9 @@ public class ProfileServiceImpl implements ProfileService {
                     Map.of(Constants.USERID_KEY, userId),
                     List.of(Constants.TOTAL_EARNED, Constants.TOTAL_REDEEMED), userId);
             if (!CollectionUtils.isEmpty(records)) {
-                Map<String, Object> record = records.get(0);
-                int totalEarned = toInt(record.get(Constants.TOTAL_EARNED_CAMEL));
-                int totalRedeemed = toInt(record.get(Constants.TOTAL_REDEEMED_CAMEL));
+                Map<String, Object> walletRecord = records.get(0);
+                int totalEarned = toInt(walletRecord.get(Constants.TOTAL_EARNED_CAMEL));
+                int totalRedeemed = toInt(walletRecord.get(Constants.TOTAL_REDEEMED_CAMEL));
                 return totalEarned - totalRedeemed;
             }
             return 0;
@@ -1039,8 +1039,8 @@ public class ProfileServiceImpl implements ProfileService {
     }
 
     private int toInt(Object value) {
-        if (value instanceof Number) {
-            return ((Number) value).intValue();
+        if (value instanceof Number number) {
+            return number.intValue();
         }
         return 0;
     }
