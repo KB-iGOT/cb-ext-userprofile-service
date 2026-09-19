@@ -85,11 +85,29 @@ public class CbServerProperties {
     @Value("${redis.port}")
     private String redisPort;
 
+    @Value("${redis.password.required:false}")
+    private boolean redisPasswordRequired;
+
+    @Value("${redis.username:}")
+    private String redisUsername;
+
+    @Value("${redis.password:}")
+    private String redisPassword;
+
     @Value("${redis.data.host.name}")
     private String redisDataHostName;
 
     @Value("${redis.data.port}")
     private String redisDataPort;
+
+    @Value("${redis.data.password.required:false}")
+    private boolean redisDataPasswordRequired;
+
+    @Value("${redis.data.username:}")
+    private String redisDataUsername;
+
+    @Value("${redis.data.password:}")
+    private String redisDataPassword;
 
     @Value("${cb.redis.maxIdle}")
     private Integer redisMaxIdle;
