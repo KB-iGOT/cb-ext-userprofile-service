@@ -1,7 +1,8 @@
 package com.igot.cb.campaign.service;
 
-import com.igot.cb.transactional.cassandrautils.CassandraOperation;
+import com.igot.cb.common.KafkaEventPublisher;
 import com.igot.cb.util.ApiResponse;
+import com.igot.cb.util.CbServerProperties;
 import com.igot.cb.util.Constants;
 import com.igot.cb.util.ProjectUtil;
 import lombok.extern.slf4j.Slf4j;
@@ -22,10 +23,12 @@ public class CampaignServiceImpl implements CampaignService {
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[a-zA-Z0-9_+&*-]+(?:\\.[a-zA-Z0-9_+&*-]+)*@(?:[a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,7}$");
     private static final Pattern PHONE_PATTERN = Pattern.compile("^[0-9]{10}$");
 
-    private final CassandraOperation cassandraOperation;
+    private final KafkaEventPublisher kafkaEventPublisher;
+    private final CbServerProperties cbServerProperties;
 
-    public CampaignServiceImpl(CassandraOperation cassandraOperation) {
-        this.cassandraOperation = cassandraOperation;
+    public CampaignServiceImpl(KafkaEventPublisher kafkaEventPublisher, CbServerProperties cbServerProperties) {
+        this.kafkaEventPublisher = kafkaEventPublisher;
+        this.cbServerProperties = cbServerProperties;
     }
 
     @Override
@@ -39,17 +42,14 @@ public class CampaignServiceImpl implements CampaignService {
 
             Map<String, Object> data = getRequestData(requestBody);
             Map<String, Object> record = buildLeadRecord(data);
-            ApiResponse insertResponse = (ApiResponse) cassandraOperation.insertRecord(
-                    Constants.KEYSPACE_SUNBIRD,
-                    Constants.TABLE_CAMPAIGN_LEAD,
+
+            kafkaEventPublisher.publish(
+                    cbServerProperties.getCampaignTopicName(),
+                    record.get(Constants.PHONE).toString(),
                     record
             );
 
-            if (insertResponse != null && Constants.SUCCESS.equalsIgnoreCase((String) insertResponse.get(Constants.RESPONSE))) {
-                apiResponse.getResult().put(Constants.RESPONSE, Constants.SUCCESS);
-            } else {
-                ProjectUtil.errorResponse(apiResponse, "Failed to save campaign lead record", HttpStatus.INTERNAL_SERVER_ERROR);
-            }
+            apiResponse.getResult().put(Constants.RESPONSE, Constants.SUCCESS);
         } catch (Exception ex) {
             log.error("Exception occurred while creating campaign lead: {}", ex.getMessage(), ex);
             ProjectUtil.errorResponse(apiResponse, "Internal server error occurred while processing campaign lead", HttpStatus.INTERNAL_SERVER_ERROR);
@@ -139,6 +139,7 @@ public class CampaignServiceImpl implements CampaignService {
         if (email != null && StringUtils.isNotBlank(email.toString())) {
             record.put(Constants.EMAIL, email.toString().trim());
         }
+        record.put(Constants.ETS, System.currentTimeMillis());
         return record;
     }
 }

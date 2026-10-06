@@ -1,12 +1,14 @@
 package com.igot.cb.campaign.service;
 
-import com.igot.cb.transactional.cassandrautils.CassandraOperation;
+import com.igot.cb.common.KafkaEventPublisher;
 import com.igot.cb.util.ApiResponse;
+import com.igot.cb.util.CbServerProperties;
 import com.igot.cb.util.Constants;
 import com.igot.cb.util.ProjectUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -22,8 +24,13 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class CampaignServiceImplTest {
 
+    private static final String TEST_TOPIC = "special.campaign.nlh.sevabhav26";
+
     @Mock
-    private CassandraOperation cassandraOperation;
+    private KafkaEventPublisher kafkaEventPublisher;
+
+    @Mock
+    private CbServerProperties cbServerProperties;
 
     @InjectMocks
     private CampaignServiceImpl campaignService;
@@ -43,11 +50,9 @@ class CampaignServiceImplTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     void testCreateLead_Success() {
-        ApiResponse cassandraResp = new ApiResponse();
-        cassandraResp.put(Constants.RESPONSE, Constants.SUCCESS);
-        when(cassandraOperation.insertRecord(eq(Constants.KEYSPACE_SUNBIRD), eq(Constants.TABLE_CAMPAIGN_LEAD), anyMap()))
-                .thenReturn(cassandraResp);
+        when(cbServerProperties.getCampaignTopicName()).thenReturn(TEST_TOPIC);
 
         ApiResponse response = campaignService.createLead(validPayload);
 
@@ -55,16 +60,19 @@ class CampaignServiceImplTest {
         assertEquals(HttpStatus.OK, response.getResponseCode());
         assertEquals(Constants.SUCCESS, response.getParams().getStatus());
         assertEquals(Constants.SUCCESS, response.getResult().get(Constants.RESPONSE));
-        verify(cassandraOperation, times(1)).insertRecord(eq(Constants.KEYSPACE_SUNBIRD), eq(Constants.TABLE_CAMPAIGN_LEAD), anyMap());
+
+        ArgumentCaptor<Map<String, Object>> eventCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(kafkaEventPublisher, times(1)).publish(eq(TEST_TOPIC), eq("9876543210"), eventCaptor.capture());
+        Map<String, Object> event = eventCaptor.getValue();
+        assertEquals("john.doe@example.com", event.get(Constants.EMAIL));
+        assertNotNull(event.get(Constants.ETS));
+        assertTrue(((Long) event.get(Constants.ETS)) > 0);
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     void testCreateLead_Success_WithoutEmail() {
-        ApiResponse cassandraResp = new ApiResponse();
-        cassandraResp.put(Constants.RESPONSE, Constants.SUCCESS);
-        when(cassandraOperation.insertRecord(eq(Constants.KEYSPACE_SUNBIRD), eq(Constants.TABLE_CAMPAIGN_LEAD), anyMap()))
-                .thenReturn(cassandraResp);
-
+        when(cbServerProperties.getCampaignTopicName()).thenReturn(TEST_TOPIC);
         validPayload.remove("email");
 
         ApiResponse response = campaignService.createLead(validPayload);
@@ -72,16 +80,18 @@ class CampaignServiceImplTest {
         assertNotNull(response);
         assertEquals(HttpStatus.OK, response.getResponseCode());
         assertEquals(Constants.SUCCESS, response.getParams().getStatus());
-        verify(cassandraOperation, times(1)).insertRecord(eq(Constants.KEYSPACE_SUNBIRD), eq(Constants.TABLE_CAMPAIGN_LEAD), anyMap());
+
+        ArgumentCaptor<Map<String, Object>> eventCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(kafkaEventPublisher, times(1)).publish(eq(TEST_TOPIC), eq("9876543210"), eventCaptor.capture());
+        Map<String, Object> event = eventCaptor.getValue();
+        assertNull(event.get(Constants.EMAIL));
+        assertNotNull(event.get(Constants.ETS));
+        assertTrue(((Long) event.get(Constants.ETS)) > 0);
     }
 
     @Test
     void testCreateLead_Success_WithBlankEmail() {
-        ApiResponse cassandraResp = new ApiResponse();
-        cassandraResp.put(Constants.RESPONSE, Constants.SUCCESS);
-        when(cassandraOperation.insertRecord(eq(Constants.KEYSPACE_SUNBIRD), eq(Constants.TABLE_CAMPAIGN_LEAD), anyMap()))
-                .thenReturn(cassandraResp);
-
+        when(cbServerProperties.getCampaignTopicName()).thenReturn(TEST_TOPIC);
         validPayload.put("email", "   ");
 
         ApiResponse response = campaignService.createLead(validPayload);
@@ -89,15 +99,12 @@ class CampaignServiceImplTest {
         assertNotNull(response);
         assertEquals(HttpStatus.OK, response.getResponseCode());
         assertEquals(Constants.SUCCESS, response.getParams().getStatus());
+        verify(kafkaEventPublisher, times(1)).publish(eq(TEST_TOPIC), eq("9876543210"), anyMap());
     }
 
     @Test
     void testCreateLead_Success_WrappedInRequestAndDataObject() {
-        ApiResponse cassandraResp = new ApiResponse();
-        cassandraResp.put(Constants.RESPONSE, Constants.SUCCESS);
-        when(cassandraOperation.insertRecord(eq(Constants.KEYSPACE_SUNBIRD), eq(Constants.TABLE_CAMPAIGN_LEAD), anyMap()))
-                .thenReturn(cassandraResp);
-
+        when(cbServerProperties.getCampaignTopicName()).thenReturn(TEST_TOPIC);
         Map<String, Object> dataWrapper = new HashMap<>();
         dataWrapper.put(Constants.DATA, validPayload);
         Map<String, Object> requestWrapper = new HashMap<>();
@@ -108,15 +115,12 @@ class CampaignServiceImplTest {
         assertNotNull(response);
         assertEquals(HttpStatus.OK, response.getResponseCode());
         assertEquals(Constants.SUCCESS, response.getParams().getStatus());
+        verify(kafkaEventPublisher, times(1)).publish(eq(TEST_TOPIC), eq("9876543210"), anyMap());
     }
 
     @Test
     void testCreateLead_Success_WrappedInRequestObject() {
-        ApiResponse cassandraResp = new ApiResponse();
-        cassandraResp.put(Constants.RESPONSE, Constants.SUCCESS);
-        when(cassandraOperation.insertRecord(eq(Constants.KEYSPACE_SUNBIRD), eq(Constants.TABLE_CAMPAIGN_LEAD), anyMap()))
-                .thenReturn(cassandraResp);
-
+        when(cbServerProperties.getCampaignTopicName()).thenReturn(TEST_TOPIC);
         Map<String, Object> wrapper = new HashMap<>();
         wrapper.put(Constants.REQUEST, validPayload);
 
@@ -125,6 +129,7 @@ class CampaignServiceImplTest {
         assertNotNull(response);
         assertEquals(HttpStatus.OK, response.getResponseCode());
         assertEquals(Constants.SUCCESS, response.getParams().getStatus());
+        verify(kafkaEventPublisher, times(1)).publish(eq(TEST_TOPIC), eq("9876543210"), anyMap());
     }
 
     @Test
@@ -143,21 +148,7 @@ class CampaignServiceImplTest {
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
         assertEquals(Constants.FAILED, response.getParams().getStatus());
         assertEquals("phone cannot be null or empty", response.getParams().getErrMsg());
-        verifyNoInteractions(cassandraOperation);
-    }
-
-    @Test
-    void testCreateLead_ExistingRecord_AcceptedWithoutError() {
-        ApiResponse cassandraResp = new ApiResponse();
-        cassandraResp.put(Constants.RESPONSE, Constants.SUCCESS);
-        when(cassandraOperation.insertRecord(eq(Constants.KEYSPACE_SUNBIRD), eq(Constants.TABLE_CAMPAIGN_LEAD), anyMap()))
-                .thenReturn(cassandraResp);
-
-        ApiResponse response = campaignService.createLead(validPayload);
-
-        assertNotNull(response);
-        assertEquals(HttpStatus.OK, response.getResponseCode());
-        assertEquals(Constants.SUCCESS, response.getParams().getStatus());
+        verifyNoInteractions(kafkaEventPublisher);
     }
 
     @Test
@@ -168,7 +159,7 @@ class CampaignServiceImplTest {
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
         assertEquals(Constants.FAILED, response.getParams().getStatus());
         assertEquals("Request body cannot be empty", response.getParams().getErrMsg());
-        verifyNoInteractions(cassandraOperation);
+        verifyNoInteractions(kafkaEventPublisher);
     }
 
     @Test
@@ -179,7 +170,7 @@ class CampaignServiceImplTest {
         assertNotNull(response);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
         assertEquals("campaignId cannot be null or empty", response.getParams().getErrMsg());
-        verifyNoInteractions(cassandraOperation);
+        verifyNoInteractions(kafkaEventPublisher);
     }
 
     @Test
@@ -190,7 +181,7 @@ class CampaignServiceImplTest {
         assertNotNull(response);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
         assertEquals("Invalid campaignid. Only 'Seva Bhav' is accepted", response.getParams().getErrMsg());
-        verifyNoInteractions(cassandraOperation);
+        verifyNoInteractions(kafkaEventPublisher);
     }
 
     @Test
@@ -201,7 +192,7 @@ class CampaignServiceImplTest {
         assertNotNull(response);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
         assertEquals("Invalid email pattern", response.getParams().getErrMsg());
-        verifyNoInteractions(cassandraOperation);
+        verifyNoInteractions(kafkaEventPublisher);
     }
 
     @Test
@@ -212,7 +203,7 @@ class CampaignServiceImplTest {
         assertNotNull(response);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
         assertEquals("phone cannot be null or empty", response.getParams().getErrMsg());
-        verifyNoInteractions(cassandraOperation);
+        verifyNoInteractions(kafkaEventPublisher);
     }
 
     @Test
@@ -223,7 +214,7 @@ class CampaignServiceImplTest {
         assertNotNull(response);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
         assertEquals("Invalid mobile number. It must be a 10-digit number", response.getParams().getErrMsg());
-        verifyNoInteractions(cassandraOperation);
+        verifyNoInteractions(kafkaEventPublisher);
     }
 
     @Test
@@ -234,7 +225,7 @@ class CampaignServiceImplTest {
         assertNotNull(response);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
         assertEquals("Invalid mobile number. It must be a 10-digit number", response.getParams().getErrMsg());
-        verifyNoInteractions(cassandraOperation);
+        verifyNoInteractions(kafkaEventPublisher);
     }
 
     @Test
@@ -245,7 +236,7 @@ class CampaignServiceImplTest {
         assertNotNull(response);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
         assertEquals("Invalid mobile number. It must be a 10-digit number", response.getParams().getErrMsg());
-        verifyNoInteractions(cassandraOperation);
+        verifyNoInteractions(kafkaEventPublisher);
     }
 
     @Test
@@ -256,7 +247,7 @@ class CampaignServiceImplTest {
         assertNotNull(response);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
         assertEquals("name cannot be null or empty", response.getParams().getErrMsg());
-        verifyNoInteractions(cassandraOperation);
+        verifyNoInteractions(kafkaEventPublisher);
     }
 
     @Test
@@ -267,7 +258,7 @@ class CampaignServiceImplTest {
         assertNotNull(response);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
         assertEquals("consent cannot be null", response.getParams().getErrMsg());
-        verifyNoInteractions(cassandraOperation);
+        verifyNoInteractions(kafkaEventPublisher);
     }
 
     @Test
@@ -278,7 +269,7 @@ class CampaignServiceImplTest {
         assertNotNull(response);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
         assertEquals("consent must be a boolean value", response.getParams().getErrMsg());
-        verifyNoInteractions(cassandraOperation);
+        verifyNoInteractions(kafkaEventPublisher);
     }
 
     @Test
@@ -289,7 +280,7 @@ class CampaignServiceImplTest {
         assertNotNull(response);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
         assertEquals("consentVersion cannot be null or empty", response.getParams().getErrMsg());
-        verifyNoInteractions(cassandraOperation);
+        verifyNoInteractions(kafkaEventPublisher);
     }
 
     @Test
@@ -300,7 +291,7 @@ class CampaignServiceImplTest {
         assertNotNull(response);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
         assertEquals("consentVersion must be a valid positive number", response.getParams().getErrMsg());
-        verifyNoInteractions(cassandraOperation);
+        verifyNoInteractions(kafkaEventPublisher);
     }
 
     @Test
@@ -311,29 +302,14 @@ class CampaignServiceImplTest {
         assertNotNull(response);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
         assertEquals("source cannot be null or empty", response.getParams().getErrMsg());
-        verifyNoInteractions(cassandraOperation);
+        verifyNoInteractions(kafkaEventPublisher);
     }
 
     @Test
-    void testCreateLead_CassandraFailure_ReturnsInternalServerError() {
-        ApiResponse cassandraResp = new ApiResponse();
-        cassandraResp.put(Constants.RESPONSE, Constants.FAILED);
-        cassandraResp.put(Constants.ERROR_MESSAGE, "Cassandra unavailable");
-        when(cassandraOperation.insertRecord(eq(Constants.KEYSPACE_SUNBIRD), eq(Constants.TABLE_CAMPAIGN_LEAD), anyMap()))
-                .thenReturn(cassandraResp);
-
-        ApiResponse response = campaignService.createLead(validPayload);
-
-        assertNotNull(response);
-        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
-        assertEquals(Constants.FAILED, response.getParams().getStatus());
-        assertEquals("Failed to save campaign lead record", response.getParams().getErrMsg());
-    }
-
-    @Test
-    void testCreateLead_CassandraThrowsException_ReturnsInternalServerError() {
-        when(cassandraOperation.insertRecord(eq(Constants.KEYSPACE_SUNBIRD), eq(Constants.TABLE_CAMPAIGN_LEAD), anyMap()))
-                .thenThrow(new RuntimeException("Cassandra connection timed out"));
+    void testCreateLead_PublishThrowsException_ReturnsInternalServerError() {
+        when(cbServerProperties.getCampaignTopicName()).thenReturn(TEST_TOPIC);
+        doThrow(new RuntimeException("Kafka connection timed out"))
+                .when(kafkaEventPublisher).publish(anyString(), anyString(), any());
 
         ApiResponse response = campaignService.createLead(validPayload);
 

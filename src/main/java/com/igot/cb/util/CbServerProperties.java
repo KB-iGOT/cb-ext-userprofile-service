@@ -252,4 +252,25 @@ public class CbServerProperties {
     @Value("${validation.regex.uuid}")
     private String uuidRegex;
 
+    @Value("${campaign.kafka.topic:${special.campaign.topic.name:special.campaign.nlh.sevabhav26}}")
+    private String campaignTopicName;
+
+    @Value("${campaign.kafka.consumer.group:${special.campaign.consumer.group:specialCampaignEvent}}")
+    private String campaignConsumerGroup;
+
+    public String getCampaignTopicName() {
+        return campaignTopicName;
+    }
+
+    public void setCampaignTopicName(String campaignTopicName) {
+        this.campaignTopicName = campaignTopicName;
+    }
+
+    public String getCampaignConsumerGroup() {
+        return campaignConsumerGroup;
+    }
+
+    public void setCampaignConsumerGroup(String campaignConsumerGroup) {
+        this.campaignConsumerGroup = campaignConsumerGroup;
+    }
 }
