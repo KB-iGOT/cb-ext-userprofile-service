@@ -309,7 +309,7 @@ class CampaignServiceImplTest {
     void testCreateLead_PublishThrowsException_ReturnsInternalServerError() {
         when(cbServerProperties.getCampaignTopicName()).thenReturn(TEST_TOPIC);
         doThrow(new RuntimeException("Kafka connection timed out"))
-                .when(kafkaEventPublisher).publish(anyString(), anyString(), any());
+                .when(kafkaEventPublisher).publish(anyString(), anyString(), anyMap());
 
         ApiResponse response = campaignService.createLead(validPayload);
 
