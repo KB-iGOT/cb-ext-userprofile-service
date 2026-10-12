@@ -64,14 +64,25 @@ public class AccessTokenValidatorTest {
     }
 
     /**
+     * Shared assertion for fetchUserIdFromAccessToken(String) scenarios that are all
+     * expected to return null, regardless of why (exception, null input, unauthorized).
+     * Used in place of three near-identical @Test methods (SonarQube S5976) since this
+     * class is JUnit 4 (@RunWith(MockitoJUnitRunner.class)) and cannot mix in a
+     * @RunWith(Parameterized.class) runner.
+     */
+    private void assertFetchUserIdFromAccessTokenReturnsNull(String token) {
+        String result = accessTokenValidator.fetchUserIdFromAccessToken(token);
+        assertNull(result);
+    }
+
+    /**
      * Test fetching user ID when an exception occurs.
      * This test verifies that the method returns null when an exception is thrown
      * during the process, as explicitly handled in the method implementation.
      */
     @Test
     public void testFetchUserIdFromAccessToken_ExceptionOccurs() {
-        String result = accessTokenValidator.fetchUserIdFromAccessToken("exception_token");
-        assertNull(result);
+        assertFetchUserIdFromAccessTokenReturnsNull("exception_token");
     }
 
     /**
@@ -81,8 +92,7 @@ public class AccessTokenValidatorTest {
      */
     @Test
     public void testFetchUserIdFromAccessToken_NullToken() {
-        String result = accessTokenValidator.fetchUserIdFromAccessToken(null);
-        assertNull(result);
+        assertFetchUserIdFromAccessTokenReturnsNull(null);
     }
 
     /**
@@ -92,8 +102,7 @@ public class AccessTokenValidatorTest {
      */
     @Test
     public void testFetchUserIdFromAccessToken_UnauthorizedToken() {
-        String result = accessTokenValidator.fetchUserIdFromAccessToken("invalid_token");
-        assertNull(result);
+        assertFetchUserIdFromAccessTokenReturnsNull("invalid_token");
     }
 
     /**
@@ -268,14 +277,25 @@ public class AccessTokenValidatorTest {
     }
 
     /**
+     * Shared assertion for verifyUserToken(String) scenarios that are all expected to
+     * return UNAUTHORIZED (empty, malformed, or null token). Used in place of three
+     * near-identical @Test methods (SonarQube S5976) since this class is JUnit 4
+     * (@RunWith(MockitoJUnitRunner.class)) and cannot mix in a
+     * @RunWith(Parameterized.class) runner.
+     */
+    private void assertVerifyUserTokenReturnsUnauthorized(String token) {
+        AccessTokenValidator validator = new AccessTokenValidator(keyManager);
+        String result = validator.verifyUserToken(token);
+        assertEquals(Constants.UNAUTHORIZED, result);
+    }
+
+    /**
      * Test verifyUserToken with an empty token.
      * This test verifies that an empty token is treated as invalid and returns UNAUTHORIZED.
      */
     @Test
     public void test_verifyUserToken_emptyToken() {
-        AccessTokenValidator validator = new AccessTokenValidator(keyManager);
-        String result = validator.verifyUserToken("");
-        assertEquals(Constants.UNAUTHORIZED, result);
+        assertVerifyUserTokenReturnsUnauthorized("");
     }
 
     /**
@@ -284,9 +304,7 @@ public class AccessTokenValidatorTest {
      */
     @Test
     public void test_verifyUserToken_invalidTokenFormat() {
-        AccessTokenValidator validator = new AccessTokenValidator(keyManager);
-        String result = validator.verifyUserToken("invalid.token");
-        assertEquals(Constants.UNAUTHORIZED, result);
+        assertVerifyUserTokenReturnsUnauthorized("invalid.token");
     }
 
 
@@ -296,9 +314,7 @@ public class AccessTokenValidatorTest {
      */
     @Test
     public void test_verifyUserToken_nullToken() {
-        AccessTokenValidator validator = new AccessTokenValidator(keyManager);
-        String result = validator.verifyUserToken(null);
-        assertEquals(Constants.UNAUTHORIZED, result);
+        assertVerifyUserTokenReturnsUnauthorized(null);
     }
 
     /**

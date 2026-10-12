@@ -69,7 +69,7 @@ class InstituteTest {
         assertEquals(institute1, institute2);
         assertEquals(institute1.hashCode(), institute2.hashCode());
         assertNotNull(institute1.toString());
-        assertNotEquals(institute1, null);
+        assertNotEquals(null, institute1);
         assertNotEquals(institute1, new Object());
     }
 

@@ -3427,7 +3427,7 @@ class ProfileServiceImplTest {
         ApiResponse noContentResponse = ProjectUtil.createDefaultResponse("api.extendedProfile.read");
         noContentResponse.setResponseCode(HttpStatus.NO_CONTENT);
         doReturn(noContentResponse).when(profileService)
-                .readFullExtendedProfile(eq("u1"), eq(Constants.SERVICE_HISTORY), eq("t1"));
+                .readFullExtendedProfile("u1", Constants.SERVICE_HISTORY, "t1");
 
         Map<String, Object> details = new HashMap<>();
         details.put(Constants.PROFESSIONAL_DETAILS, List.of("job1"));

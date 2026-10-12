@@ -73,8 +73,13 @@ class CbServerPropertiesTest {
         assertEquals("http://api", properties.getConnectionApi());
     }
 
+    // The original testRemainingPrimitiveAndWrapperGettersAndSetters() method exceeded
+    // Sonar's 25-assertions-per-test threshold (S5961) with 57 assertions. It has been
+    // split below into cohesive, category-based sibling tests covering the exact same
+    // getter/setter pairs, so overall coverage is unchanged.
+
     @Test
-    void testRemainingPrimitiveAndWrapperGettersAndSetters() {
+    void testConnectionAndRedisPoolGettersAndSetters() {
         properties.setMaxTotalConnections(10);
         assertEquals(10, properties.getMaxTotalConnections());
 
@@ -95,7 +100,10 @@ class CbServerPropertiesTest {
 
         properties.setRedisConnectionTimeout(6000L);
         assertEquals(6000L, properties.getRedisConnectionTimeout());
+    }
 
+    @Test
+    void testProfileMandatoryFieldsAndWeightGettersAndSetters() {
         properties.setEducationalQualificationMandatoryFields("edu1,edu2");
         assertEquals("edu1,edu2", properties.getEducationalQualificationMandatoryFields());
 
@@ -107,7 +115,10 @@ class CbServerPropertiesTest {
 
         properties.setFieldWeight(1.5d);
         assertEquals(1.5d, properties.getFieldWeight());
+    }
 
+    @Test
+    void testCommunityAndRedisConnectionDetailsGettersAndSetters() {
         properties.setCommunityBaseUrl("http://community");
         assertEquals("http://community", properties.getCommunityBaseUrl());
 
@@ -137,7 +148,10 @@ class CbServerPropertiesTest {
 
         properties.setRedisMinIdle(2);
         assertEquals(2, properties.getRedisMinIdle());
+    }
 
+    @Test
+    void testRedisTestAndEvictionFlagGettersAndSetters() {
         properties.setRedisTestOnReturn(Boolean.TRUE);
         assertTrue(properties.getRedisTestOnReturn());
 
@@ -152,7 +166,10 @@ class CbServerPropertiesTest {
 
         properties.setRedisBlockWhenExhausted(Boolean.TRUE);
         assertTrue(properties.getRedisBlockWhenExhausted());
+    }
 
+    @Test
+    void testCacheIndexAndTtlGettersAndSetters() {
         properties.setDataIndex(11);
         assertEquals(11, properties.getDataIndex());
 
@@ -167,7 +184,10 @@ class CbServerPropertiesTest {
 
         properties.setUserProfileIndex("profileIndex");
         assertEquals("profileIndex", properties.getUserProfileIndex());
+    }
 
+    @Test
+    void testHubEnrolmentAndMasterDataRegexGettersAndSetters() {
         properties.setHubGraphService("hubGraph");
         assertEquals("hubGraph", properties.getHubGraphService());
 
@@ -191,7 +211,10 @@ class CbServerPropertiesTest {
 
         properties.setMasterDataSearchStringMaxLength("50");
         assertEquals("50", properties.getMasterDataSearchStringMaxLength());
+    }
 
+    @Test
+    void testLearnerPasswordAndRequiredFieldsGettersAndSetters() {
         properties.setLearnerServiceHost("http://learner");
         assertEquals("http://learner", properties.getLearnerServiceHost());
 
@@ -206,7 +229,10 @@ class CbServerPropertiesTest {
 
         properties.setCassandraFetchLimit(100);
         assertEquals(100, properties.getCassandraFetchLimit());
+    }
 
+    @Test
+    void testAchievementAndCompetencyFieldGettersAndSetters() {
         properties.setRequireEs(true);
         assertTrue(properties.isRequireEs());
 
@@ -224,7 +250,10 @@ class CbServerPropertiesTest {
 
         properties.setAchievementCacheTtl(200);
         assertEquals(200, properties.getAchievementCacheTtl());
+    }
 
+    @Test
+    void testRegexAndMiscGettersAndSetters() {
         properties.setDegreeNameRegex("^[A-Za-z ]+$");
         assertEquals("^[A-Za-z ]+$", properties.getDegreeNameRegex());
 

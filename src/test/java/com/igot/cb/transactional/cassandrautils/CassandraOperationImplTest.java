@@ -659,7 +659,7 @@ public class CassandraOperationImplTest {
 
         CassandraOperationImpl spyCassandraOperation = spy(cassandraOperation);
         doReturn(mockSelect).when(spyCassandraOperation).processQuery(
-                eq(keyspaceName), eq(tableName), eq(primaryKey), eq(fields));
+                keyspaceName, tableName, primaryKey, fields);
 
         when(connectionManager.getSession(keyspaceName)).thenReturn(session);
         when(session.execute(mockStatement)).thenReturn(resultSet);
@@ -703,7 +703,7 @@ public class CassandraOperationImplTest {
 
         CassandraOperationImpl spyCassandraOperation = spy(cassandraOperation);
         doReturn(mockSelect).when(spyCassandraOperation).processQuery(
-                eq(keyspaceName), eq(tableName), eq(primaryKey), eq(fields));
+                keyspaceName, tableName, primaryKey, fields);
 
         when(connectionManager.getSession(keyspaceName)).thenReturn(session);
         when(session.execute(any(SimpleStatement.class))).thenReturn(resultSet);

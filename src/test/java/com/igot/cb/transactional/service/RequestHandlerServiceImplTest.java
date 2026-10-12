@@ -243,7 +243,7 @@ public class RequestHandlerServiceImplTest {
     }
 
     @Test
-    public void testFetchResultUsingPost_realJsonProcessingExceptionDuringDebugLogging() throws Exception {
+    public void testFetchResultUsingPost_realJsonProcessingExceptionDuringDebugLogging() {
         String uri = "http://example.com/api";
         BadRequest request = new BadRequest();
         Map<String, String> headersValues = new HashMap<>();

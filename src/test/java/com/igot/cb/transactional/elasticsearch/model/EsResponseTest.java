@@ -78,7 +78,7 @@ class EsResponseTest {
         assertEquals(response1, response2);
         assertEquals(response1.hashCode(), response2.hashCode());
         assertNotNull(response1.toString());
-        assertNotEquals(response1, null);
+        assertNotEquals(null, response1);
         assertNotEquals(response1, new Object());
     }
 }

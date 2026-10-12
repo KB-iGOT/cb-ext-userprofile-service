@@ -69,7 +69,7 @@ class DegreeTest {
         assertEquals(degree1, degree2);
         assertEquals(degree1.hashCode(), degree2.hashCode());
         assertNotNull(degree1.toString());
-        assertNotEquals(degree1, null);
+        assertNotEquals(null, degree1);
         assertNotEquals(degree1, new Object());
     }
 

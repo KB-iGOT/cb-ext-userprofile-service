@@ -16,6 +16,8 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -159,9 +161,13 @@ class OutboundRequestHandlerServiceImplTest {
 
     @Test
     void testFetchUsingGetWithHeadersProfile_DebugEnabled_Success() {
-        String uri = "http://example.com";
-        Map<String, String> headers = Map.of("Authorization", "Bearer token");
-        Map<String, Object> responseMap = Map.of("key", "value");
+        String uri = "http://example.com/debug";
+        Map<String, String> headers = Map.of(
+                "Authorization", "Bearer token",
+                "X-Request-Id", "req-123");
+        Map<String, Object> responseMap = Map.of(
+                "key", "value",
+                "status", "ok");
 
         ResponseEntity<Map> response = new ResponseEntity<>(responseMap, HttpStatus.OK);
         when(restTemplate.exchange(eq(uri), eq(HttpMethod.GET), any(HttpEntity.class), eq(Map.class)))
@@ -171,6 +177,7 @@ class OutboundRequestHandlerServiceImplTest {
 
         assertTrue(result instanceof Map);
         assertEquals("value", ((Map<?, ?>) result).get("key"));
+        assertEquals("ok", ((Map<?, ?>) result).get("status"));
     }
 
     @Test
@@ -190,16 +197,22 @@ class OutboundRequestHandlerServiceImplTest {
 
     @Test
     void testFetchResultUsingPatch_DebugEnabled_Success() {
-        String uri = "http://example.com";
-        Map<String, String> headers = Map.of("Authorization", "Bearer token");
-        Map<String, Object> responseMap = Map.of("result", "ok");
+        String uri = "http://example.com/debug-patch";
+        Map<String, String> headers = Map.of(
+                "Authorization", "Bearer token",
+                "X-Request-Id", "req-456");
+        Map<String, Object> responseMap = Map.of(
+                "result", "ok",
+                "count", 2);
 
         when(restTemplate.patchForObject(eq(uri), any(HttpEntity.class), eq(Map.class)))
                 .thenReturn(responseMap);
 
-        Map<String, Object> result = service.fetchResultUsingPatch(uri, Map.of("req", "data"), headers);
+        Map<String, Object> result = service.fetchResultUsingPatch(uri, Map.of("req", "data", "extra", "field"), headers);
 
         assertEquals("ok", result.get("result"));
+        assertEquals(2, result.get("count"));
+        verify(restTemplate, times(1)).patchForObject(eq(uri), any(HttpEntity.class), eq(Map.class));
     }
 
     @Test

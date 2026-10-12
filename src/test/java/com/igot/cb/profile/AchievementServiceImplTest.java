@@ -2370,35 +2370,23 @@ class AchievementServiceImplTest {
         assertTrue(response.getParams().getErrMsg().contains("uploadedDocumentUrl and url fields must be present"));
     }
 
-    @Test
-    void testUpdateLearnerAchievement_urlFieldsNull_returnsValidationResponse() {
-        Map<String, Object> contextData = new HashMap<>();
-        contextData.put("field1", "value1");
-        contextData.put("field2", "value2");
-        contextData.put(Constants.UPLOAD_DOCUMENT_URL, null);
-        contextData.put(Constants.URL, "someUrl");
-        Map<String, Object> requestData = new HashMap<>();
-        requestData.put(Constants.ID, "achv1");
-        requestData.put(Constants.CONTEXT_TYPE, "testContext");
-        requestData.put(Constants.CONTEXT_DATA, contextData);
-        Map<String, Object> request = new HashMap<>();
-        request.put(Constants.REQUEST, requestData);
-
-        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
-
-        ApiResponse response = achievementService.updateLearnerAchievement(request, "token", "org1");
-
-        assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
-        assertTrue(response.getParams().getErrMsg().contains("must not be null"));
+    private static Stream<Arguments> urlFieldsValidationScenarios() {
+        return Stream.of(
+                Arguments.of(null, "someUrl", "must not be null"),
+                Arguments.of("", "", "Either uploadedDocumentUrl or url must have a value"),
+                Arguments.of("a", "b", "Exactly one of uploadedDocumentUrl or url must have a value")
+        );
     }
 
-    @Test
-    void testUpdateLearnerAchievement_urlFieldsBothBlank_returnsValidationResponse() {
+    @ParameterizedTest(name = "uploadedDocumentUrl=[{0}], url=[{1}] -> error contains \"{2}\"")
+    @MethodSource("urlFieldsValidationScenarios")
+    void testUpdateLearnerAchievement_urlFieldsInvalidCombinations_returnsValidationResponse(
+            String uploadedDocumentUrl, String url, String expectedErrorSubstring) {
         Map<String, Object> contextData = new HashMap<>();
         contextData.put("field1", "value1");
         contextData.put("field2", "value2");
-        contextData.put(Constants.UPLOAD_DOCUMENT_URL, "");
-        contextData.put(Constants.URL, "");
+        contextData.put(Constants.UPLOAD_DOCUMENT_URL, uploadedDocumentUrl);
+        contextData.put(Constants.URL, url);
         Map<String, Object> requestData = new HashMap<>();
         requestData.put(Constants.ID, "achv1");
         requestData.put(Constants.CONTEXT_TYPE, "testContext");
@@ -2411,29 +2399,7 @@ class AchievementServiceImplTest {
         ApiResponse response = achievementService.updateLearnerAchievement(request, "token", "org1");
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
-        assertTrue(response.getParams().getErrMsg().contains("Either uploadedDocumentUrl or url must have a value"));
-    }
-
-    @Test
-    void testUpdateLearnerAchievement_urlFieldsBothNonBlank_returnsValidationResponse() {
-        Map<String, Object> contextData = new HashMap<>();
-        contextData.put("field1", "value1");
-        contextData.put("field2", "value2");
-        contextData.put(Constants.UPLOAD_DOCUMENT_URL, "a");
-        contextData.put(Constants.URL, "b");
-        Map<String, Object> requestData = new HashMap<>();
-        requestData.put(Constants.ID, "achv1");
-        requestData.put(Constants.CONTEXT_TYPE, "testContext");
-        requestData.put(Constants.CONTEXT_DATA, contextData);
-        Map<String, Object> request = new HashMap<>();
-        request.put(Constants.REQUEST, requestData);
-
-        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
-
-        ApiResponse response = achievementService.updateLearnerAchievement(request, "token", "org1");
-
-        assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
-        assertTrue(response.getParams().getErrMsg().contains("Exactly one of uploadedDocumentUrl or url must have a value"));
+        assertTrue(response.getParams().getErrMsg().contains(expectedErrorSubstring));
     }
 
     @Test
@@ -2864,7 +2830,7 @@ class AchievementServiceImplTest {
 
         when(cassandraOperation.getAllRecordsByPrimaryKey(any(), any(), any(), any(), anyInt()))
                 .thenReturn(Collections.singletonList(recordMap));
-        when(objectMapper.readValue(eq("{invalid json}"), eq(Map.class)))
+        when(objectMapper.readValue("{invalid json}", Map.class))
                 .thenThrow(new RuntimeException("bad json"));
         when(esClientService.readDocument(any(), any())).thenReturn(new HashMap<>());
         Map<String, Object> cassandraResponse = new HashMap<>();
