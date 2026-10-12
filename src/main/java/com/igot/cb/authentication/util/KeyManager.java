@@ -75,10 +75,13 @@ public class KeyManager {
    * @throws CustomException If there's an error during the loading process
    */
   public static PublicKey loadPublicKey(String key) {
-    // Remove header and footer from the key string
-    String cleanedKey = key.replaceAll("(-+BEGIN PUBLIC KEY-+)", "")
-            .replaceAll("(-+END PUBLIC KEY-+)", "")
-            .replaceAll("[\\r\\n]+", "");
+    // Remove header, footer and line breaks from the key string.
+    // Plain string operations are used instead of regex to avoid any regex
+    // backtracking concerns (SonarQube S5852) for these fixed PEM markers.
+    String cleanedKey = key.replace("-----BEGIN PUBLIC KEY-----", "")
+            .replace("-----END PUBLIC KEY-----", "")
+            .replace("\r", "")
+            .replace("\n", "");
     try {
       // Decode Base64 content
       byte[] keyBytes = Base64.getDecoder().decode(cleanedKey);
