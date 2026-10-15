@@ -1045,8 +1045,9 @@ class EsClientServiceImplTest {
 
         Map<String, Object> result = esClientService.readDocument(esIndexName, id);
 
-        assertNotNull(result);
-        assertTrue(result.isEmpty());
+        // null (not an empty map) signals "the read failed", distinct from "document not
+        // found", so callers can avoid treating a transient ES error as "safe to overwrite".
+        assertNull(result);
     }
 
     // ==================== Helper Methods ====================

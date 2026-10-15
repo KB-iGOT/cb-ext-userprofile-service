@@ -359,6 +359,13 @@ public class AchievementServiceImpl implements AchievementService{
         try {
             Map<String, Object> esUpdateMap = buildEsUpdateMapFromRecord(records);
             Map<String, Object> esDoc = esClientService.readDocument(Constants.LEARNER_ACHIEVEMENT_INDEX, reqMap.get(Constants.ID).toString());
+            if (esDoc == null) {
+                // readDocument returned null, meaning the ES read itself failed (not that the
+                // document is absent). Skip the update rather than risk overwriting an existing
+                // document with an incomplete map built only from the Cassandra record.
+                log.warn("Skipping ES update for achievement {} because the prior ES read failed", reqMap.get(Constants.ID));
+                return;
+            }
 
             String createdOnFormatted = resolveCreatedOnFormatted(esDoc, records);
             String updatedOn = (String) esDoc.get(Constants.UPDATED_ON);

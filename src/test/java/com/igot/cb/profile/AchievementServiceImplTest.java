@@ -2822,6 +2822,38 @@ class AchievementServiceImplTest {
     }
 
     @Test
+    void testStatusUpdateLearnerAchievement_esReadDocumentReturnsNull_skipsEsUpdate() {
+        Map<String, Object> reqMap = new HashMap<>();
+        reqMap.put("id", "achv1");
+        reqMap.put("contextType", "testContext");
+        reqMap.put("learnerId", "user123");
+        reqMap.put(Constants.STATUS, "APPROVED");
+        reqMap.put("reason", "approved");
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, reqMap);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        Map<String, Object> recordMap = new HashMap<>();
+        recordMap.put(Constants.STATUS, Constants.PENDING);
+        recordMap.put(Constants.CREATED_ON, LocalDate.now());
+        recordMap.put("id", "achv1");
+        when(cassandraOperation.getAllRecordsByPrimaryKey(any(), any(), any(), any(), anyInt()))
+                .thenReturn(Collections.singletonList(recordMap));
+        Map<String, Object> cassandraResponse = new HashMap<>();
+        cassandraResponse.put(Constants.RESPONSE, Constants.SUCCESS);
+        when(cassandraOperation.updateRecordByCompositeKey(any(), any(), any(), any())).thenReturn(cassandraResponse);
+        // null means the ES read itself failed (as opposed to an empty map, which means the
+        // document genuinely doesn't exist yet) - the ES overwrite must be skipped so an
+        // existing document isn't blown away with an incomplete map built from Cassandra alone.
+        when(esClientService.readDocument(any(), any())).thenReturn(null);
+
+        ApiResponse response = achievementService.statusUpdateLearnerAchievement(request, "token");
+
+        assertEquals("Achievement status updated successfully", response.getResult().get("message"));
+        verify(esClientService, never()).updateDocument(any(), any(), any(), any(), any());
+    }
+
+    @Test
     void testStatusUpdateLearnerAchievement_contextDataInvalidJson_fallsBackToEmptyMap() throws Exception {
         Map<String, Object> recordMap = new HashMap<>();
         recordMap.put(Constants.STATUS, Constants.PENDING);

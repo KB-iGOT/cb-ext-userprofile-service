@@ -659,7 +659,10 @@ public class ProfileServiceImpl implements ProfileService {
                 Constants.KEYSPACE_SUNBIRD, Constants.USER, queryParams, keyList, null);
 
         if (CollectionUtils.isEmpty(userList)) {
-            return Map.of();
+            // Must stay mutable: UserUtility.decryptSpecificUserData() calls computeIfPresent()
+            // on this map, which throws UnsupportedOperationException on an immutable map
+            // such as Map.of() (even when the key is absent).
+            return new HashMap<>();
         }
         Map<String, Object> userObj = userList.get(0);
         String profileDetailsJson = (String) userObj.get(Constants.PROFILE_DETAILS);

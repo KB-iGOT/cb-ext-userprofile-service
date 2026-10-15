@@ -1259,6 +1259,12 @@ class ProfileServiceImplTest {
 
         assertNotNull(result);
         assertTrue(result.isEmpty());
+        // Regression guard: this map is passed straight into
+        // UserUtility.decryptSpecificUserData(), which calls computeIfPresent() on it. An
+        // immutable empty map (e.g. Map.of()) throws UnsupportedOperationException there even
+        // when the key is absent, which getBasicProfile's generic catch turned into a 500
+        // instead of the intended 404. It must stay mutable.
+        assertDoesNotThrow(() -> result.put("probe", "value"));
     }
 
     @Test
