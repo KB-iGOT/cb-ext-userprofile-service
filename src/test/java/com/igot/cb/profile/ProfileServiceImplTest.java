@@ -1475,7 +1475,7 @@ class ProfileServiceImplTest {
 
     @Test
     void getUserWalletBalance_returnsBalanceFromCassandra() {
-        ProfileServiceImpl localService = new ProfileServiceImpl();
+        ProfileServiceImpl localService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         CacheService localCacheService = mock(CacheService.class);
         CassandraOperation localCassandraOperation = mock(CassandraOperation.class);
         ReflectionTestUtils.setField(localService, "cacheService", localCacheService);
@@ -1495,7 +1495,7 @@ class ProfileServiceImplTest {
 
     @Test
     void getUserWalletBalance_returnsZero_whenNoWalletRecord() {
-        ProfileServiceImpl localService = new ProfileServiceImpl();
+        ProfileServiceImpl localService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         CacheService localCacheService = mock(CacheService.class);
         CassandraOperation localCassandraOperation = mock(CassandraOperation.class);
         ReflectionTestUtils.setField(localService, "cacheService", localCacheService);
@@ -1512,7 +1512,7 @@ class ProfileServiceImplTest {
 
     @Test
     void getUserWalletBalance_returnsZero_whenExceptionThrown() {
-        ProfileServiceImpl localService = new ProfileServiceImpl();
+        ProfileServiceImpl localService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         CassandraOperation localCassandraOperation = mock(CassandraOperation.class);
         ReflectionTestUtils.setField(localService, "cassandraOperation", localCassandraOperation);
         String userId = "user-4";
