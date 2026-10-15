@@ -205,6 +205,46 @@ class AchievementServiceImplTest {
         verify(esClientService, times(1)).updateDocument(any(), any(), any(), any(), any());
     }
 
+    @Test
+    void testUpdateLearnerAchievement_esReadDocumentThrows_stillOverwritesAndSucceeds() throws Exception {
+        // Unlike statusUpdateLearnerAchievement's ES path, updateAchievementInElasticsearch
+        // always re-indexes the document from Cassandra regardless of read outcome, so a read
+        // failure here must not abort the update - it only affects which createdOn is used.
+        Map<String, Object> contextData = new HashMap<>();
+        contextData.put("field1", "value1");
+        contextData.put("field2", "value2");
+        contextData.put(Constants.UPLOAD_DOCUMENT_URL, "http://example.com/doc.pdf");
+        contextData.put(Constants.URL, "");
+        Map<String, Object> requestData = new HashMap<>();
+        requestData.put(Constants.ID, "achv1");
+        requestData.put(Constants.CONTEXT_TYPE, "testContext");
+        requestData.put(Constants.CONTEXT_DATA, contextData);
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestData);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
+        when(cbServerProperties.isRequireEs()).thenReturn(true);
+        Map<String, Object> existingRecord = new HashMap<>();
+        existingRecord.put(Constants.STATUS, Constants.PENDING);
+        existingRecord.put(Constants.CREATED_ON, LocalDate.now());
+        existingRecord.put(Constants.CONTEXT_DATA, "{}");
+        when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
+                .thenReturn(Collections.singletonList(existingRecord));
+        ApiResponse cassandraResponse = new ApiResponse();
+        cassandraResponse.put(Constants.RESPONSE, Constants.SUCCESS);
+        when(cassandraOperation.insertRecord(any(), any(), any())).thenReturn(cassandraResponse);
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+        when(objectMapper.convertValue(any(), eq(Map.class))).thenReturn(new HashMap<>());
+        when(objectMapper.readValue(anyString(), eq(Map.class))).thenReturn(new HashMap<>());
+        when(esClientService.readDocument(any(), any())).thenThrow(new RuntimeException("ES down"));
+        when(esClientService.searchDocuments(any(), any())).thenReturn(new SearchResult());
+
+        ApiResponse response = achievementService.updateLearnerAchievement(request, "token", "org1");
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        verify(esClientService, times(1)).updateDocument(any(), any(), any(), any(), any());
+    }
+
     static Stream<Arguments> updateLearnerAchievementBadRequestCases() {
         return Stream.of(
                 // empty userId returned by the access token validator
@@ -2813,42 +2853,15 @@ class AchievementServiceImplTest {
         Map<String, Object> cassandraResponse = new HashMap<>();
         cassandraResponse.put(Constants.RESPONSE, Constants.SUCCESS);
         when(cassandraOperation.updateRecordByCompositeKey(any(), any(), any(), any())).thenReturn(cassandraResponse);
+        // readDocument() throws (rather than returning null/empty) when the ES read itself
+        // fails, as opposed to returning an empty map when the document genuinely doesn't
+        // exist - the ES overwrite must be skipped so an existing document isn't blown away
+        // with an incomplete map built from Cassandra alone.
         when(esClientService.readDocument(any(), any())).thenThrow(new RuntimeException("ES down"));
 
         ApiResponse response = achievementService.statusUpdateLearnerAchievement(request, "token");
 
         // ES failure is caught internally inside updateAchievementInES; status update itself still succeeds
-        assertEquals("Achievement status updated successfully", response.getResult().get("message"));
-    }
-
-    @Test
-    void testStatusUpdateLearnerAchievement_esReadDocumentReturnsNull_skipsEsUpdate() {
-        Map<String, Object> reqMap = new HashMap<>();
-        reqMap.put("id", "achv1");
-        reqMap.put("contextType", "testContext");
-        reqMap.put("learnerId", "user123");
-        reqMap.put(Constants.STATUS, "APPROVED");
-        reqMap.put("reason", "approved");
-        Map<String, Object> request = new HashMap<>();
-        request.put(Constants.REQUEST, reqMap);
-
-        when(accessTokenValidator.fetchUserIdFromAccessToken(anyString())).thenReturn("user123");
-        Map<String, Object> recordMap = new HashMap<>();
-        recordMap.put(Constants.STATUS, Constants.PENDING);
-        recordMap.put(Constants.CREATED_ON, LocalDate.now());
-        recordMap.put("id", "achv1");
-        when(cassandraOperation.getAllRecordsByPrimaryKey(any(), any(), any(), any(), anyInt()))
-                .thenReturn(Collections.singletonList(recordMap));
-        Map<String, Object> cassandraResponse = new HashMap<>();
-        cassandraResponse.put(Constants.RESPONSE, Constants.SUCCESS);
-        when(cassandraOperation.updateRecordByCompositeKey(any(), any(), any(), any())).thenReturn(cassandraResponse);
-        // null means the ES read itself failed (as opposed to an empty map, which means the
-        // document genuinely doesn't exist yet) - the ES overwrite must be skipped so an
-        // existing document isn't blown away with an incomplete map built from Cassandra alone.
-        when(esClientService.readDocument(any(), any())).thenReturn(null);
-
-        ApiResponse response = achievementService.statusUpdateLearnerAchievement(request, "token");
-
         assertEquals("Achievement status updated successfully", response.getResult().get("message"));
         verify(esClientService, never()).updateDocument(any(), any(), any(), any(), any());
     }

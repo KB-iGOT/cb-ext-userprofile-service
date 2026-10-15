@@ -19,6 +19,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.exceptions.CustomException;
+import org.springframework.http.HttpStatus;
 import com.igot.cb.transactional.elasticsearch.dto.SearchCriteria;
 import com.igot.cb.transactional.elasticsearch.dto.SearchResult;
 import com.igot.cb.util.Constants;
@@ -1043,11 +1044,11 @@ class EsClientServiceImplTest {
         when(elasticsearchClient.get(any(GetRequest.class), eq(Object.class)))
                 .thenThrow(new IOException("Get error"));
 
-        Map<String, Object> result = esClientService.readDocument(esIndexName, id);
-
-        // null (not an empty map) signals "the read failed", distinct from "document not
-        // found", so callers can avoid treating a transient ES error as "safe to overwrite".
-        assertNull(result);
+        // Thrown (not returned as null/empty) so callers can tell "the read failed" apart from
+        // "document not found" and decide for themselves whether to proceed without it.
+        CustomException ex = assertThrows(CustomException.class,
+                () -> esClientService.readDocument(esIndexName, id));
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, ex.getHttpStatusCode());
     }
 
     // ==================== Helper Methods ====================

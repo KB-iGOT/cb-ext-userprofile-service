@@ -358,14 +358,10 @@ public class AchievementServiceImpl implements AchievementService{
     private void updateAchievementInES(List<Map<String, Object>> records, Map<String, Object> reqMap, String userIdFromToken, java.time.Instant approvedOnTimestamp) {
         try {
             Map<String, Object> esUpdateMap = buildEsUpdateMapFromRecord(records);
+            // If the ES read fails, readDocument() throws rather than returning null/empty, so
+            // the catch below skips the ES overwrite entirely instead of risking an incomplete
+            // write built only from the Cassandra record.
             Map<String, Object> esDoc = esClientService.readDocument(Constants.LEARNER_ACHIEVEMENT_INDEX, reqMap.get(Constants.ID).toString());
-            if (esDoc == null) {
-                // readDocument returned null, meaning the ES read itself failed (not that the
-                // document is absent). Skip the update rather than risk overwriting an existing
-                // document with an incomplete map built only from the Cassandra record.
-                log.warn("Skipping ES update for achievement {} because the prior ES read failed", reqMap.get(Constants.ID));
-                return;
-            }
 
             String createdOnFormatted = resolveCreatedOnFormatted(esDoc, records);
             String updatedOn = (String) esDoc.get(Constants.UPDATED_ON);
@@ -960,7 +956,16 @@ public class AchievementServiceImpl implements AchievementService{
      * Updates achievement in Elasticsearch with formatted timestamps
      */
     private void updateAchievementInElasticsearch(String id, Map<String, Object> existingRecord, String userId, java.time.Instant updateOnTimestamp) {
-        Map<String, Object> esDoc = esClientService.readDocument(Constants.LEARNER_ACHIEVEMENT_INDEX, id);
+        Map<String, Object> esDoc;
+        try {
+            esDoc = esClientService.readDocument(Constants.LEARNER_ACHIEVEMENT_INDEX, id);
+        } catch (Exception e) {
+            // Unlike updateAchievementInES(), this method always re-indexes the document from
+            // Cassandra regardless of read outcome, so a read failure here only means
+            // getFormattedCreatedOn() below falls back to existingRecord's own createdOn.
+            log.warn("Could not read existing ES document for achievement {}; falling back to Cassandra createdOn", id, e);
+            esDoc = Map.of();
+        }
         String createdOnFormatted = getFormattedCreatedOn(esDoc, existingRecord);
 
         Map<String, Object> esRecord = new HashMap<>(existingRecord);

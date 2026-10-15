@@ -587,11 +587,13 @@ public class EsClientServiceImpl implements EsClientService {
                 return Map.of();
             }
         } catch (Exception e) {
-            // Distinct from the "not found" case above: null signals the read itself failed
-            // (e.g. a transient ES error), so callers can avoid treating it as "document absent"
-            // and blindly overwriting an existing document with incomplete data.
+            // Thrown (not returned as null/empty) so callers can tell "the read failed" apart
+            // from "the document genuinely doesn't exist" (the Map.of() case above) and decide
+            // for themselves whether it's safe to proceed without the prior document's data.
             log.error("Error reading document from ES for index: {} and id: {}", esIndexName, id, e);
-            return null;
+            throw new CustomException("es.read.document.failed",
+                    "Error reading document from ES for index: " + esIndexName + " and id: " + id,
+                    HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 

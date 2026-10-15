@@ -31,7 +31,9 @@ public interface EsClientService {
    * Reads a document from Elasticsearch by index and id.
    * @param esIndexName The Elasticsearch index name.
    * @param id The document id.
-   * @return The document as a Map<String, Object>, or null if not found.
+   * @return The document as a Map<String, Object>, or an empty map if the document doesn't
+   *         exist. Throws CustomException if the read itself fails (e.g. ES unreachable) -
+   *         callers should not treat a caught exception the same as "document not found".
    */
   Map<String, Object> readDocument(String esIndexName, String id);
 }
