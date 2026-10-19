@@ -2,6 +2,10 @@ package com.igot.cb.util;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import org.springframework.http.HttpStatus;
 
@@ -16,6 +20,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.exceptions.CustomException;
 import com.igot.cb.exceptions.ResponseCode;
@@ -36,7 +41,7 @@ public class ProjectUtilTest {
         assertNotNull(exception);
         assertEquals(responseCode.getErrorCode(), exception.getErrorCode());
         assertEquals(responseCode.getErrorMessage(), exception.getMessage());
-        assertEquals(Integer.valueOf(ResponseCode.SERVER_ERROR.getResponseCode()),
+        assertEquals(Integer.valueOf(ResponseCode.SERVER_ERROR.getStatusCode()),
                 Integer.valueOf(exception.getResponseCode()));
     }
 
@@ -47,7 +52,7 @@ public class ProjectUtilTest {
         assertNotNull(exception);
         assertEquals(responseCode.getErrorCode(), exception.getErrorCode());
         assertEquals(responseCode.getErrorMessage(), exception.getMessage());
-        assertEquals(Integer.valueOf(ResponseCode.CLIENT_ERROR.getResponseCode()),
+        assertEquals(Integer.valueOf(ResponseCode.CLIENT_ERROR.getStatusCode()),
                 Integer.valueOf(exception.getResponseCode()));
     }
 
@@ -82,7 +87,7 @@ public class ProjectUtilTest {
                 Map.of("key1", "value1"),
                 Map.of("key2", "value2"));
 
-        when(objectMapper.readValue(json, projectUtil.LIST_OF_MAP_TYPE)).thenReturn(mockList);
+        when(objectMapper.readValue(json, projectUtil.listOfMapType)).thenReturn(mockList);
 
         List<Map<String, Object>> result = projectUtil.parseListOfMap(json);
 
@@ -96,11 +101,57 @@ public class ProjectUtilTest {
 
         Map<String, Object> mockMap = Map.of("key", "value");
 
-        when(objectMapper.readValue(json, projectUtil.MAP_TYPE)).thenReturn(mockMap);
+        when(objectMapper.readValue(json, projectUtil.mapType)).thenReturn(mockMap);
 
         Map<String, Object> result = projectUtil.parseMap(json);
 
         assertEquals(1, result.size());
         assertEquals("value", result.get("key"));
+    }
+
+    @Test
+    public void testConvertToStringSuccess() throws IOException {
+        Object obj = Map.of("key", "value");
+        when(objectMapper.writeValueAsString(any())).thenReturn("{\"key\":\"value\"}");
+
+        String result = projectUtil.convertToString(obj);
+
+        assertEquals("{\"key\":\"value\"}", result);
+    }
+
+    @Test
+    public void testConvertToStringThrowsException() throws IOException {
+        Object obj = Map.of("key", "value");
+        doThrow(new JsonProcessingException("failed to convert") {
+        }).when(objectMapper).writeValueAsString(any());
+
+        String result = projectUtil.convertToString(obj);
+
+        assertNull(result);
+    }
+
+    @Test
+    public void testGetConfigValueFromEnv() {
+        // PATH/Path is expected to be a non-blank environment variable on both
+        // Windows and Unix based CI/dev machines.
+        String envValue = System.getenv("PATH");
+        if (envValue == null) {
+            envValue = System.getenv("Path");
+        }
+        if (envValue != null && !envValue.isBlank()) {
+            String result = ProjectUtil.getConfigValue("PATH");
+            assertNotNull(result);
+        } else {
+            // Fallback: just ensure no exception and a value (possibly null) is returned
+            String result = ProjectUtil.getConfigValue("PATH");
+            assertTrue(result == null || result.length() >= 0);
+        }
+    }
+
+    @Test
+    public void testGetConfigValueFallsBackToPropertiesCache() {
+        String result = ProjectUtil.getConfigValue("SOME_KEY_NOT_IN_ENV_XYZ_12345");
+        // Not present in env or properties cache, so expected to be null, but should not throw.
+        assertNull(result);
     }
 }

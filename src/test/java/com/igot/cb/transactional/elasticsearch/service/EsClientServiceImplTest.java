@@ -19,19 +19,22 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.exceptions.CustomException;
-import com.igot.cb.transactional.elasticsearch.config.EsClientConfig;
+import org.springframework.http.HttpStatus;
 import com.igot.cb.transactional.elasticsearch.dto.SearchCriteria;
 import com.igot.cb.transactional.elasticsearch.dto.SearchResult;
-import com.igot.cb.util.CbServerProperties;
 import com.igot.cb.util.Constants;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.*;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -43,16 +46,7 @@ class EsClientServiceImplTest {
     private ElasticsearchClient elasticsearchClient;
 
     @Mock
-    private EsClientConfig esConfig;
-
-    @Mock
     private ObjectMapper objectMapper;
-
-    @Mock
-    private CbServerProperties cbServerProperties;
-
-    @Mock
-    private CbServerProperties serverConfig;
 
     @Mock
     private ElasticsearchIndicesClient indicesClient;
@@ -62,23 +56,7 @@ class EsClientServiceImplTest {
     @BeforeEach
     void setUp() {
         try (AutoCloseable ignored = MockitoAnnotations.openMocks(this)) {
-            esClientService = new EsClientServiceImpl(elasticsearchClient, esConfig);
-            // Inject mocked dependencies using reflection
-            try {
-                java.lang.reflect.Field objectMapperField = EsClientServiceImpl.class.getDeclaredField("objectMapper");
-                objectMapperField.setAccessible(true);
-                objectMapperField.set(esClientService, objectMapper);
-
-                java.lang.reflect.Field cbServerPropertiesField = EsClientServiceImpl.class.getDeclaredField("cbServerProperties");
-                cbServerPropertiesField.setAccessible(true);
-                cbServerPropertiesField.set(esClientService, cbServerProperties);
-
-                java.lang.reflect.Field serverConfigField = EsClientServiceImpl.class.getDeclaredField("serverConfig");
-                serverConfigField.setAccessible(true);
-                serverConfigField.set(esClientService, serverConfig);
-            } catch (Exception e) {
-                fail("Failed to inject mocks: " + e.getMessage());
-            }
+            esClientService = new EsClientServiceImpl(elasticsearchClient, objectMapper);
         } catch (Exception e) {
             fail("Failed to initialize mocks: " + e.getMessage());
         }
@@ -142,7 +120,86 @@ class EsClientServiceImplTest {
         assertNull(result);
     }
 
+    @Test
+    void testAddDocument_successIndexesDocument() throws Exception {
+        String indexName = "test-index";
+        String type = "_doc";
+        String id = "test-id";
+        Map<String, Object> document = new HashMap<>();
+        document.put("field1", "value1");
+        document.put("field2", "value2");
+        String jsonFilePath = "/test-mapping.json";
+
+        Map<String, Object> schemaMap = new HashMap<>();
+        schemaMap.put("field1", "string");
+        schemaMap.put("field2", "string");
+        when(objectMapper.readValue(any(InputStream.class), any(TypeReference.class)))
+                .thenReturn(schemaMap);
+
+        IndexResponse mockIndexResponse = mock(IndexResponse.class);
+        when(mockIndexResponse.result()).thenReturn(Result.Created);
+        when(elasticsearchClient.index(any(IndexRequest.class))).thenReturn(mockIndexResponse);
+
+        String result = esClientService.addDocument(indexName, type, id, document, jsonFilePath);
+
+        assertNotNull(result);
+        assertTrue(result.startsWith("Successfully indexed document with id:"));
+        verify(elasticsearchClient, times(1)).index(any(IndexRequest.class));
+    }
+
+    @Test
+    void testAddDocument_successFiltersUnknownFields() throws Exception {
+        String indexName = "test-index";
+        String type = "_doc";
+        String id = "test-id";
+        Map<String, Object> document = new HashMap<>();
+        document.put("field1", "value1");
+        document.put("unknownField", "value3");
+        String jsonFilePath = "/test-mapping.json";
+
+        Map<String, Object> schemaMap = new HashMap<>();
+        schemaMap.put("field1", "string");
+        when(objectMapper.readValue(any(InputStream.class), any(TypeReference.class)))
+                .thenReturn(schemaMap);
+
+        IndexResponse mockIndexResponse = mock(IndexResponse.class);
+        when(mockIndexResponse.result()).thenReturn(Result.Updated);
+        when(elasticsearchClient.index(any(IndexRequest.class))).thenReturn(mockIndexResponse);
+
+        String result = esClientService.addDocument(indexName, type, id, document, jsonFilePath);
+
+        assertNotNull(result);
+        assertFalse(document.containsKey("unknownField"));
+        assertTrue(document.containsKey("field1"));
+    }
+
     // ==================== updateDocument Tests ====================
+
+    @Test
+    void testUpdateDocument_success() throws Exception {
+        String index = "test-index";
+        String indexType = "_doc";
+        String entityId = "entity-123";
+        Map<String, Object> updatedDocument = new HashMap<>();
+        updatedDocument.put("field1", "updatedValue1");
+        updatedDocument.put("unknownField", "shouldBeFiltered");
+        String jsonFilePath = "/test-mapping.json";
+
+        Map<String, Object> schemaMap = new HashMap<>();
+        schemaMap.put("field1", "string");
+        when(objectMapper.readValue(any(InputStream.class), any(TypeReference.class)))
+                .thenReturn(schemaMap);
+
+        IndexResponse mockIndexResponse = mock(IndexResponse.class);
+        when(mockIndexResponse.result()).thenReturn(Result.Updated);
+        when(elasticsearchClient.index(any(IndexRequest.class))).thenReturn(mockIndexResponse);
+
+        assertDoesNotThrow(() -> esClientService.updateDocument(index, indexType, entityId, updatedDocument, jsonFilePath));
+
+        assertFalse(updatedDocument.containsKey("unknownField"));
+        assertTrue(updatedDocument.containsKey("field1"));
+        verify(elasticsearchClient, times(1)).index(any(IndexRequest.class));
+    }
 
     @Test
     void testUpdateDocument_exception() throws Exception {
@@ -406,6 +463,51 @@ class EsClientServiceImplTest {
     }
 
     @Test
+    void testSearchDocuments_withMustNotFilter() throws Exception {
+        String esIndexName = "test-index";
+        SearchCriteria searchCriteria = new SearchCriteria();
+        searchCriteria.setPageNumber(0);
+        searchCriteria.setPageSize(10);
+
+        HashMap<String, Object> filterCriteria = new HashMap<>();
+        filterCriteria.put("must_not", new ArrayList<>(List.of("excludedValue")));
+        searchCriteria.setFilterCriteriaMap(filterCriteria);
+
+        SearchResponse<Object> mockSearchResponse = createMockSearchResponse();
+        when(elasticsearchClient.search(any(SearchRequest.class), eq(Object.class)))
+                .thenReturn(mockSearchResponse);
+
+        SearchResult result = esClientService.searchDocuments(esIndexName, searchCriteria);
+
+        assertNotNull(result);
+        verify(elasticsearchClient, times(1)).search(any(SearchRequest.class), eq(Object.class));
+    }
+
+    @Test
+    void testSearchDocuments_withFacetsNonSterms() throws Exception {
+        String esIndexName = "test-index";
+        SearchCriteria searchCriteria = new SearchCriteria();
+        searchCriteria.setPageNumber(0);
+        searchCriteria.setPageSize(10);
+        searchCriteria.setFacets(Collections.singletonList("category"));
+
+        SearchResponse<Object> mockSearchResponse = createMockSearchResponse();
+        Map<String, Aggregate> aggregations = new HashMap<>();
+        Aggregate nonStermsAggregate = mock(Aggregate.class);
+        when(nonStermsAggregate.isSterms()).thenReturn(false);
+        aggregations.put("category_agg", nonStermsAggregate);
+        when(mockSearchResponse.aggregations()).thenReturn(aggregations);
+
+        when(elasticsearchClient.search(any(SearchRequest.class), eq(Object.class)))
+                .thenReturn(mockSearchResponse);
+
+        SearchResult result = esClientService.searchDocuments(esIndexName, searchCriteria);
+
+        assertNotNull(result);
+        assertTrue(result.getFacets().isEmpty() || !result.getFacets().containsKey("category"));
+    }
+
+    @Test
     void testSearchDocuments_withStartsWith() throws Exception {
         String esIndexName = "test-index";
         SearchCriteria searchCriteria = new SearchCriteria();
@@ -539,90 +641,25 @@ class EsClientServiceImplTest {
         verify(elasticsearchClient, times(1)).search(any(SearchRequest.class), eq(Object.class));
     }
 
-    @Test
-    void testSearchDocuments_withRangeQueryGt() throws Exception {
-        String esIndexName = "test-index";
-        SearchCriteria searchCriteria = new SearchCriteria();
-        searchCriteria.setPageNumber(0);
-        searchCriteria.setPageSize(10);
-
-        Map<String, Object> rangeConditions = new HashMap<>();
-        rangeConditions.put("gt", 100);
-
-        Map<String, Object> query = new HashMap<>();
-        query.put(Constants.RANGE, Collections.singletonMap("age", rangeConditions));
-
-        searchCriteria.setQuery(query);
-
-        SearchResponse<Object> mockSearchResponse = createMockSearchResponse();
-        when(elasticsearchClient.search(any(SearchRequest.class), eq(Object.class)))
-                .thenReturn(mockSearchResponse);
-
-        SearchResult result = esClientService.searchDocuments(esIndexName, searchCriteria);
-
-        assertNotNull(result);
-        verify(elasticsearchClient, times(1)).search(any(SearchRequest.class), eq(Object.class));
+    static Stream<Arguments> rangeQueryOperators() {
+        return Stream.of(
+                Arguments.of("gt", 100),
+                Arguments.of("gte", 100),
+                Arguments.of("lt", 500),
+                Arguments.of("lte", 500)
+        );
     }
 
-    @Test
-    void testSearchDocuments_withRangeQueryGte() throws Exception {
+    @ParameterizedTest
+    @MethodSource("rangeQueryOperators")
+    void testSearchDocuments_withRangeQuery(String operator, int value) throws Exception {
         String esIndexName = "test-index";
         SearchCriteria searchCriteria = new SearchCriteria();
         searchCriteria.setPageNumber(0);
         searchCriteria.setPageSize(10);
 
         Map<String, Object> rangeConditions = new HashMap<>();
-        rangeConditions.put("gte", 100);
-
-        Map<String, Object> query = new HashMap<>();
-        query.put(Constants.RANGE, Collections.singletonMap("age", rangeConditions));
-
-        searchCriteria.setQuery(query);
-
-        SearchResponse<Object> mockSearchResponse = createMockSearchResponse();
-        when(elasticsearchClient.search(any(SearchRequest.class), eq(Object.class)))
-                .thenReturn(mockSearchResponse);
-
-        SearchResult result = esClientService.searchDocuments(esIndexName, searchCriteria);
-
-        assertNotNull(result);
-        verify(elasticsearchClient, times(1)).search(any(SearchRequest.class), eq(Object.class));
-    }
-
-    @Test
-    void testSearchDocuments_withRangeQueryLt() throws Exception {
-        String esIndexName = "test-index";
-        SearchCriteria searchCriteria = new SearchCriteria();
-        searchCriteria.setPageNumber(0);
-        searchCriteria.setPageSize(10);
-
-        Map<String, Object> rangeConditions = new HashMap<>();
-        rangeConditions.put("lt", 500);
-
-        Map<String, Object> query = new HashMap<>();
-        query.put(Constants.RANGE, Collections.singletonMap("age", rangeConditions));
-
-        searchCriteria.setQuery(query);
-
-        SearchResponse<Object> mockSearchResponse = createMockSearchResponse();
-        when(elasticsearchClient.search(any(SearchRequest.class), eq(Object.class)))
-                .thenReturn(mockSearchResponse);
-
-        SearchResult result = esClientService.searchDocuments(esIndexName, searchCriteria);
-
-        assertNotNull(result);
-        verify(elasticsearchClient, times(1)).search(any(SearchRequest.class), eq(Object.class));
-    }
-
-    @Test
-    void testSearchDocuments_withRangeQueryLte() throws Exception {
-        String esIndexName = "test-index";
-        SearchCriteria searchCriteria = new SearchCriteria();
-        searchCriteria.setPageNumber(0);
-        searchCriteria.setPageSize(10);
-
-        Map<String, Object> rangeConditions = new HashMap<>();
-        rangeConditions.put("lte", 500);
+        rangeConditions.put(operator, value);
 
         Map<String, Object> query = new HashMap<>();
         query.put(Constants.RANGE, Collections.singletonMap("age", rangeConditions));
@@ -714,7 +751,7 @@ class EsClientServiceImplTest {
     }
 
     @Test
-    void testSearchDocuments_nullCriteria() throws Exception {
+    void testSearchDocuments_nullCriteria() {
         String esIndexName = "test-index";
 
         // When criteria is null, buildSearchRequest returns null which causes assertion error
@@ -977,7 +1014,8 @@ class EsClientServiceImplTest {
 
         Map<String, Object> result = esClientService.readDocument(esIndexName, id);
 
-        assertNull(result);
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
         verify(elasticsearchClient, times(1)).get(any(GetRequest.class), eq(Object.class));
     }
 
@@ -994,7 +1032,8 @@ class EsClientServiceImplTest {
 
         Map<String, Object> result = esClientService.readDocument(esIndexName, id);
 
-        assertNull(result);
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
     }
 
     @Test
@@ -1005,9 +1044,11 @@ class EsClientServiceImplTest {
         when(elasticsearchClient.get(any(GetRequest.class), eq(Object.class)))
                 .thenThrow(new IOException("Get error"));
 
-        Map<String, Object> result = esClientService.readDocument(esIndexName, id);
-
-        assertNull(result);
+        // Thrown (not returned as null/empty) so callers can tell "the read failed" apart from
+        // "document not found" and decide for themselves whether to proceed without it.
+        CustomException ex = assertThrows(CustomException.class,
+                () -> esClientService.readDocument(esIndexName, id));
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, ex.getHttpStatusCode());
     }
 
     // ==================== Helper Methods ====================

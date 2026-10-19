@@ -19,6 +19,7 @@ public class Constants {
     public static final String SUNBIRD_CASSANDRA_CONSISTENCY_LEVEL = "sunbird_cassandra_consistency_level";
     public static final String DEFAULT_SUNBIRD_CASSANDRA_CONSISTENCY_LEVEL = "ONE";
     public static final String EXCEPTION_MSG_FETCH = "Exception occurred while fetching record from ";
+    public static final String LOG_TABLE_ERROR_SUFFIX = "{} : {}";
     public static final String INSERT_INTO = "INSERT INTO ";
     public static final String DOT = ".";
     public static final String OPEN_BRACE = "(";
@@ -53,7 +54,6 @@ public class Constants {
     public static final String REDIS_KEY_PREFIX = "cbpores_";
     public static final String KEYWORD = ".keyword";
     public static final String ASC = "asc";
-    public static final String JWT_SECRET_KEY = "demand_search_result";
     public static final String CONTENT_PROVIDER_ID = "id";
     public static final String INTEREST_COUNT = "interestCount";
     public static final String INTERESTS = "demand_search_result";
@@ -411,6 +411,7 @@ public class Constants {
     public static final String SUNBIRD_ENCRYPTION = "sunbird_encryption";
     public static final String ON = "ON";
     public static final String ENCRYPTION_KEY = "sunbird_encryption_key";
+    public static final String AES_SECRET_KEY = "sunbird_aes_secret_key";
     public static final String USER_ORG_SERVICE_PREFIX = "UOS_";
     public static final String USERNAME_LOWERCASE = "username";
     public static final String USER_ENROLMENTS = "user_enrolments_v2";

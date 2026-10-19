@@ -252,6 +252,9 @@ public class CbServerProperties {
     @Value("${validation.regex.uuid}")
     private String uuidRegex;
 
+    @Value("${achievement.jwt.secret.key}")
+    private String achievementJwtSecretKey;
+
     @Value("${campaign.kafka.topic:${special.campaign.topic.name:special.campaign.nlh.sevabhav26}}")
     private String campaignTopicName;
 

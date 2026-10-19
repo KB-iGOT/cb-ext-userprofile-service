@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.igot.cb.authentication.util.AccessTokenValidator;
 import com.igot.cb.common.OutboundRequestHandlerServiceImpl;
-import com.igot.cb.exceptions.ProjectCommonException;
 import com.igot.cb.profile.entity.CustomFieldEntity;
 import com.igot.cb.profile.repository.CustomFieldRepository;
 import com.igot.cb.profile.service.ProfileServiceImpl;
@@ -21,9 +20,9 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.client.RestTemplate;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -55,8 +54,9 @@ class ProfileServiceImplTest {
     @Mock
     private CustomFieldRepository customFieldRepository;
 
-    @Spy
-    @InjectMocks
+    @Mock
+    private RequestHandlerServiceImpl requestHandlerService;
+
     private ProfileServiceImpl profileService;
 
     @Mock
@@ -64,17 +64,35 @@ class ProfileServiceImplTest {
 
     private final String userID = "user-123";
     private final String token = "dummy-token";
-    private static final String CACHE_KEY = "user:competencies:user123";
+    private static final String CACHE_KEY = "user:competencies:user-123";
     private final String [] contextType = {"contextA"};
     private static final String REDIS_KEY = "user:extendedProfile:project:user-123";
 
-    @InjectMocks
-    @Spy
+    @Mock
+    private RestTemplate restTemplate;
+
     private OutboundRequestHandlerServiceImpl service;
 
     @BeforeEach
      void setUp() {
         MockitoAnnotations.openMocks(this);
+        service = spy(new OutboundRequestHandlerServiceImpl(restTemplate));
+        // @Spy @InjectMocks is unreliable for constructor-injected classes with many
+        // dependencies: when Mockito can't cleanly resolve every constructor parameter it
+        // silently falls back to constructing real (non-mocked) objects for ALL of them.
+        // Construct explicitly instead so every dependency is guaranteed to be the mock above.
+        profileService = spy(new ProfileServiceImpl(
+                accessTokenValidator,
+                serverProperties,
+                cassandraOperation,
+                cacheService,
+                objectMapper,
+                projectUtil,
+                requestHandlerService,
+                customFieldRepository,
+                esUtilService,
+                service
+        ));
         ReflectionTestUtils.setField(
                 profileService,
                 "basicDetailsFilteredKeys",
@@ -1104,18 +1122,18 @@ class ProfileServiceImplTest {
 
     @Test
     void returnsValidCount() {
-        ProfileServiceImpl locaService = new ProfileServiceImpl();
+        ProfileServiceImpl locaService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         CbServerProperties serverConfig = mock(CbServerProperties.class);
-        RequestHandlerServiceImpl requestHandlerService = mock(RequestHandlerServiceImpl.class);
+        RequestHandlerServiceImpl localRequestHandlerService = mock(RequestHandlerServiceImpl.class);
         ReflectionTestUtils.setField(locaService, "serverConfig", serverConfig);
-        ReflectionTestUtils.setField(locaService, "requestHandlerService", requestHandlerService);
+        ReflectionTestUtils.setField(locaService, "requestHandlerService", localRequestHandlerService);
         when(serverConfig.getCommunityBaseUrl()).thenReturn("http://base/");
         when(serverConfig.getCommunityPostCountApiUrl()).thenReturn("api/count/");
         Map<String, Object> result = new HashMap<>();
         result.put(Constants.POSTCOUNT, 5);
         Map<String, Object> response = new HashMap<>();
         response.put(Constants.RESULT, result);
-        when(requestHandlerService.fetchUsingGetWithHeadersProfile(anyString(), isNull()))
+        when(localRequestHandlerService.fetchUsingGetWithHeadersProfile(anyString(), isNull()))
                 .thenReturn(response);
         int count = ReflectionTestUtils.invokeMethod(locaService, "fetchPostCountFromApi", "user-1");
         assertEquals(5, count);
@@ -1123,14 +1141,14 @@ class ProfileServiceImplTest {
 
     @Test
     void returnsZeroOnNullResponse() {
-        ProfileServiceImpl localService = new ProfileServiceImpl();
+        ProfileServiceImpl localService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         CbServerProperties serverConfig = mock(CbServerProperties.class);
-        RequestHandlerServiceImpl requestHandlerService = mock(RequestHandlerServiceImpl.class);
+        RequestHandlerServiceImpl localRequestHandlerService = mock(RequestHandlerServiceImpl.class);
         ReflectionTestUtils.setField(localService, "serverConfig", serverConfig);
-        ReflectionTestUtils.setField(localService, "requestHandlerService", requestHandlerService);
+        ReflectionTestUtils.setField(localService, "requestHandlerService", localRequestHandlerService);
         when(serverConfig.getCommunityBaseUrl()).thenReturn("http://base/");
         when(serverConfig.getCommunityPostCountApiUrl()).thenReturn("api/count/");
-        when(requestHandlerService.fetchUsingGetWithHeadersProfile(anyString(), isNull()))
+        when(localRequestHandlerService.fetchUsingGetWithHeadersProfile(anyString(), isNull()))
                 .thenReturn(null);
         int count = ReflectionTestUtils.invokeMethod(localService, "fetchPostCountFromApi", "user-2");
         assertEquals(0, count);
@@ -1138,15 +1156,15 @@ class ProfileServiceImplTest {
 
     @Test
     void returnsZeroOnMissingResult() {
-        ProfileServiceImpl locaService = new ProfileServiceImpl();
+        ProfileServiceImpl locaService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         CbServerProperties serverConfig = mock(CbServerProperties.class);
-        RequestHandlerServiceImpl requestHandlerService = mock(RequestHandlerServiceImpl.class);
+        RequestHandlerServiceImpl localRequestHandlerService = mock(RequestHandlerServiceImpl.class);
         ReflectionTestUtils.setField(locaService, "serverConfig", serverConfig);
-        ReflectionTestUtils.setField(locaService, "requestHandlerService", requestHandlerService);
+        ReflectionTestUtils.setField(locaService, "requestHandlerService", localRequestHandlerService);
         when(serverConfig.getCommunityBaseUrl()).thenReturn("http://base/");
         when(serverConfig.getCommunityPostCountApiUrl()).thenReturn("api/count/");
         Map<String, Object> response = new HashMap<>();
-        when(requestHandlerService.fetchUsingGetWithHeadersProfile(anyString(), isNull()))
+        when(localRequestHandlerService.fetchUsingGetWithHeadersProfile(anyString(), isNull()))
                 .thenReturn(response);
 
         int count = ReflectionTestUtils.invokeMethod(locaService, "fetchPostCountFromApi", "user-3");
@@ -1155,18 +1173,18 @@ class ProfileServiceImplTest {
 
     @Test
     void returnsZeroOnNonIntegerPostCount() {
-        ProfileServiceImpl locaService = new ProfileServiceImpl();
+        ProfileServiceImpl locaService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         CbServerProperties serverConfig = mock(CbServerProperties.class);
-        RequestHandlerServiceImpl requestHandlerService = mock(RequestHandlerServiceImpl.class);
+        RequestHandlerServiceImpl localRequestHandlerService = mock(RequestHandlerServiceImpl.class);
         ReflectionTestUtils.setField(locaService, "serverConfig", serverConfig);
-        ReflectionTestUtils.setField(locaService, "requestHandlerService", requestHandlerService);
+        ReflectionTestUtils.setField(locaService, "requestHandlerService", localRequestHandlerService);
         when(serverConfig.getCommunityBaseUrl()).thenReturn("http://base/");
         when(serverConfig.getCommunityPostCountApiUrl()).thenReturn("api/count/");
         Map<String, Object> result = new HashMap<>();
         result.put(Constants.POSTCOUNT, "not-an-int");
         Map<String, Object> response = new HashMap<>();
         response.put(Constants.RESULT, result);
-        when(requestHandlerService.fetchUsingGetWithHeadersProfile(anyString(), isNull()))
+        when(localRequestHandlerService.fetchUsingGetWithHeadersProfile(anyString(), isNull()))
                 .thenReturn(response);
         int count = ReflectionTestUtils.invokeMethod(locaService, "fetchPostCountFromApi", "user-4");
         assertEquals(0, count);
@@ -1174,14 +1192,14 @@ class ProfileServiceImplTest {
 
     @Test
     void returnsZeroOnException() {
-        ProfileServiceImpl locaService = new ProfileServiceImpl();
+        ProfileServiceImpl locaService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         CbServerProperties serverConfig = mock(CbServerProperties.class);
-        RequestHandlerServiceImpl requestHandlerService = mock(RequestHandlerServiceImpl.class);
+        RequestHandlerServiceImpl localRequestHandlerService = mock(RequestHandlerServiceImpl.class);
         ReflectionTestUtils.setField(locaService, "serverConfig", serverConfig);
-        ReflectionTestUtils.setField(locaService, "requestHandlerService", requestHandlerService);
+        ReflectionTestUtils.setField(locaService, "requestHandlerService", localRequestHandlerService);
         when(serverConfig.getCommunityBaseUrl()).thenReturn("http://base/");
         when(serverConfig.getCommunityPostCountApiUrl()).thenReturn("api/count/");
-        when(requestHandlerService.fetchUsingGetWithHeadersProfile(anyString(), isNull()))
+        when(localRequestHandlerService.fetchUsingGetWithHeadersProfile(anyString(), isNull()))
                 .thenThrow(new RuntimeException("API error"));
         int count = ReflectionTestUtils.invokeMethod(locaService, "fetchPostCountFromApi", "user-5");
         assertEquals(0, count);
@@ -1189,7 +1207,7 @@ class ProfileServiceImplTest {
 
     @Test
     void testGetUserPostCount_cacheHit() {
-        ProfileServiceImpl localService = new ProfileServiceImpl();
+        ProfileServiceImpl localService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         ReflectionTestUtils.setField(localService, "cacheService", cacheService);
         when(cacheService.getCache("user:postCount_user1")).thenReturn("10");
         int count = ReflectionTestUtils.invokeMethod(localService, "getUserPostCount", "user1");
@@ -1200,7 +1218,7 @@ class ProfileServiceImplTest {
 
     @Test
     void testGetUserPostCount_cacheValueNotInteger_returnsZero() {
-        ProfileServiceImpl localService = new ProfileServiceImpl();
+        ProfileServiceImpl localService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         ReflectionTestUtils.setField(localService, "cacheService", cacheService);
         when(cacheService.getCache("user:postCount_user3")).thenReturn("not-a-number");
         int count = ReflectionTestUtils.invokeMethod(localService, "getUserPostCount", "user3");
@@ -1209,7 +1227,7 @@ class ProfileServiceImplTest {
 
     @Test
     void testGetUserPostCount_exception_returnsZero() {
-        ProfileServiceImpl locaService = new ProfileServiceImpl();
+        ProfileServiceImpl locaService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         ReflectionTestUtils.setField(locaService, "cacheService", cacheService);
         when(cacheService.getCache("user:postCount_user4")).thenThrow(new RuntimeException("Redis error"));
         int count = ReflectionTestUtils.invokeMethod(locaService, "getUserPostCount", "user4");
@@ -1219,7 +1237,7 @@ class ProfileServiceImplTest {
 
     @Test
     void fetchFromDatabase_returnsNull_whenNoRecords() throws Exception {
-        ProfileServiceImpl locaService = new ProfileServiceImpl();
+        ProfileServiceImpl locaService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         CassandraOperation localCassandraOperation = mock(CassandraOperation.class);
         CbServerProperties serverConfig = mock(CbServerProperties.class);
         ProjectUtil localProjectUtil = mock(ProjectUtil.class);
@@ -1241,11 +1259,17 @@ class ProfileServiceImplTest {
 
         assertNotNull(result);
         assertTrue(result.isEmpty());
+        // Regression guard: this map is passed straight into
+        // UserUtility.decryptSpecificUserData(), which calls computeIfPresent() on it. An
+        // immutable empty map (e.g. Map.of()) throws UnsupportedOperationException there even
+        // when the key is absent, which getBasicProfile's generic catch turned into a 500
+        // instead of the intended 404. It must stay mutable.
+        assertDoesNotThrow(() -> result.put("probe", "value"));
     }
 
     @Test
     void fetchFromDatabase_returnsRecordWithParsedProfileDetails_whenValidJson() throws Exception {
-        ProfileServiceImpl locaService = new ProfileServiceImpl();
+        ProfileServiceImpl locaService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
 
         // Mock dependencies
         CassandraOperation localCassandraOperation = mock(CassandraOperation.class);
@@ -1280,7 +1304,7 @@ class ProfileServiceImplTest {
 
     @Test
     void fetchFromDatabase_removesProfileDetails_whenJsonInvalid() {
-        ProfileServiceImpl locaService = new ProfileServiceImpl();
+        ProfileServiceImpl locaService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
 
         // Mock dependencies
         CassandraOperation localCassandraOperation = mock(CassandraOperation.class);
@@ -1309,7 +1333,7 @@ class ProfileServiceImplTest {
 
     @Test
     void fetchFromDatabase_leavesProfileDetailsNull_whenProfileDetailsIsNull() {
-        ProfileServiceImpl locaService = new ProfileServiceImpl();
+        ProfileServiceImpl locaService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
 
         // Mock dependencies
         CassandraOperation localCassandraOperation = mock(CassandraOperation.class);
@@ -1341,7 +1365,7 @@ class ProfileServiceImplTest {
     void validateFields_returnsEmptyString_whenAllMandatoryFieldsPresent() {
         Map<String, Object> data = Map.of("degree", "MSc", "institute", "Test University");
         String mandatoryFields = "degree,institute";
-        ProfileServiceImpl locaService = new ProfileServiceImpl();
+        ProfileServiceImpl locaService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         String result = ReflectionTestUtils.invokeMethod(locaService, "validateFields", data, mandatoryFields, false);
         assertEquals("", result);
     }
@@ -1350,7 +1374,7 @@ class ProfileServiceImplTest {
     void validateFields_returnsErrorMessage_whenMandatoryFieldMissing() {
         Map<String, Object> data = Map.of("degree", "MSc");
         String mandatoryFields = "degree,institute";
-        ProfileServiceImpl localService = new ProfileServiceImpl();
+        ProfileServiceImpl localService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         String result = ReflectionTestUtils.invokeMethod(localService, "validateFields", data, mandatoryFields, false);
         assertTrue(result.contains("institute is mandatory"));
     }
@@ -1362,7 +1386,7 @@ class ProfileServiceImplTest {
         data.put("endDate", "");
         data.put("currentlyWorking", "true");
         String mandatoryFields = "degree,endDate";
-        ProfileServiceImpl localService = new ProfileServiceImpl();
+        ProfileServiceImpl localService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         String result = ReflectionTestUtils.invokeMethod(localService, "validateFields", data, mandatoryFields, true);
         assertEquals("", result);
     }
@@ -1374,7 +1398,7 @@ class ProfileServiceImplTest {
         data.put("endDate", "");
         data.put("currentlyWorking", "false");
         String mandatoryFields = "degree,endDate";
-        ProfileServiceImpl localService = new ProfileServiceImpl();
+        ProfileServiceImpl localService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         String result = ReflectionTestUtils.invokeMethod(localService, "validateFields", data, mandatoryFields, true);
         assertTrue(result.contains("endDate is mandatory"));
     }
@@ -1383,7 +1407,7 @@ class ProfileServiceImplTest {
     void validateFields_handlesBlankMandatoryFields() {
         Map<String, Object> data = Map.of("degree", "MSc");
         String mandatoryFields = "";
-        ProfileServiceImpl localService = new ProfileServiceImpl();
+        ProfileServiceImpl localService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         String result = ReflectionTestUtils.invokeMethod(localService, "validateFields", data, mandatoryFields, false);
         assertEquals(" is mandatory. ", result);
     }
@@ -1393,7 +1417,7 @@ class ProfileServiceImplTest {
         Map<String, Object> data = new HashMap<>();
         data.put("degree", null);
         String mandatoryFields = "degree";
-        ProfileServiceImpl localService = new ProfileServiceImpl();
+        ProfileServiceImpl localService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         String result = ReflectionTestUtils.invokeMethod(localService, "validateFields", data, mandatoryFields, false);
         assertTrue(result.contains("degree is mandatory"));
     }
@@ -1402,7 +1426,7 @@ class ProfileServiceImplTest {
     void validateFields_handlesMultipleMissingFields() {
         Map<String, Object> data = new HashMap<>();
         String mandatoryFields = "degree,institute";
-        ProfileServiceImpl localService = new ProfileServiceImpl();
+        ProfileServiceImpl localService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         String result = ReflectionTestUtils.invokeMethod(localService, "validateFields", data, mandatoryFields, false);
         assertTrue(result.contains("degree is mandatory"));
         assertTrue(result.contains("institute is mandatory"));
@@ -1412,7 +1436,7 @@ class ProfileServiceImplTest {
 
     @Test
     void getUserKarmaPoints_returnsCachedValue_whenCacheHit() {
-        ProfileServiceImpl localService = new ProfileServiceImpl();
+        ProfileServiceImpl localService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         CacheService localCacheService = mock(CacheService.class);
         CassandraOperation localCassandraOperation = mock(CassandraOperation.class);
         ReflectionTestUtils.setField(localService, "cacheService", localCacheService);
@@ -1429,7 +1453,7 @@ class ProfileServiceImplTest {
 
     @Test
     void getUserKarmaPoints_returnsZero_whenCacheValueIsNotInteger() {
-        ProfileServiceImpl localService = new ProfileServiceImpl();
+        ProfileServiceImpl localService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         CacheService localCacheService = mock(CacheService.class);
         ReflectionTestUtils.setField(localService, "cacheService", localCacheService);
         String userId = "user-4";
@@ -1440,7 +1464,7 @@ class ProfileServiceImplTest {
 
     @Test
     void getUserKarmaPoints_returnsZero_whenExceptionThrown() {
-        ProfileServiceImpl localService = new ProfileServiceImpl();
+        ProfileServiceImpl localService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         CacheService localCacheService = mock(CacheService.class);
         ReflectionTestUtils.setField(localService, "cacheService", localCacheService);
         String userId = "user-5";
@@ -1451,7 +1475,7 @@ class ProfileServiceImplTest {
 
     @Test
     void getUserWalletBalance_returnsBalanceFromCassandra() {
-        ProfileServiceImpl localService = new ProfileServiceImpl();
+        ProfileServiceImpl localService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         CacheService localCacheService = mock(CacheService.class);
         CassandraOperation localCassandraOperation = mock(CassandraOperation.class);
         ReflectionTestUtils.setField(localService, "cacheService", localCacheService);
@@ -1471,7 +1495,7 @@ class ProfileServiceImplTest {
 
     @Test
     void getUserWalletBalance_returnsZero_whenNoWalletRecord() {
-        ProfileServiceImpl localService = new ProfileServiceImpl();
+        ProfileServiceImpl localService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         CacheService localCacheService = mock(CacheService.class);
         CassandraOperation localCassandraOperation = mock(CassandraOperation.class);
         ReflectionTestUtils.setField(localService, "cacheService", localCacheService);
@@ -1488,7 +1512,7 @@ class ProfileServiceImplTest {
 
     @Test
     void getUserWalletBalance_returnsZero_whenExceptionThrown() {
-        ProfileServiceImpl localService = new ProfileServiceImpl();
+        ProfileServiceImpl localService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         CassandraOperation localCassandraOperation = mock(CassandraOperation.class);
         ReflectionTestUtils.setField(localService, "cassandraOperation", localCassandraOperation);
         String userId = "user-4";
@@ -1502,7 +1526,7 @@ class ProfileServiceImplTest {
 
     @Test
     void getSortingComparator_returnsServiceHistoryComparator_andSortsByStartDateDescending() {
-        ProfileServiceImpl localService = new ProfileServiceImpl();
+        ProfileServiceImpl localService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         Comparator<Map<String, Object>> comparator = ReflectionTestUtils.invokeMethod(localService, "getSortingComparator", Constants.SERVICE_HISTORY);
         List<Map<String, Object>> data = new ArrayList<>();
         data.add(Map.of(Constants.START_DATE, "2022-01-01T00:00:00Z"));
@@ -1513,7 +1537,7 @@ class ProfileServiceImplTest {
 
     @Test
     void getSortingComparator_returnsEducationalQualificationsComparator_andSortsByStartYearDescending() {
-        ProfileServiceImpl localService = new ProfileServiceImpl();
+        ProfileServiceImpl localService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         Comparator<Map<String, Object>> comparator = ReflectionTestUtils.invokeMethod(localService, "getSortingComparator", Constants.EDUCATIONAL_QUALIFICATIONS);
         List<Map<String, Object>> data = new ArrayList<>();
         data.add(Map.of(Constants.START_YEAR, "2018"));
@@ -1524,7 +1548,7 @@ class ProfileServiceImplTest {
 
     @Test
     void getSortingComparator_returnsAchievementsComparator_andSortsByIssuedDateDescending() {
-        ProfileServiceImpl localService = new ProfileServiceImpl();
+        ProfileServiceImpl localService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         Comparator<Map<String, Object>> comparator = ReflectionTestUtils.invokeMethod(localService, "getSortingComparator", Constants.ACHIVEMENTS);
         List<Map<String, Object>> data = new ArrayList<>();
         data.add(Map.of(Constants.ISSUED_DATE, "2021-05-01T00:00:00Z"));
@@ -1535,14 +1559,14 @@ class ProfileServiceImplTest {
 
     @Test
     void getSortingComparator_returnsNullForUnknownContextType() {
-        ProfileServiceImpl localService = new ProfileServiceImpl();
+        ProfileServiceImpl localService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         Comparator<Map<String, Object>> comparator = ReflectionTestUtils.invokeMethod(localService, "getSortingComparator", "unknownType");
         assertNull(comparator);
     }
 
     @Test
     void getSortingComparator_handlesMissingFieldsGracefully() {
-        ProfileServiceImpl localService = new ProfileServiceImpl();
+        ProfileServiceImpl localService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         Comparator<Map<String, Object>> comparator = ReflectionTestUtils.invokeMethod(localService, "getSortingComparator", Constants.EDUCATIONAL_QUALIFICATIONS);
         List<Map<String, Object>> data = new ArrayList<>();
         data.add(new HashMap<>()); // missing START_YEAR
@@ -1552,7 +1576,7 @@ class ProfileServiceImplTest {
 
     @Test
     void sortContextData_sortsListDescending_whenComparatorExists() {
-        ProfileServiceImpl localService = new ProfileServiceImpl();
+        ProfileServiceImpl localService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         List<Map<String, Object>> dataList = new ArrayList<>();
         dataList.add(Map.of(Constants.START_DATE, "2022-01-01T00:00:00Z"));
         dataList.add(Map.of(Constants.START_DATE, "2023-01-01T00:00:00Z"));
@@ -1562,7 +1586,7 @@ class ProfileServiceImplTest {
 
     @Test
     void sortContextData_doesNotSort_whenComparatorIsNull() {
-        ProfileServiceImpl localService = new ProfileServiceImpl();
+        ProfileServiceImpl localService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         List<Map<String, Object>> dataList = new ArrayList<>();
         dataList.add(Map.of("field", "A"));
         dataList.add(Map.of("field", "B"));
@@ -1573,7 +1597,7 @@ class ProfileServiceImplTest {
 
     @Test
     void sortContextData_handlesEmptyList() {
-        ProfileServiceImpl localService = new ProfileServiceImpl();
+        ProfileServiceImpl localService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         List<Map<String, Object>> dataList = new ArrayList<>();
         ReflectionTestUtils.invokeMethod(localService, "sortContextData", dataList, Constants.SERVICE_HISTORY);
         assertTrue(dataList.isEmpty());
@@ -1581,7 +1605,7 @@ class ProfileServiceImplTest {
 
     @Test
     void sortContextData_throwsException_whenFieldMissing() {
-        ProfileServiceImpl localService = new ProfileServiceImpl();
+        ProfileServiceImpl localService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         List<Map<String, Object>> dataList = new ArrayList<>();
         dataList.add(new HashMap<>());
         dataList.add(Map.of(Constants.START_YEAR, "2020"));
@@ -1592,7 +1616,7 @@ class ProfileServiceImplTest {
 
     @Test
     void returnsCachedCertificateCount_whenCacheHit() {
-        ProfileServiceImpl localService = new ProfileServiceImpl();
+        ProfileServiceImpl localService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         CacheService localCacheService = mock(CacheService.class);
         CassandraOperation localCassandraOperation = mock(CassandraOperation.class);
         CbServerProperties serverConfig = mock(CbServerProperties.class);
@@ -1616,7 +1640,7 @@ class ProfileServiceImplTest {
 
     @Test
     void returnsSumOfCertificatesFromBothSources_whenCacheMiss() {
-        ProfileServiceImpl locaService = new ProfileServiceImpl();
+        ProfileServiceImpl locaService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         CacheService localCacheService = mock(CacheService.class);
         CassandraOperation localCassandraOperation = mock(CassandraOperation.class);
         CbServerProperties serverConfig = mock(CbServerProperties.class);
@@ -1655,7 +1679,7 @@ class ProfileServiceImplTest {
 
     @Test
     void returnsZero_whenNoCertificatesAndCacheMiss() {
-        ProfileServiceImpl localService = new ProfileServiceImpl();
+        ProfileServiceImpl localService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         CacheService localCacheService = mock(CacheService.class);
         CassandraOperation localCassandraOperation = mock(CassandraOperation.class);
         CbServerProperties serverConfig = mock(CbServerProperties.class);
@@ -1674,13 +1698,12 @@ class ProfileServiceImplTest {
         )).thenReturn(Collections.emptyList());
         int count = ReflectionTestUtils.invokeMethod(localService, "getIssuedCertificateCount", "user-3");
         assertEquals(0, count);
-        //verify(localCacheService).hset("cert:count", 12, "user-3", "0");
         verify(localCacheService, never()).hset(anyString(), anyInt(), anyString(), anyString(), eq(100));
     }
 
     @Test
     void returnsZero_whenExceptionIsThrown() {
-        ProfileServiceImpl localService = new ProfileServiceImpl();
+        ProfileServiceImpl localService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         CacheService localCacheService = mock(CacheService.class);
         CassandraOperation localCassandraOperation = mock(CassandraOperation.class);
         CbServerProperties serverConfig = mock(CbServerProperties.class);
@@ -1697,7 +1720,7 @@ class ProfileServiceImplTest {
 
     @Test
     void ignoresNonListIssuedCertificatesAndNulls() {
-        ProfileServiceImpl locaService = new ProfileServiceImpl();
+        ProfileServiceImpl locaService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         CacheService localCacheService = mock(CacheService.class);
         CassandraOperation localCassandraOperation = mock(CassandraOperation.class);
         CbServerProperties serverConfig = mock(CbServerProperties.class);
@@ -1735,7 +1758,7 @@ class ProfileServiceImplTest {
 
     @Test
     void mergeAndSortByIssuedDateOrTitle_sortsByIssuedDateDescending() {
-        ProfileServiceImpl locaService = new ProfileServiceImpl();
+        ProfileServiceImpl locaService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         List<Map<String, Object>> existingList = new ArrayList<>();
         List<Map<String, Object>> newList = new ArrayList<>();
         existingList.add(new HashMap<>(Map.of(Constants.ISSUED_DATE, "2022-01-01T00:00:00Z", Constants.TITLE, "B")));
@@ -1750,7 +1773,7 @@ class ProfileServiceImplTest {
 
     @Test
     void mergeAndSortByIssuedDateOrTitle_sortsByTitleWhenDatesMissing() {
-        ProfileServiceImpl locaService = new ProfileServiceImpl();
+        ProfileServiceImpl locaService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         List<Map<String, Object>> existingList = new ArrayList<>();
         List<Map<String, Object>> newList = new ArrayList<>();
         existingList.add(new HashMap<>(Map.of(Constants.TITLE, "Bravo")));
@@ -1764,7 +1787,7 @@ class ProfileServiceImplTest {
 
     @Test
     void mergeAndSortByIssuedDateOrTitle_handlesNullTitles() {
-        ProfileServiceImpl locaService = new ProfileServiceImpl();
+        ProfileServiceImpl locaService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         List<Map<String, Object>> existingList = new ArrayList<>();
         List<Map<String, Object>> newList = new ArrayList<>();
         existingList.add(new HashMap<>());
@@ -1778,7 +1801,7 @@ class ProfileServiceImplTest {
 
     @Test
     void mergeAndSortByIssuedDateOrTitle_handlesNullLists() {
-        ProfileServiceImpl locaService = new ProfileServiceImpl();
+        ProfileServiceImpl locaService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         List<Map<String, Object>> existingList = new ArrayList<>();
         List<Map<String, Object>> newList = new ArrayList<>();
         ReflectionTestUtils.invokeMethod(
@@ -1789,7 +1812,7 @@ class ProfileServiceImplTest {
 
     @Test
     void mergeAndSortByIssuedDateOrTitle_sortsWhenSomeDatesNull() {
-        ProfileServiceImpl locaService = new ProfileServiceImpl();
+        ProfileServiceImpl locaService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         List<Map<String, Object>> existingList = new ArrayList<>();
         List<Map<String, Object>> newList = new ArrayList<>();
         existingList.add(new HashMap<>(Map.of(Constants.TITLE, "Bravo")));
@@ -1966,7 +1989,7 @@ class ProfileServiceImplTest {
     @Test
     void testSanitizeProfile_Private_RemovesFilteredKeys() {
         // Arrange
-        ProfileServiceImpl locaService = new ProfileServiceImpl();
+        ProfileServiceImpl locaService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
 
         // Inject config value for filtered keys
         ReflectionTestUtils.setField(locaService, "basicDetailsFilteredKeys",
@@ -2743,139 +2766,139 @@ class ProfileServiceImplTest {
 
     @Test
     void hasExtendedProfileData_returnsTrue_whenLocationDetailsPresent() throws Exception {
-        ProfileServiceImpl service = spy(new ProfileServiceImpl());
+        ProfileServiceImpl localService = spy(new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null));
         ApiResponse response = mock(ApiResponse.class);
         Map<String, Object> result = Map.of(Constants.STATE, "state1", Constants.DISTRICT, "district1");
         when(response.getResponseCode()).thenReturn(HttpStatus.OK);
         when(response.get(Constants.RESPONSE)).thenReturn(result);
-        doReturn(response).when(service).readFullExtendedProfile("user1", Constants.LOCATION_DETAILS, "token");
+        doReturn(response).when(localService).readFullExtendedProfile("user1", Constants.LOCATION_DETAILS, "token");
         Method method = ProfileServiceImpl.class.getDeclaredMethod("hasExtendedProfileData", String.class, String.class, String.class);
         method.setAccessible(true);
-        boolean actual = (boolean) method.invoke(service, "user1", Constants.LOCATION_DETAILS, "token");
+        boolean actual = (boolean) method.invoke(localService, "user1", Constants.LOCATION_DETAILS, "token");
         assertTrue(actual);
     }
 
     @Test
     void hasExtendedProfileData_returnsFalse_whenLocationDetailsMissingFields() throws Exception {
-        ProfileServiceImpl service = spy(new ProfileServiceImpl());
+        ProfileServiceImpl localService = spy(new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null));
         ApiResponse response = mock(ApiResponse.class);
         Map<String, Object> result = Map.of(Constants.STATE, "state1");
         when(response.getResponseCode()).thenReturn(HttpStatus.OK);
         when(response.get(Constants.RESPONSE)).thenReturn(result);
-        doReturn(response).when(service).readFullExtendedProfile("user1", Constants.LOCATION_DETAILS, "token");
+        doReturn(response).when(localService).readFullExtendedProfile("user1", Constants.LOCATION_DETAILS, "token");
         Method method = ProfileServiceImpl.class.getDeclaredMethod("hasExtendedProfileData", String.class, String.class, String.class);
         method.setAccessible(true);
-        boolean actual = (boolean) method.invoke(service, "user1", Constants.LOCATION_DETAILS, "token");
+        boolean actual = (boolean) method.invoke(localService, "user1", Constants.LOCATION_DETAILS, "token");
         assertFalse(actual);
     }
 
     @Test
     void hasExtendedProfileData_returnsTrue_whenContextDataIsNonEmptyCollection() throws Exception {
-        ProfileServiceImpl service = spy(new ProfileServiceImpl());
+        ProfileServiceImpl localService = spy(new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null));
         ApiResponse response = mock(ApiResponse.class);
         Map<String, Object> result = Map.of("customType", List.of("item1"));
         when(response.getResponseCode()).thenReturn(HttpStatus.OK);
         when(response.get(Constants.RESPONSE)).thenReturn(result);
-        doReturn(response).when(service).readFullExtendedProfile("user1", "customType", "token");
+        doReturn(response).when(localService).readFullExtendedProfile("user1", "customType", "token");
         Method method = ProfileServiceImpl.class.getDeclaredMethod("hasExtendedProfileData", String.class, String.class, String.class);
         method.setAccessible(true);
-        boolean actual = (boolean) method.invoke(service, "user1", "customType", "token");
+        boolean actual = (boolean) method.invoke(localService, "user1", "customType", "token");
         assertTrue(actual);
     }
 
     @Test
     void hasExtendedProfileData_returnsFalse_whenContextDataIsEmptyCollection() throws Exception {
-        ProfileServiceImpl service = spy(new ProfileServiceImpl());
+        ProfileServiceImpl localService = spy(new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null));
         ApiResponse response = mock(ApiResponse.class);
         Map<String, Object> result = Map.of("customType", List.of());
         when(response.getResponseCode()).thenReturn(HttpStatus.OK);
         when(response.get(Constants.RESPONSE)).thenReturn(result);
-        doReturn(response).when(service).readFullExtendedProfile("user1", "customType", "token");
+        doReturn(response).when(localService).readFullExtendedProfile("user1", "customType", "token");
         Method method = ProfileServiceImpl.class.getDeclaredMethod("hasExtendedProfileData", String.class, String.class, String.class);
         method.setAccessible(true);
-        boolean actual = (boolean) method.invoke(service, "user1", "customType", "token");
+        boolean actual = (boolean) method.invoke(localService, "user1", "customType", "token");
         assertFalse(actual);
     }
 
     @Test
     void hasExtendedProfileData_returnsFalse_whenResponseIsNull() throws Exception {
-        ProfileServiceImpl service = spy(new ProfileServiceImpl());
-        doReturn(null).when(service).readFullExtendedProfile("user1", "type", "token");
+        ProfileServiceImpl localService = spy(new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null));
+        doReturn(null).when(localService).readFullExtendedProfile("user1", "type", "token");
         Method method = ProfileServiceImpl.class.getDeclaredMethod("hasExtendedProfileData", String.class, String.class, String.class);
         method.setAccessible(true);
-        boolean actual = (boolean) method.invoke(service, "user1", "type", "token");
+        boolean actual = (boolean) method.invoke(localService, "user1", "type", "token");
         assertFalse(actual);
     }
 
     @Test
     void hasExtendedProfileData_returnsFalse_whenResponseCodeNotOk() throws Exception {
-        ProfileServiceImpl service = spy(new ProfileServiceImpl());
+        ProfileServiceImpl localService = spy(new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null));
         ApiResponse response = mock(ApiResponse.class);
         when(response.getResponseCode()).thenReturn(HttpStatus.BAD_REQUEST);
-        doReturn(response).when(service).readFullExtendedProfile("user1", "type", "token");
+        doReturn(response).when(localService).readFullExtendedProfile("user1", "type", "token");
         Method method = ProfileServiceImpl.class.getDeclaredMethod("hasExtendedProfileData", String.class, String.class, String.class);
         method.setAccessible(true);
-        boolean actual = (boolean) method.invoke(service, "user1", "type", "token");
+        boolean actual = (boolean) method.invoke(localService, "user1", "type", "token");
         assertFalse(actual);
     }
 
     @Test
     void hasExtendedProfileData_returnsFalse_whenExceptionThrown() throws Exception {
-        ProfileServiceImpl service = spy(new ProfileServiceImpl());
-        doThrow(new RuntimeException("fail")).when(service).readFullExtendedProfile(any(), any(), any());
+        ProfileServiceImpl localService = spy(new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null));
+        doThrow(new RuntimeException("fail")).when(localService).readFullExtendedProfile(any(), any(), any());
         Method method = ProfileServiceImpl.class.getDeclaredMethod("hasExtendedProfileData", String.class, String.class, String.class);
         method.setAccessible(true);
-        boolean actual = (boolean) method.invoke(service, "user1", "type", "token");
+        boolean actual = (boolean) method.invoke(localService, "user1", "type", "token");
         assertFalse(actual);
     }
 
     @Test
     void getUserRoles_returnsRoles_whenScopesMatchRootOrgId() {
-        ProfileServiceImpl service = spy(new ProfileServiceImpl());
-        CassandraOperation cassandraOperation = mock(CassandraOperation.class);
-        ReflectionTestUtils.setField(service, "cassandraOperation", cassandraOperation);
+        ProfileServiceImpl localService = spy(new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null));
+        CassandraOperation localCassandraOperation = mock(CassandraOperation.class);
+        ReflectionTestUtils.setField(localService, "cassandraOperation", localCassandraOperation);
         ObjectMapper mapper = new ObjectMapper();
-        ReflectionTestUtils.setField(service, "mapper", mapper);
+        ReflectionTestUtils.setField(localService, "mapper", mapper);
 
         String userId = "user1";
         String rootOrgId = "org1";
         Map<String, Object> userRoleObj = new HashMap<>();
         userRoleObj.put(Constants.ROLE, "admin");
         userRoleObj.put(Constants.SCOPE, List.of(Map.of(Constants.ORGANISATION_ID, rootOrgId)));
-        when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), anyList(), anyString()))
+        when(localCassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), anyList(), anyString()))
                 .thenReturn(List.of(userRoleObj));
 
-        List<String> roles = service.getUserRoles(userId, rootOrgId);
+        List<String> roles = localService.getUserRoles(userId, rootOrgId);
         assertEquals(List.of("admin"), roles);
     }
 
     @Test
     void getUserRoles_returnsEmpty_whenScopesDoNotMatchRootOrgId() {
-        ProfileServiceImpl service = spy(new ProfileServiceImpl());
-        CassandraOperation cassandraOperation = mock(CassandraOperation.class);
-        ReflectionTestUtils.setField(service, "cassandraOperation", cassandraOperation);
+        ProfileServiceImpl localService = spy(new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null));
+        CassandraOperation localCassandraOperation = mock(CassandraOperation.class);
+        ReflectionTestUtils.setField(localService, "cassandraOperation", localCassandraOperation);
         ObjectMapper mapper = new ObjectMapper();
-        ReflectionTestUtils.setField(service, "mapper", mapper);
+        ReflectionTestUtils.setField(localService, "mapper", mapper);
 
         String userId = "user1";
         String rootOrgId = "org1";
         Map<String, Object> userRoleObj = new HashMap<>();
         userRoleObj.put(Constants.ROLE, "admin");
         userRoleObj.put(Constants.SCOPE, List.of(Map.of(Constants.ORGANISATION_ID, "otherOrg")));
-        when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), anyList(), anyString()))
+        when(localCassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), anyList(), anyString()))
                 .thenReturn(List.of(userRoleObj));
 
-        List<String> roles = service.getUserRoles(userId, rootOrgId);
+        List<String> roles = localService.getUserRoles(userId, rootOrgId);
         assertTrue(roles.isEmpty());
     }
 
     @Test
-    void getUserRoles_parsesScopeString_whenScopeIsString() throws Exception {
-        ProfileServiceImpl service = spy(new ProfileServiceImpl());
-        CassandraOperation cassandraOperation = mock(CassandraOperation.class);
-        ReflectionTestUtils.setField(service, "cassandraOperation", cassandraOperation);
+    void getUserRoles_parsesScopeString_whenScopeIsString() {
+        ProfileServiceImpl localService = spy(new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null));
+        CassandraOperation localCassandraOperation = mock(CassandraOperation.class);
+        ReflectionTestUtils.setField(localService, "cassandraOperation", localCassandraOperation);
         ObjectMapper mapper = new ObjectMapper();
-        ReflectionTestUtils.setField(service, "mapper", mapper);
+        ReflectionTestUtils.setField(localService, "mapper", mapper);
 
         String userId = "user1";
         String rootOrgId = "org1";
@@ -2883,20 +2906,20 @@ class ProfileServiceImplTest {
         Map<String, Object> userRoleObj = new HashMap<>();
         userRoleObj.put(Constants.ROLE, "admin");
         userRoleObj.put(Constants.SCOPE, scopeJson);
-        when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), anyList(), anyString()))
+        when(localCassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), anyList(), anyString()))
                 .thenReturn(List.of(userRoleObj));
 
-        List<String> roles = service.getUserRoles(userId, rootOrgId);
+        List<String> roles = localService.getUserRoles(userId, rootOrgId);
         assertEquals(List.of("admin"), roles);
     }
 
     @Test
     void getUserRoles_returnsEmpty_whenScopeStringIsInvalidJson() {
-        ProfileServiceImpl service = spy(new ProfileServiceImpl());
-        CassandraOperation cassandraOperation = mock(CassandraOperation.class);
-        ReflectionTestUtils.setField(service, "cassandraOperation", cassandraOperation);
+        ProfileServiceImpl localService = spy(new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null));
+        CassandraOperation localCassandraOperation = mock(CassandraOperation.class);
+        ReflectionTestUtils.setField(localService, "cassandraOperation", localCassandraOperation);
         ObjectMapper mapper = new ObjectMapper();
-        ReflectionTestUtils.setField(service, "mapper", mapper);
+        ReflectionTestUtils.setField(localService, "mapper", mapper);
 
         String userId = "user1";
         String rootOrgId = "org1";
@@ -2904,20 +2927,20 @@ class ProfileServiceImplTest {
         Map<String, Object> userRoleObj = new HashMap<>();
         userRoleObj.put(Constants.ROLE, "admin");
         userRoleObj.put(Constants.SCOPE, invalidScopeJson);
-        when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), anyList(), anyString()))
+        when(localCassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), anyList(), anyString()))
                 .thenReturn(List.of(userRoleObj));
 
-        List<String> roles = service.getUserRoles(userId, rootOrgId);
+        List<String> roles = localService.getUserRoles(userId, rootOrgId);
         assertTrue(roles.isEmpty());
     }
 
     @Test
     void getUserRoles_returnsDistinctRoles() {
-        ProfileServiceImpl service = spy(new ProfileServiceImpl());
-        CassandraOperation cassandraOperation = mock(CassandraOperation.class);
-        ReflectionTestUtils.setField(service, "cassandraOperation", cassandraOperation);
+        ProfileServiceImpl localService = spy(new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null));
+        CassandraOperation localCassandraOperation = mock(CassandraOperation.class);
+        ReflectionTestUtils.setField(localService, "cassandraOperation", localCassandraOperation);
         ObjectMapper mapper = new ObjectMapper();
-        ReflectionTestUtils.setField(service, "mapper", mapper);
+        ReflectionTestUtils.setField(localService, "mapper", mapper);
 
         String userId = "user1";
         String rootOrgId = "org1";
@@ -2927,10 +2950,10 @@ class ProfileServiceImplTest {
         Map<String, Object> userRoleObj2 = new HashMap<>();
         userRoleObj2.put(Constants.ROLE, "admin");
         userRoleObj2.put(Constants.SCOPE, List.of(Map.of(Constants.ORGANISATION_ID, rootOrgId)));
-        when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), anyList(), anyString()))
+        when(localCassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), anyList(), anyString()))
                 .thenReturn(List.of(userRoleObj1, userRoleObj2));
 
-        List<String> roles = service.getUserRoles(userId, rootOrgId);
+        List<String> roles = localService.getUserRoles(userId, rootOrgId);
         assertEquals(List.of("admin"), roles);
     }
     @Test
@@ -2997,9 +3020,9 @@ class ProfileServiceImplTest {
         data.put(Constants.TYPE, Constants.TEXT);
         lenient().when(entity.getCustomFieldData()).thenReturn(data);
         lenient().when(customFieldRepository.findByCustomFiledIdAndIsActiveTrue("cf1")).thenReturn(Optional.of(entity));
-        EsUtilServiceImpl esUtilService = mock(EsUtilServiceImpl.class);
-        ReflectionTestUtils.setField(profileService, "esUtilService", esUtilService);
-        lenient().when(esUtilService.updateUserOrgCustomFields(any(), any(), any())).thenReturn(false);
+        EsUtilServiceImpl localEsUtilService = mock(EsUtilServiceImpl.class);
+        ReflectionTestUtils.setField(profileService, "esUtilService", localEsUtilService);
+        lenient().when(localEsUtilService.updateUserOrgCustomFields(any(), any(), any())).thenReturn(false);
         ApiResponse response = profileService.updateAdditionalFields(req, "org1","token");
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
     }
@@ -3156,6 +3179,518 @@ class ProfileServiceImplTest {
         ApiResponse response = profileService.saveExtendedProfile(request, token);
 
         assertEquals(HttpStatus.OK, response.getResponseCode());
+    }
+
+    @Test
+    void testUpdateExtendedProfile_RegexValidationFails_ReturnsBadRequest() {
+        Map<String, Object> item = new HashMap<>();
+        item.put("degree", "!!!invalid!!!");
+
+        Map<String, Object> requestData = new HashMap<>();
+        requestData.put(Constants.USER_ID_RQST, userID);
+        requestData.put(Constants.EDUCATIONAL_QUALIFICATIONS, List.of(item));
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestData);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
+        when(serverProperties.getDegreeNameRegex()).thenReturn("^[a-zA-Z]+$");
+
+        ApiResponse response = profileService.updateExtendedProfile(request, token);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
+        assertTrue(response.getParams().getErrMsg().contains("degree"));
+        verifyNoInteractions(cassandraOperation);
+    }
+
+    @Test
+    void testUpdateExtendedProfile_UuidRegexValidation_Valid() throws Exception {
+        Map<String, Object> item = new HashMap<>();
+        item.put(Constants.UUID, "123e4567-e89b-12d3-a456-426614174000");
+        item.put("degree", "B.Tech");
+
+        Map<String, Object> requestData = new HashMap<>();
+        requestData.put(Constants.USER_ID_RQST, userID);
+        requestData.put(Constants.EDUCATIONAL_QUALIFICATIONS, List.of(item));
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestData);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
+        when(serverProperties.getDegreeNameRegex()).thenReturn("^[a-zA-Z.]+$");
+        when(serverProperties.getUuidRegex())
+                .thenReturn("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
+        when(serverProperties.getContextType()).thenReturn(new String[]{Constants.EDUCATIONAL_QUALIFICATIONS});
+        when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), isNull(), isNull()))
+                .thenReturn(List.of(Map.of(Constants.CONTEXT_DATA, "[]")));
+        when(projectUtil.parseListOfMap(anyString()))
+                .thenReturn(new ArrayList<>(List.of(new HashMap<>(item))));
+        when(objectMapper.writeValueAsString(any())).thenReturn("[]");
+        ApiResponse mockResponse = new ApiResponse();
+        mockResponse.put(Constants.RESPONSE, Constants.SUCCESS);
+        when(cassandraOperation.insertRecord(any(), any(), any())).thenReturn(mockResponse);
+
+        ApiResponse response = profileService.updateExtendedProfile(request, token);
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        verify(serverProperties).getUuidRegex();
+    }
+
+    @Test
+    void testUpdateExtendedProfile_AchievementsContext_MergesAndSorts() throws Exception {
+        String uuid = "ach-uuid-1";
+        Map<String, Object> existingItem = new HashMap<>();
+        existingItem.put(Constants.UUID, uuid);
+        existingItem.put(Constants.TITLE, "Old Title");
+        existingItem.put(Constants.ISSUED_DATE, "2021-01-01T00:00:00Z");
+
+        Map<String, Object> update = new HashMap<>();
+        update.put(Constants.UUID, uuid);
+        update.put(Constants.TITLE, "New Title");
+        update.put(Constants.ISSUED_DATE, "2023-01-01T00:00:00Z");
+
+        Map<String, Object> requestData = new HashMap<>();
+        requestData.put(Constants.USER_ID_RQST, userID);
+        requestData.put(Constants.ACHIEVEMENTS, List.of(update));
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestData);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
+        when(serverProperties.getContextType()).thenReturn(new String[]{Constants.ACHIEVEMENTS});
+        when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), isNull(), isNull()))
+                .thenReturn(List.of(Map.of(Constants.CONTEXT_DATA, "[]")));
+        when(projectUtil.parseListOfMap(anyString()))
+                .thenReturn(new ArrayList<>(List.of(new HashMap<>(existingItem))));
+        when(objectMapper.writeValueAsString(any())).thenReturn("[]");
+        ApiResponse mockResponse = new ApiResponse();
+        mockResponse.put(Constants.RESPONSE, Constants.SUCCESS);
+        when(cassandraOperation.insertRecord(anyString(), anyString(), anyMap())).thenReturn(mockResponse);
+        lenient().when(cacheService.getCache(anyString())).thenReturn(null);
+
+        ApiResponse response = profileService.updateExtendedProfile(request, token);
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+    }
+
+    @Test
+    void testGetExtendedProfileSummary_BlankUserId_FallsBackToTokenUserId() {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
+        when(cacheService.getCache(anyString())).thenReturn(null);
+        when(serverProperties.getContextType()).thenReturn(contextType);
+        when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
+                .thenReturn(Collections.emptyList());
+
+        ApiResponse response = profileService.getExtendedProfileSummary("", token);
+
+        assertEquals(HttpStatus.NO_CONTENT, response.getResponseCode());
+    }
+
+    @Test
+    void testReadFullExtendedProfile_CachePutThrowsException_LogsWarning() throws Exception {
+        String localContextType = "education";
+        String json = "[{\"data\":\"test\"}]";
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
+        when(cacheService.getCache(anyString())).thenReturn(null);
+        when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
+                .thenReturn(List.of(Map.of(Constants.CONTEXT_DATA, json)));
+        when(projectUtil.parseListOfMap(json)).thenReturn(List.of(Map.of("data", "test")));
+        doThrow(new RuntimeException("Cache put failed")).when(cacheService).putCache(anyString(), any());
+
+        ApiResponse response = profileService.readFullExtendedProfile(userID, localContextType, token);
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+    }
+
+    @Test
+    void testGetBasicProfile_IsNgo_BlankUserId_UsesTokenUserId() {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
+        when(cacheService.getCache(anyString())).thenReturn(null);
+        doReturn(Collections.emptyMap()).when(profileService).readUserDataFromDB(eq(userID), isNull());
+
+        try (MockedStatic<com.igot.cb.util.UserUtility> mockedUtility = Mockito.mockStatic(com.igot.cb.util.UserUtility.class)) {
+            mockedUtility.when(() -> com.igot.cb.util.UserUtility.decryptSpecificUserData(anyMap(), anyList()))
+                    .then(inv -> null);
+            ApiResponse response = profileService.getBasicProfile("", token, true);
+            assertEquals(HttpStatus.NOT_FOUND, response.getResponseCode());
+        }
+    }
+
+    @Test
+    void testListCompetencies_FullSuccess_CachesAndReturnsCompetencies() throws Exception {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
+        when(cacheService.getCache(CACHE_KEY)).thenReturn(null);
+
+        Map<String, Object> dbRecord = new HashMap<>();
+        dbRecord.put(Constants.ACTIVE_LOWERCASE, true);
+        dbRecord.put(Constants.STATUS, 2);
+        dbRecord.put(Constants.COURSE_ID, "c1");
+        when(cassandraOperation.getAllRecordsByPrimaryKey(any(), any(), any(), any(), anyInt()))
+                .thenReturn(List.of(dbRecord));
+
+        when(cacheService.getCourseMetadataAsJsonString(List.of("c1")))
+                .thenReturn(Map.of("c1", "{\"competencies_v6\":[]}"));
+
+        Map<String, Object> competencyMap = new HashMap<>();
+        competencyMap.put(Constants.COMPETENCY_AREA_NAME, "AreaA");
+        competencyMap.put(Constants.COMPETENCY_THEME_NAME, "ThemeA");
+        competencyMap.put(Constants.COMPETENCY_SUB_THEME_NAME, "SubA");
+        Map<String, Object> parsedCourse = new HashMap<>();
+        parsedCourse.put(Constants.COMPETENCIES_V6, List.of(competencyMap));
+        parsedCourse.put(Constants.COURSE_ID, "c1");
+        when(projectUtil.parseMap("{\"competencies_v6\":[]}")).thenReturn(parsedCourse);
+
+        ApiResponse response = profileService.listCompetencies(userID, token);
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        assertNotNull(response.get(Constants.RESPONSE));
+        verify(cacheService).putCache(eq(CACHE_KEY), any());
+    }
+
+    @Test
+    void testGetCourseMetadataBatched_MissingCourseJson_SkipsCourse() {
+        List<String> courseIds = List.of("c2");
+        when(cacheService.getCourseMetadataAsJsonString(courseIds)).thenReturn(Map.of());
+
+        Map<String, Map<String, Object>> result = profileService.getCourseMetadataBatched(courseIds, 10, List.of("a"));
+
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void testGetCourseMetadataBatched_NullFields_ReturnsFullParsedMap() throws IOException {
+        List<String> courseIds = List.of("c3");
+        when(cacheService.getCourseMetadataAsJsonString(courseIds)).thenReturn(Map.of("c3", "{\"a\":1}"));
+        Map<String, Object> parsed = new HashMap<>(Map.of("a", 1));
+        when(projectUtil.parseMap("{\"a\":1}")).thenReturn(parsed);
+
+        Map<String, Map<String, Object>> result = profileService.getCourseMetadataBatched(courseIds, 10, null);
+
+        assertEquals(parsed, result.get("c3"));
+    }
+
+    @Test
+    void testGetCourseMetadataBatched_FiltersRequestedFields() throws IOException {
+        List<String> courseIds = List.of("c4");
+        when(cacheService.getCourseMetadataAsJsonString(courseIds)).thenReturn(Map.of("c4", "{\"keep\":1,\"drop\":2}"));
+        Map<String, Object> parsed = new HashMap<>();
+        parsed.put("keep", 1);
+        parsed.put("drop", 2);
+        when(projectUtil.parseMap("{\"keep\":1,\"drop\":2}")).thenReturn(parsed);
+
+        Map<String, Map<String, Object>> result = profileService.getCourseMetadataBatched(courseIds, 10, List.of("keep"));
+
+        assertEquals(Map.of("keep", 1), result.get("c4"));
+    }
+
+    @Test
+    void testGetCourseMetadataBatched_FilteredEmpty_WhenNoFieldsMatch() throws IOException {
+        List<String> courseIds = List.of("c5");
+        when(cacheService.getCourseMetadataAsJsonString(courseIds)).thenReturn(Map.of("c5", "{\"drop\":2}"));
+        Map<String, Object> parsed = new HashMap<>(Map.of("drop", 2));
+        when(projectUtil.parseMap("{\"drop\":2}")).thenReturn(parsed);
+
+        Map<String, Map<String, Object>> result = profileService.getCourseMetadataBatched(courseIds, 10, List.of("keep"));
+
+        assertFalse(result.containsKey("c5"));
+    }
+
+    @Test
+    void testGetCourseMetadataBatched_ParseExceptionIsCaught() throws IOException {
+        List<String> courseIds = List.of("c6");
+        when(cacheService.getCourseMetadataAsJsonString(courseIds)).thenReturn(Map.of("c6", "bad-json"));
+        when(projectUtil.parseMap("bad-json")).thenThrow(new RuntimeException("parse error"));
+
+        Map<String, Map<String, Object>> result = profileService.getCourseMetadataBatched(courseIds, 10, List.of("a"));
+
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void testExtendedProfile_cacheHit_limitsDataToTwoItems() throws Exception {
+        when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(userID);
+        String cachedJson = "{\"contextA\":{\"count\":4,\"data\":[{\"a\":1},{\"b\":2},{\"c\":3},{\"d\":4}]}}";
+        String redisKey = "user:extendedProfile:all:user-123";
+        when(cacheService.getCache(redisKey)).thenReturn(cachedJson);
+
+        Map<String, Object> fullMap = Map.of("contextA", Map.of(
+                "count", 4,
+                "data", List.of(Map.of("a", 1), Map.of("b", 2), Map.of("c", 3), Map.of("d", 4))
+        ));
+        when(objectMapper.readValue(cachedJson, Map.class)).thenReturn(fullMap);
+
+        ApiResponse response = profileService.getExtendedProfileSummary(userID, token);
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        Map<String, Object> limited = (Map<String, Object>) response.get(Constants.RESPONSE);
+        Map<String, Object> contextA = (Map<String, Object>) limited.get("contextA");
+        List<?> data = (List<?>) contextA.get(Constants.DATA);
+        assertEquals(2, data.size());
+    }
+
+    @Test
+    void testCheckConnected_NullReadData_ReturnsEmptyMap() {
+        serverProperties.hubGraphService = "http://hub/";
+        serverProperties.connectionApi = "connection/";
+        when(service.fetchUsingGetWithHeadersProfile(anyString(), anyMap())).thenReturn(null);
+
+        Map<String, Object> result = profileService.checkConnected("user1", "authTok", "userAuthTok");
+
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void testCheckConnected_MissingResult_ReturnsEmptyMap() {
+        serverProperties.hubGraphService = "http://hub/";
+        serverProperties.connectionApi = "connection/";
+        when(service.fetchUsingGetWithHeadersProfile(anyString(), anyMap())).thenReturn(new HashMap<>());
+
+        Map<String, Object> result = profileService.checkConnected("user1", "authTok", "userAuthTok");
+
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void testCheckConnected_MissingResponse_ReturnsEmptyMap() {
+        serverProperties.hubGraphService = "http://hub/";
+        serverProperties.connectionApi = "connection/";
+        Map<String, Object> readData = new HashMap<>();
+        readData.put(Constants.RESULT, Map.of("notResponse", "x"));
+        when(service.fetchUsingGetWithHeadersProfile(anyString(), anyMap())).thenReturn(readData);
+
+        Map<String, Object> result = profileService.checkConnected("user1", "authTok", "userAuthTok");
+
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void testCheckConnected_ValidResponse_ReturnsPopulatedMap() {
+        serverProperties.hubGraphService = "http://hub/";
+        serverProperties.connectionApi = "connection/";
+        Map<String, Object> responseData = Map.of(Constants.STATUS, "APPROVED");
+        Map<String, Object> resultMap = Map.of(Constants.RESPONSE, responseData);
+        Map<String, Object> readData = Map.of(Constants.RESULT, resultMap);
+        when(service.fetchUsingGetWithHeadersProfile(anyString(), anyMap())).thenReturn(readData);
+
+        Map<String, Object> result = profileService.checkConnected("user1", "authTok", "userAuthTok");
+
+        assertEquals("APPROVED", result.get(Constants.STATUS));
+    }
+
+    @Test
+    void testCalculateProfileCompletionPercentage_ExtendedProfileField_ServiceHistoryFallback() throws Exception {
+        when(serverProperties.getProfileCompletionRequiredFields()).thenReturn(List.of(Constants.SERVICE_HISTORY));
+        when(serverProperties.getExtendedFieldsConfig()).thenReturn(List.of(Constants.SERVICE_HISTORY));
+        when(serverProperties.getFieldWeight()).thenReturn(50.0);
+
+        ApiResponse noContentResponse = ProjectUtil.createDefaultResponse("api.extendedProfile.read");
+        noContentResponse.setResponseCode(HttpStatus.NO_CONTENT);
+        doReturn(noContentResponse).when(profileService)
+                .readFullExtendedProfile("u1", Constants.SERVICE_HISTORY, "t1");
+
+        Map<String, Object> details = new HashMap<>();
+        details.put(Constants.PROFESSIONAL_DETAILS, List.of("job1"));
+        Map<String, Object> profileData = new HashMap<>();
+        profileData.put(Constants.PROFILE_DETAILS, details);
+
+        Method method = ProfileServiceImpl.class.getDeclaredMethod("calculateProfileCompletionPercentage", Map.class, String.class, String.class);
+        method.setAccessible(true);
+        Double result = (Double) method.invoke(profileService, profileData, "u1", "t1");
+
+        assertEquals(50.0, result);
+    }
+
+    @Test
+    void testCalculateProfileCompletionPercentage_FieldCheckException_ReturnsFalseAndContinues() throws Exception {
+        when(serverProperties.getProfileCompletionRequiredFields()).thenReturn(List.of(Constants.SERVICE_HISTORY));
+        when(serverProperties.getExtendedFieldsConfig()).thenThrow(new RuntimeException("boom"));
+        lenient().when(serverProperties.getFieldWeight()).thenReturn(50.0);
+
+        Map<String, Object> profileData = new HashMap<>();
+
+        Method method = ProfileServiceImpl.class.getDeclaredMethod("calculateProfileCompletionPercentage", Map.class, String.class, String.class);
+        method.setAccessible(true);
+        Double result = (Double) method.invoke(profileService, profileData, "u1", "t1");
+
+        assertEquals(0.0, result);
+    }
+
+    @Test
+    void updateAdditionalFields_returnsOK_onFullSuccess() {
+        when(accessTokenValidator.fetchUserIdFromAccessToken("token")).thenReturn("user1");
+
+        CustomFieldEntity entity = mock(CustomFieldEntity.class);
+        lenient().when(entity.getIsActive()).thenReturn(true);
+        ObjectNode data = new ObjectMapper().createObjectNode();
+        data.put(Constants.ORGANISATION_ID, "org1");
+        data.put(Constants.ATTRIBUTE_NAME, "attr");
+        data.put(Constants.TYPE, Constants.TEXT);
+        lenient().when(entity.getCustomFieldData()).thenReturn(data);
+        lenient().when(customFieldRepository.findByCustomFiledIdAndIsActiveTrue("cf1")).thenReturn(Optional.of(entity));
+
+        Map<String, Object> field = new HashMap<>();
+        field.put(Constants.CUSTOM_FIELD_ID, "cf1");
+        field.put(Constants.FIELD_TYPE, Constants.TEXT);
+        field.put(Constants.ATTRIBUTE_NAME, "attr");
+        field.put(Constants.VALUE, "val");
+
+        Map<String, Object> req = Map.of(
+                Constants.USER_ID, "user1",
+                Constants.ORGANISATION_ID, "org1",
+                Constants.CUSTOM_FIELD_VALUES, List.of(field)
+        );
+
+        when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), isNull(), isNull()))
+                .thenReturn(new ArrayList<>());
+        try {
+            lenient().when(objectMapper.writeValueAsString(any())).thenReturn("[]");
+        } catch (Exception ignored) {
+            // JsonProcessingException declared by the mocked method signature; stubbing never throws it.
+        }
+        ApiResponse mockInsertResponse = new ApiResponse();
+        mockInsertResponse.put(Constants.RESPONSE, Constants.SUCCESS);
+        when(cassandraOperation.insertRecord(anyString(), anyString(), anyMap())).thenReturn(mockInsertResponse);
+        when(esUtilService.updateUserOrgCustomFields(eq("user1"), eq("org1"), any())).thenReturn(true);
+
+        ApiResponse response = profileService.updateAdditionalFields(req, "org1", "token");
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        assertEquals(Constants.SUCCESS, response.get(Constants.RESPONSE));
+    }
+
+    @Test
+    void updateAdditionalFields_returnsUnauthorized_whenTokenUserIdDoesNotMatchRequestUserId() {
+        when(accessTokenValidator.fetchUserIdFromAccessToken("token")).thenReturn("otherUser");
+
+        CustomFieldEntity entity = mock(CustomFieldEntity.class);
+        when(entity.getIsActive()).thenReturn(true);
+        ObjectNode data = new ObjectMapper().createObjectNode();
+        data.put(Constants.ORGANISATION_ID, "org1");
+        data.put(Constants.ATTRIBUTE_NAME, "attr");
+        data.put(Constants.TYPE, Constants.TEXT);
+        when(entity.getCustomFieldData()).thenReturn(data);
+        when(customFieldRepository.findByCustomFiledIdAndIsActiveTrue("cf1")).thenReturn(Optional.of(entity));
+
+        Map<String, Object> field = new HashMap<>();
+        field.put(Constants.CUSTOM_FIELD_ID, "cf1");
+        field.put(Constants.FIELD_TYPE, Constants.TEXT);
+        field.put(Constants.ATTRIBUTE_NAME, "attr");
+        field.put(Constants.VALUE, "val");
+
+        Map<String, Object> req = Map.of(
+                Constants.USER_ID, "user1",
+                Constants.ORGANISATION_ID, "org1",
+                Constants.CUSTOM_FIELD_VALUES, List.of(field)
+        );
+
+        ApiResponse response = profileService.updateAdditionalFields(req, "org1", "token");
+
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getResponseCode());
+        assertEquals("User ID in token does not match request", response.getParams().getErrMsg());
+    }
+
+    @Test
+    void updateAdditionalFields_returnsUnauthorized_whenOrgIdParamDoesNotMatchRequest() {
+        when(accessTokenValidator.fetchUserIdFromAccessToken("token")).thenReturn("user1");
+
+        CustomFieldEntity entity = mock(CustomFieldEntity.class);
+        when(entity.getIsActive()).thenReturn(true);
+        ObjectNode data = new ObjectMapper().createObjectNode();
+        data.put(Constants.ORGANISATION_ID, "org1");
+        data.put(Constants.ATTRIBUTE_NAME, "attr");
+        data.put(Constants.TYPE, Constants.TEXT);
+        when(entity.getCustomFieldData()).thenReturn(data);
+        when(customFieldRepository.findByCustomFiledIdAndIsActiveTrue("cf1")).thenReturn(Optional.of(entity));
+
+        Map<String, Object> field = new HashMap<>();
+        field.put(Constants.CUSTOM_FIELD_ID, "cf1");
+        field.put(Constants.FIELD_TYPE, Constants.TEXT);
+        field.put(Constants.ATTRIBUTE_NAME, "attr");
+        field.put(Constants.VALUE, "val");
+
+        Map<String, Object> req = Map.of(
+                Constants.USER_ID, "user1",
+                Constants.ORGANISATION_ID, "org1",
+                Constants.CUSTOM_FIELD_VALUES, List.of(field)
+        );
+
+        ApiResponse response = profileService.updateAdditionalFields(req, "org2", "token");
+
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getResponseCode());
+        assertEquals(Constants.INVALID_ORGID, response.getParams().getErrMsg());
+    }
+
+    @Test
+    void testGetAdditionalFieldsByOrg_UserOrAdminTrue_UsesTokenUserId() {
+        when(accessTokenValidator.fetchUserIdFromAccessToken("token123")).thenReturn("user1");
+        when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), any(), any()))
+                .thenReturn(Collections.emptyList());
+
+        ApiResponse response = profileService.getAdditionalFieldsByOrg("ignoredUserId", "org1", "token123", true);
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        assertTrue(((Map<?, ?>) response.getResult().get(Constants.RESPONSE)).isEmpty());
+    }
+
+    @Test
+    void testGetAdditionalFieldsByOrg_ExceptionThrown_ReturnsInternalServerError() {
+        when(accessTokenValidator.fetchUserIdFromAccessToken("token123")).thenReturn("user1");
+        when(cassandraOperation.getRecordsByPropertiesByKey(anyString(), anyString(), anyMap(), any(), any()))
+                .thenThrow(new RuntimeException("DB failure"));
+
+        ApiResponse response = profileService.getAdditionalFieldsByOrg("user1", "org1", "token123", false);
+
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
+    }
+
+    @Test
+    void testValidateSingleCustomField_BlankFieldType_ReturnsError() {
+        Map<String, Object> field = new HashMap<>();
+        field.put(Constants.CUSTOM_FIELD_ID, "cf1");
+        // fieldType intentionally omitted/blank
+        Map<String, Object> request = Map.of(
+                Constants.USER_ID_RQST, "u1",
+                Constants.ORGANISATION_ID, "org1",
+                Constants.CUSTOM_FIELD_VALUES, List.of(field)
+        );
+        String result = ReflectionTestUtils.invokeMethod(profileService, "validateAdditionalFieldsRequest", request);
+        assertTrue(result.contains("must have a type"));
+    }
+
+    @Test
+    void testValidateMasterListHierarchy_NoParentForHigherLevel() throws Exception {
+        ObjectMapper realMapper = new ObjectMapper();
+        ArrayNode arrayNode = realMapper.createArrayNode();
+        ObjectNode root = realMapper.createObjectNode();
+        root.set("customFieldData", arrayNode);
+
+        CustomFieldEntity entity = new CustomFieldEntity();
+        entity.setCustomFieldData(root);
+
+        Map<String, Object> v1 = Map.of("level", 2, "attributeName", "b", "value", "child");
+
+        String result = invokeValidate(entity, List.of(v1));
+        assertTrue(result.contains("Parent node not found for level 2"));
+    }
+
+    @Test
+    void testValidateMasterListHierarchy_ParentHasNoFieldValues_ReturnsInvalidValue() throws Exception {
+        ObjectMapper realMapper = new ObjectMapper();
+        ObjectNode parentNode = realMapper.createObjectNode();
+        parentNode.put("fieldValue", "parent"); // no "fieldValues" child array
+
+        ArrayNode arrayNode = realMapper.createArrayNode();
+        arrayNode.add(parentNode);
+
+        ObjectNode root = realMapper.createObjectNode();
+        root.set("customFieldData", arrayNode);
+
+        CustomFieldEntity entity = new CustomFieldEntity();
+        entity.setCustomFieldData(root);
+
+        Map<String, Object> v1 = Map.of("level", 1, "attributeName", "a", "value", "parent");
+        Map<String, Object> v2 = Map.of("level", 2, "attributeName", "b", "value", "child");
+
+        String result = invokeValidate(entity, List.of(v1, v2));
+        assertTrue(result.startsWith("Invalid value 'child' at level 2"));
     }
 
 }

@@ -33,13 +33,13 @@ class CompetencyAcquiredEventTest {
         @Test
         @DisplayName("Should create instance using no-arg constructor")
         void testNoArgConstructor() {
-            CompetencyAcquiredEvent event = new CompetencyAcquiredEvent();
-            assertNotNull(event);
-            assertNull(event.getEventType());
-            assertNull(event.getUserId());
-            assertNull(event.getContentId());
-            assertNull(event.getBatchId());
-            assertNull(event.getContextType());
+            CompetencyAcquiredEvent localEvent = new CompetencyAcquiredEvent();
+            assertNotNull(localEvent);
+            assertNull(localEvent.getEventType());
+            assertNull(localEvent.getUserId());
+            assertNull(localEvent.getContentId());
+            assertNull(localEvent.getBatchId());
+            assertNull(localEvent.getContextType());
         }
 
         @Test
@@ -76,7 +76,7 @@ class CompetencyAcquiredEventTest {
         @Test
         @DisplayName("Should create instance with partial arguments")
         void testPartialArgsConstructor() {
-            CompetencyAcquiredEvent event = new CompetencyAcquiredEvent(
+            CompetencyAcquiredEvent localEvent = new CompetencyAcquiredEvent(
                     "competency.acquired",
                     "user123",
                     "content456",
@@ -86,13 +86,13 @@ class CompetencyAcquiredEventTest {
                     null
             );
 
-            assertEquals("competency.acquired", event.getEventType());
-            assertEquals("user123", event.getUserId());
-            assertEquals("content456", event.getContentId());
-            assertEquals("", event.getBatchId());
-            assertNull(event.getContextType());
-            assertNull(event.getAction());
-            assertNull(event.getCompetencyIds());
+            assertEquals("competency.acquired", localEvent.getEventType());
+            assertEquals("user123", localEvent.getUserId());
+            assertEquals("content456", localEvent.getContentId());
+            assertEquals("", localEvent.getBatchId());
+            assertNull(localEvent.getContextType());
+            assertNull(localEvent.getAction());
+            assertNull(localEvent.getCompetencyIds());
         }
     }
 
@@ -105,7 +105,7 @@ class CompetencyAcquiredEventTest {
         @Test
         @DisplayName("Should build complete event using builder")
         void testBuilderWithAllFields() {
-            CompetencyAcquiredEvent event = CompetencyAcquiredEvent.builder()
+            CompetencyAcquiredEvent localEvent = CompetencyAcquiredEvent.builder()
                     .eventType("competency.acquired")
                     .userId("user123")
                     .contentId("content456")
@@ -113,55 +113,55 @@ class CompetencyAcquiredEventTest {
                     .contextType("self-declaration")
                     .build();
 
-            assertNotNull(event);
-            assertEquals("competency.acquired", event.getEventType());
-            assertEquals("user123", event.getUserId());
-            assertEquals("content456", event.getContentId());
-            assertEquals("batch789", event.getBatchId());
-            assertEquals("self-declaration", event.getContextType());
+            assertNotNull(localEvent);
+            assertEquals("competency.acquired", localEvent.getEventType());
+            assertEquals("user123", localEvent.getUserId());
+            assertEquals("content456", localEvent.getContentId());
+            assertEquals("batch789", localEvent.getBatchId());
+            assertEquals("self-declaration", localEvent.getContextType());
         }
 
         @Test
         @DisplayName("Should build event with selective fields")
         void testBuilderWithSelectiveFields() {
-            CompetencyAcquiredEvent event = CompetencyAcquiredEvent.builder()
+            CompetencyAcquiredEvent localEvent = CompetencyAcquiredEvent.builder()
                     .userId("user456")
                     .contentId("content789")
                     .build();
 
-            assertNotNull(event);
-            assertNull(event.getEventType());
-            assertEquals("user456", event.getUserId());
-            assertEquals("content789", event.getContentId());
-            assertNull(event.getBatchId());
-            assertNull(event.getContextType());
+            assertNotNull(localEvent);
+            assertNull(localEvent.getEventType());
+            assertEquals("user456", localEvent.getUserId());
+            assertEquals("content789", localEvent.getContentId());
+            assertNull(localEvent.getBatchId());
+            assertNull(localEvent.getContextType());
         }
 
         @Test
         @DisplayName("Should build event with no fields")
         void testBuilderWithNoFields() {
-            CompetencyAcquiredEvent event = CompetencyAcquiredEvent.builder().build();
+            CompetencyAcquiredEvent localEvent = CompetencyAcquiredEvent.builder().build();
 
-            assertNotNull(event);
-            assertNull(event.getEventType());
-            assertNull(event.getUserId());
-            assertNull(event.getContentId());
-            assertNull(event.getBatchId());
-            assertNull(event.getContextType());
+            assertNotNull(localEvent);
+            assertNull(localEvent.getEventType());
+            assertNull(localEvent.getUserId());
+            assertNull(localEvent.getContentId());
+            assertNull(localEvent.getBatchId());
+            assertNull(localEvent.getContextType());
         }
 
         @Test
         @DisplayName("Should override fields in builder")
         void testBuilderFieldOverride() {
-            CompetencyAcquiredEvent event = CompetencyAcquiredEvent.builder()
+            CompetencyAcquiredEvent localEvent = CompetencyAcquiredEvent.builder()
                     .userId("user123")
                     .userId("user456")  // Override with new value
                     .contentId("content789")
                     .contentId("content999")  // Override with new value
                     .build();
 
-            assertEquals("user456", event.getUserId());
-            assertEquals("content999", event.getContentId());
+            assertEquals("user456", localEvent.getUserId());
+            assertEquals("content999", localEvent.getContentId());
         }
     }
 
@@ -403,34 +403,139 @@ class CompetencyAcquiredEventTest {
         @Test
         @DisplayName("Should not be equal to null")
         void testNotEqualsToNull() {
-            CompetencyAcquiredEvent event = CompetencyAcquiredEvent.builder()
+            CompetencyAcquiredEvent localEvent = CompetencyAcquiredEvent.builder()
                     .userId("user123")
                     .build();
 
-            assertNotEquals(event, null);
-            assertFalse(event.equals(null));
+            assertNotEquals(null, localEvent);
+            assertNotEquals(null, localEvent);
         }
 
         @Test
         @DisplayName("Should not be equal to different type")
         void testNotEqualsToDifferentType() {
-            CompetencyAcquiredEvent event = CompetencyAcquiredEvent.builder()
+            CompetencyAcquiredEvent localEvent = CompetencyAcquiredEvent.builder()
                     .userId("user123")
                     .build();
 
-            assertNotEquals(event, "not an event");
-            assertNotEquals(event, 123);
-            assertNotEquals(event, new Object());
+            assertNotEquals("not an event", localEvent);
+            assertNotEquals(123, localEvent);
+            assertNotEquals(localEvent, new Object());
         }
 
         @Test
         @DisplayName("Should be equal to itself")
         void testEqualsToItself() {
-            CompetencyAcquiredEvent event = CompetencyAcquiredEvent.builder()
+            CompetencyAcquiredEvent localEvent = CompetencyAcquiredEvent.builder()
                     .userId("user123")
                     .build();
 
-            assertEquals(event, event);
+            assertEquals(localEvent, localEvent);
+        }
+
+        @Test
+        @DisplayName("Should not be equal when eventType is null on one side only")
+        void testNotEqualsWhenEventTypeNullVsNonNull() {
+            CompetencyAcquiredEvent event1 = CompetencyAcquiredEvent.builder().eventType(null).build();
+            CompetencyAcquiredEvent event2 = CompetencyAcquiredEvent.builder().eventType("competency.acquired").build();
+
+            assertNotEquals(event1, event2);
+            assertNotEquals(event2, event1);
+        }
+
+        @Test
+        @DisplayName("Should not be equal when userId is null on one side only")
+        void testNotEqualsWhenUserIdNullVsNonNull() {
+            CompetencyAcquiredEvent event1 = CompetencyAcquiredEvent.builder().userId(null).build();
+            CompetencyAcquiredEvent event2 = CompetencyAcquiredEvent.builder().userId("user123").build();
+
+            assertNotEquals(event1, event2);
+            assertNotEquals(event2, event1);
+        }
+
+        @Test
+        @DisplayName("Should not be equal when contentId is null on one side only")
+        void testNotEqualsWhenContentIdNullVsNonNull() {
+            CompetencyAcquiredEvent event1 = CompetencyAcquiredEvent.builder().contentId(null).build();
+            CompetencyAcquiredEvent event2 = CompetencyAcquiredEvent.builder().contentId("content456").build();
+
+            assertNotEquals(event1, event2);
+            assertNotEquals(event2, event1);
+        }
+
+        @Test
+        @DisplayName("Should not be equal when batchId differs, including null vs non-null")
+        void testNotEqualsWithDifferentBatchId() {
+            CompetencyAcquiredEvent event1 = CompetencyAcquiredEvent.builder().batchId("batch1").build();
+            CompetencyAcquiredEvent event2 = CompetencyAcquiredEvent.builder().batchId("batch2").build();
+            CompetencyAcquiredEvent event3 = CompetencyAcquiredEvent.builder().batchId(null).build();
+
+            assertNotEquals(event1, event2);
+            assertNotEquals(event1, event3);
+            assertNotEquals(event3, event1);
+        }
+
+        @Test
+        @DisplayName("Should not be equal when contextType differs, including null vs non-null")
+        void testNotEqualsWithDifferentContextType() {
+            CompetencyAcquiredEvent event1 = CompetencyAcquiredEvent.builder().contextType("course").build();
+            CompetencyAcquiredEvent event2 = CompetencyAcquiredEvent.builder().contextType("assessment").build();
+            CompetencyAcquiredEvent event3 = CompetencyAcquiredEvent.builder().contextType(null).build();
+
+            assertNotEquals(event1, event2);
+            assertNotEquals(event1, event3);
+            assertNotEquals(event3, event1);
+        }
+
+        @Test
+        @DisplayName("Should not be equal when action differs, including null vs non-null")
+        void testNotEqualsWithDifferentAction() {
+            CompetencyAcquiredEvent event1 = CompetencyAcquiredEvent.builder().action("CREATE").build();
+            CompetencyAcquiredEvent event2 = CompetencyAcquiredEvent.builder().action("DELETE").build();
+            CompetencyAcquiredEvent event3 = CompetencyAcquiredEvent.builder().action(null).build();
+
+            assertNotEquals(event1, event2);
+            assertNotEquals(event1, event3);
+            assertNotEquals(event3, event1);
+        }
+
+        @Test
+        @DisplayName("Should not be equal when competencyIds differ, including null vs non-null")
+        void testNotEqualsWithDifferentCompetencyIds() {
+            List<Map<String, String>> list1 = new java.util.ArrayList<>();
+            list1.add(java.util.Collections.singletonMap("a", "1"));
+            List<Map<String, String>> list2 = new java.util.ArrayList<>();
+            list2.add(java.util.Collections.singletonMap("b", "2"));
+
+            CompetencyAcquiredEvent event1 = CompetencyAcquiredEvent.builder().competencyIds(list1).build();
+            CompetencyAcquiredEvent event2 = CompetencyAcquiredEvent.builder().competencyIds(list2).build();
+            CompetencyAcquiredEvent event3 = CompetencyAcquiredEvent.builder().competencyIds(null).build();
+
+            assertNotEquals(event1, event2);
+            assertNotEquals(event1, event3);
+            assertNotEquals(event3, event1);
+        }
+
+        @Test
+        @DisplayName("Should have different hashCode when batchId, contextType, action or competencyIds differ")
+        void testHashCodeDifferentForRemainingFields() {
+            List<Map<String, String>> list1 = new java.util.ArrayList<>();
+            list1.add(java.util.Collections.singletonMap("a", "1"));
+
+            CompetencyAcquiredEvent event1 = CompetencyAcquiredEvent.builder()
+                    .batchId("batch1")
+                    .contextType("course")
+                    .action("CREATE")
+                    .competencyIds(list1)
+                    .build();
+            CompetencyAcquiredEvent event2 = CompetencyAcquiredEvent.builder()
+                    .batchId("batch2")
+                    .contextType("assessment")
+                    .action("DELETE")
+                    .competencyIds(null)
+                    .build();
+
+            assertNotEquals(event1.hashCode(), event2.hashCode());
         }
     }
 
@@ -443,7 +548,7 @@ class CompetencyAcquiredEventTest {
         @Test
         @DisplayName("Should generate toString representation")
         void testToString() {
-            CompetencyAcquiredEvent event = CompetencyAcquiredEvent.builder()
+            CompetencyAcquiredEvent localEvent = CompetencyAcquiredEvent.builder()
                     .eventType("competency.acquired")
                     .userId("user123")
                     .contentId("content456")
@@ -451,7 +556,7 @@ class CompetencyAcquiredEventTest {
                     .contextType("self-declaration")
                     .build();
 
-            String toString = event.toString();
+            String toString = localEvent.toString();
             assertNotNull(toString);
             assertNotBlank(toString);
             assertTrue(toString.contains("CompetencyAcquiredEvent"));
@@ -460,13 +565,13 @@ class CompetencyAcquiredEventTest {
         @Test
         @DisplayName("Should include field values in toString")
         void testToStringContainsFields() {
-            CompetencyAcquiredEvent event = CompetencyAcquiredEvent.builder()
+            CompetencyAcquiredEvent localEvent = CompetencyAcquiredEvent.builder()
                     .userId("user123")
                     .contentId("content456")
                     .action("UPDATE")
                     .build();
 
-            String toString = event.toString();
+            String toString = localEvent.toString();
             assertTrue(toString.contains("user123"));
             assertTrue(toString.contains("content456"));
             assertTrue(toString.contains("UPDATE"));
@@ -475,12 +580,12 @@ class CompetencyAcquiredEventTest {
         @Test
         @DisplayName("Should handle null values in toString")
         void testToStringWithNullValues() {
-            CompetencyAcquiredEvent event = CompetencyAcquiredEvent.builder()
+            CompetencyAcquiredEvent localEvent = CompetencyAcquiredEvent.builder()
                     .userId("user123")
                     .contentId(null)
                     .build();
 
-            String toString = event.toString();
+            String toString = localEvent.toString();
             assertNotNull(toString);
             assertNotBlank(toString);
         }
@@ -488,13 +593,13 @@ class CompetencyAcquiredEventTest {
         @Test
         @DisplayName("toString should be consistent")
         void testToStringConsistency() {
-            CompetencyAcquiredEvent event = CompetencyAcquiredEvent.builder()
+            CompetencyAcquiredEvent localEvent = CompetencyAcquiredEvent.builder()
                     .userId("user123")
                     .contentId("content456")
                     .build();
 
-            String toString1 = event.toString();
-            String toString2 = event.toString();
+            String toString1 = localEvent.toString();
+            String toString2 = localEvent.toString();
 
             assertEquals(toString1, toString2);
         }
@@ -545,12 +650,12 @@ class CompetencyAcquiredEventTest {
         @Test
         @DisplayName("Should serialize with null fields")
         void testSerializeWithNullFields() throws JsonProcessingException {
-            CompetencyAcquiredEvent event = CompetencyAcquiredEvent.builder()
+            CompetencyAcquiredEvent localEvent = CompetencyAcquiredEvent.builder()
                     .userId("user123")
                     .contentId("content456")
                     .build();
 
-            String json = objectMapper.writeValueAsString(event);
+            String json = objectMapper.writeValueAsString(localEvent);
             assertNotNull(json);
             assertTrue(json.contains("userId"));
             assertTrue(json.contains("contentId"));
@@ -563,15 +668,15 @@ class CompetencyAcquiredEventTest {
                     "\"contentId\":\"content456\",\"batchId\":\"batch789\",\"contextType\":\"self-declaration\"," +
                     "\"action\":\"UPDATE\"}";
 
-            CompetencyAcquiredEvent event = objectMapper.readValue(json, CompetencyAcquiredEvent.class);
+            CompetencyAcquiredEvent localEvent = objectMapper.readValue(json, CompetencyAcquiredEvent.class);
 
-            assertNotNull(event);
-            assertEquals("competency.acquired", event.getEventType());
-            assertEquals("user123", event.getUserId());
-            assertEquals("content456", event.getContentId());
-            assertEquals("batch789", event.getBatchId());
-            assertEquals("self-declaration", event.getContextType());
-            assertEquals("UPDATE", event.getAction());
+            assertNotNull(localEvent);
+            assertEquals("competency.acquired", localEvent.getEventType());
+            assertEquals("user123", localEvent.getUserId());
+            assertEquals("content456", localEvent.getContentId());
+            assertEquals("batch789", localEvent.getBatchId());
+            assertEquals("self-declaration", localEvent.getContextType());
+            assertEquals("UPDATE", localEvent.getAction());
         }
 
         @Test
@@ -579,14 +684,14 @@ class CompetencyAcquiredEventTest {
         void testDeserializeWithMissingFields() throws JsonProcessingException {
             String json = "{\"userId\":\"user123\",\"contentId\":\"content456\"}";
 
-            CompetencyAcquiredEvent event = objectMapper.readValue(json, CompetencyAcquiredEvent.class);
+            CompetencyAcquiredEvent localEvent = objectMapper.readValue(json, CompetencyAcquiredEvent.class);
 
-            assertNotNull(event);
-            assertNull(event.getEventType());
-            assertEquals("user123", event.getUserId());
-            assertEquals("content456", event.getContentId());
-            assertNull(event.getBatchId());
-            assertNull(event.getContextType());
+            assertNotNull(localEvent);
+            assertNull(localEvent.getEventType());
+            assertEquals("user123", localEvent.getUserId());
+            assertEquals("content456", localEvent.getContentId());
+            assertNull(localEvent.getBatchId());
+            assertNull(localEvent.getContextType());
         }
 
         @Test
@@ -618,14 +723,14 @@ class CompetencyAcquiredEventTest {
         void testDeserializeWithEmptyStrings() throws JsonProcessingException {
             String json = "{\"eventType\":\"\",\"userId\":\"\",\"contentId\":\"\",\"batchId\":\"\",\"contextType\":\"\"}";
 
-            CompetencyAcquiredEvent event = objectMapper.readValue(json, CompetencyAcquiredEvent.class);
+            CompetencyAcquiredEvent localEvent = objectMapper.readValue(json, CompetencyAcquiredEvent.class);
 
-            assertNotNull(event);
-            assertEquals("", event.getEventType());
-            assertEquals("", event.getUserId());
-            assertEquals("", event.getContentId());
-            assertEquals("", event.getBatchId());
-            assertEquals("", event.getContextType());
+            assertNotNull(localEvent);
+            assertEquals("", localEvent.getEventType());
+            assertEquals("", localEvent.getUserId());
+            assertEquals("", localEvent.getContentId());
+            assertEquals("", localEvent.getBatchId());
+            assertEquals("", localEvent.getContextType());
         }
 
         @Test
@@ -633,12 +738,12 @@ class CompetencyAcquiredEventTest {
         void testDeserializeWithNullValues() throws JsonProcessingException {
             String json = "{\"eventType\":null,\"userId\":\"user123\",\"contentId\":null}";
 
-            CompetencyAcquiredEvent event = objectMapper.readValue(json, CompetencyAcquiredEvent.class);
+            CompetencyAcquiredEvent localEvent = objectMapper.readValue(json, CompetencyAcquiredEvent.class);
 
-            assertNotNull(event);
-            assertNull(event.getEventType());
-            assertEquals("user123", event.getUserId());
-            assertNull(event.getContentId());
+            assertNotNull(localEvent);
+            assertNull(localEvent.getEventType());
+            assertEquals("user123", localEvent.getUserId());
+            assertNull(localEvent.getContentId());
         }
     }
 
@@ -754,15 +859,15 @@ class CompetencyAcquiredEventTest {
         @Test
         @DisplayName("Should allow modifying object after creation")
         void testModifyAfterCreation() {
-            CompetencyAcquiredEvent event = CompetencyAcquiredEvent.builder()
+            CompetencyAcquiredEvent localEvent = CompetencyAcquiredEvent.builder()
                     .userId("user1")
                     .build();
 
-            event.setUserId("user2");
-            event.setContentId("content1");
+            localEvent.setUserId("user2");
+            localEvent.setContentId("content1");
 
-            assertEquals("user2", event.getUserId());
-            assertEquals("content1", event.getContentId());
+            assertEquals("user2", localEvent.getUserId());
+            assertEquals("content1", localEvent.getContentId());
         }
 
         @Test
@@ -789,10 +894,10 @@ class CompetencyAcquiredEventTest {
         @Test
         @DisplayName("Should handle concurrent modifications safely")
         void testConcurrentModifications() throws InterruptedException {
-            CompetencyAcquiredEvent event = new CompetencyAcquiredEvent();
+            CompetencyAcquiredEvent localEvent = new CompetencyAcquiredEvent();
 
-            Thread thread1 = new Thread(() -> event.setUserId("user1"));
-            Thread thread2 = new Thread(() -> event.setContentId("content1"));
+            Thread thread1 = new Thread(() -> localEvent.setUserId("user1"));
+            Thread thread2 = new Thread(() -> localEvent.setContentId("content1"));
 
             thread1.start();
             thread2.start();
@@ -801,7 +906,7 @@ class CompetencyAcquiredEventTest {
             thread2.join();
 
             // Both modifications should be present
-            assertTrue(event.getUserId() != null || event.getContentId() != null);
+            assertTrue(localEvent.getUserId() != null || localEvent.getContentId() != null);
         }
 
         @Test
@@ -826,7 +931,7 @@ class CompetencyAcquiredEventTest {
         @Test
         @DisplayName("Should create complete event with all realistic data")
         void testRealisticEventCreation() {
-            CompetencyAcquiredEvent event = CompetencyAcquiredEvent.builder()
+            CompetencyAcquiredEvent localEvent = CompetencyAcquiredEvent.builder()
                     .eventType("competency.acquired")
                     .userId("d47c2e3f-8a1b-4c9d-9e2f-5a6b7c8d9e0f")
                     .contentId("95f8a7c5-4e3b-4d2c-9b1a-8f7e6d5c4b3a")
@@ -835,12 +940,12 @@ class CompetencyAcquiredEventTest {
                     .action("UPDATE")
                     .build();
 
-            assertNotNull(event);
-            assertEquals("competency.acquired", event.getEventType());
-            assertTrue(event.getUserId().contains("-"));
-            assertTrue(event.getContentId().contains("-"));
-            assertEquals("self-declaration", event.getContextType());
-            assertEquals("UPDATE", event.getAction());
+            assertNotNull(localEvent);
+            assertEquals("competency.acquired", localEvent.getEventType());
+            assertTrue(localEvent.getUserId().contains("-"));
+            assertTrue(localEvent.getContentId().contains("-"));
+            assertEquals("self-declaration", localEvent.getContextType());
+            assertEquals("UPDATE", localEvent.getAction());
         }
 
         @Test
@@ -892,16 +997,16 @@ class CompetencyAcquiredEventTest {
         @Test
         @DisplayName("Should work correctly with null values in processing")
         void testEventProcessingWithNulls() {
-            CompetencyAcquiredEvent event = new CompetencyAcquiredEvent();
+            CompetencyAcquiredEvent localEvent = new CompetencyAcquiredEvent();
 
-            String userId = event.getUserId();
-            String contentId = event.getContentId();
+            String userId = localEvent.getUserId();
+            String contentId = localEvent.getContentId();
 
             assertNull(userId);
             assertNull(contentId);
 
-            event.setUserId("user123");
-            assertNotNull(event.getUserId());
+            localEvent.setUserId("user123");
+            assertNotNull(localEvent.getUserId());
         }
     }
 

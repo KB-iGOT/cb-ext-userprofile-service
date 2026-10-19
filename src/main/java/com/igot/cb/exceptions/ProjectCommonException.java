@@ -10,13 +10,13 @@ public class ProjectCommonException extends RuntimeException {
     /** serialVersionUID. */
     private static final long serialVersionUID = 1L;
     /** code String code ResponseCode. */
-    private String errorCode;
+    private final String errorCode;
     /** message String ResponseCode. */
-    private String errorMessage;
+    private final String errorMessage;
     /** responseCode int ResponseCode. */
-    private int errorResponseCode;
+    private final int errorResponseCode;
 
-    private ResponseCode responseCode;
+    private final ResponseCode responseCode;
 
     /**
      * This code is for client to identify the error and based on that do the message localization.
@@ -25,15 +25,6 @@ public class ProjectCommonException extends RuntimeException {
      */
     public String getErrorCode() {
         return errorCode;
-    }
-
-    /**
-     * To set the client code.
-     *
-     * @param code String
-     */
-    public void setErrorCode(String code) {
-        this.errorCode = code;
     }
 
     /**
@@ -46,11 +37,6 @@ public class ProjectCommonException extends RuntimeException {
         return errorMessage;
     }
 
-    /** @param message String */
-    public void setMessage(String message) {
-        this.errorMessage = message;
-    }
-
     /**
      * This method will provide response code, this code will be used in response header.
      *
@@ -60,25 +46,12 @@ public class ProjectCommonException extends RuntimeException {
         return errorResponseCode;
     }
 
-    /** @param responseCode int */
-    public void setErrorResponseCode(int responseCode) {
-        this.errorResponseCode = responseCode;
-    }
-
     public ResponseCode getResponseCode() {
         return responseCode;
     }
 
-    public void setResponseCode(ResponseCode responseCode) {
-        this.responseCode = responseCode;
-    }
-
     public String getErrorMessage() {
-        return errorMessage;
-    }
-
-    public void setErrorMessage(String errorMessage) {
-        this.errorMessage = errorMessage;
+        return getMessage();
     }
 
     /**
@@ -133,7 +106,7 @@ public class ProjectCommonException extends RuntimeException {
         throw new ProjectCommonException(
                 responseCode,
                 StringUtils.isBlank(exceptionMessage) ? responseCode.getErrorMessage() : exceptionMessage,
-                ResponseCode.SERVER_ERROR.getResponseCode());
+                ResponseCode.SERVER_ERROR.getStatusCode());
     }
 
     public static void throwServerErrorException(ResponseCode responseCode) {

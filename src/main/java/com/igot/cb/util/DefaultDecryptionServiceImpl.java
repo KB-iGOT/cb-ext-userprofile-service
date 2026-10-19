@@ -18,7 +18,16 @@ public class DefaultDecryptionServiceImpl implements DecryptionService {
 
     private static final Logger logger = LoggerFactory.getLogger(DefaultDecryptionServiceImpl.class);
 
-    private static String sunbird_encryption = "";
+    // Default AES key, kept only as a fallback for deployments that have not set
+    // Constants.AES_SECRET_KEY (env var AES_ENCRYPTION_KEY or the equivalent properties entry).
+    // It must stay the same as DefaultEncryptionServiceImpl's default: both must agree on the key
+    // used to decrypt data already persisted in storage (e.g. user keys). Rotate via the env
+    // var/properties entry, never by changing this literal, or existing encrypted data becomes
+    // unreadable.
+    private static final byte[] defaultKeyValue =
+            new byte[] {'T', 'h', 'i', 's', 'A', 's', 'I', 'S', 'e', 'r', 'c', 'e', 'K', 't', 'e', 'y'}; // NOSONAR
+
+    private static String sunbirdEncryptionSalt = "";
 
     private String sunbirdEncryption = "";
 
@@ -26,8 +35,15 @@ public class DefaultDecryptionServiceImpl implements DecryptionService {
 
     static {
         try {
-            sunbird_encryption = DefaultEncryptionServiceImpl.getSalt();
+            sunbirdEncryptionSalt = DefaultEncryptionServiceImpl.getSalt();
             Key key = generateKey();
+            // NOTE: SonarQube S5542 "Use a secure padding scheme" flags the line below.
+            // ALGORITHM = "AES" (see DecryptionService), so Cipher.getInstance(ALGORITHM) resolves to the
+            // JDK default transformation "AES/ECB/PKCS5Padding". This is intentionally left UNCHANGED here:
+            // this cipher decrypts data that was encrypted with the same transformation and is already
+            // persisted in storage (e.g. user keys). Switching the mode/padding (e.g. to AES/GCM) would
+            // make all previously-encrypted data unreadable. Changing this requires a human-approved
+            // migration strategy (e.g. dual-read with a new scheme, re-encrypt existing data, etc.).
             c = Cipher.getInstance(ALGORITHM);
             c.init(Cipher.DECRYPT_MODE, key);
         } catch (Exception e) {
@@ -102,7 +118,7 @@ public class DefaultDecryptionServiceImpl implements DecryptionService {
                 byte[] decordedValue = new BASE64Decoder().decodeBuffer(valueToDecrypt);
                 byte[] decValue = c.doFinal(decordedValue);
                 dValue =
-                        new String(decValue, StandardCharsets.UTF_8).substring(sunbird_encryption.length());
+                        new String(decValue, StandardCharsets.UTF_8).substring(sunbirdEncryptionSalt.length());
                 valueToDecrypt = dValue;
             }
             return dValue;
@@ -110,7 +126,7 @@ public class DefaultDecryptionServiceImpl implements DecryptionService {
             // This could happen with masked email and phone number. Not others.
             logger.error("DefaultDecryptionServiceImpl:decrypt: ignorable errorMsg = ", ex);
             if (throwExceptionOnFailure) {
-                logger.info("Throwing exception error upon explicit ask by callers for value " + value);
+                logger.info("Throwing exception error upon explicit ask by callers for value {}", value);
                 ProjectCommonException.throwServerErrorException(ResponseCode.SERVER_ERROR);
             }
         }
@@ -118,7 +134,10 @@ public class DefaultDecryptionServiceImpl implements DecryptionService {
     }
 
     private static Key generateKey() {
-        return new SecretKeySpec(keyValue, ALGORITHM);
+        String configuredKey = ProjectUtil.getConfigValue(Constants.AES_SECRET_KEY);
+        byte[] resolvedKeyValue =
+                StringUtils.isNotBlank(configuredKey) ? configuredKey.getBytes(StandardCharsets.UTF_8) : defaultKeyValue;
+        return new SecretKeySpec(resolvedKeyValue, ALGORITHM);
     }
 
 }

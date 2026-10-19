@@ -5,10 +5,10 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.igot.cb.util.Constants;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -25,10 +25,12 @@ import java.util.Map;
 
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class OutboundRequestHandlerServiceImpl {
 
-    @Autowired
-    private RestTemplate restTemplate;
+    private static final String FAILED_TO_PARSE_ERROR_RESPONSE_BODY = "Failed to parse error response body";
+
+    private final RestTemplate restTemplate;
 
     public Object fetchUsingGetWithHeadersProfile(String uri, Map<String, String> headersValues) {
         ObjectMapper mapper = new ObjectMapper();
@@ -43,7 +45,7 @@ public class OutboundRequestHandlerServiceImpl {
             }
             HttpHeaders headers = new HttpHeaders();
             if (!CollectionUtils.isEmpty(headersValues)) {
-                headersValues.forEach((k, v) -> headers.set(k, v));
+                headersValues.forEach(headers::set);
             }
             HttpEntity<Object> entity = new HttpEntity<>(headers);
             response = restTemplate.exchange(uri, HttpMethod.GET, entity, Map.class).getBody();
@@ -53,13 +55,15 @@ public class OutboundRequestHandlerServiceImpl {
                         new TypeReference<HashMap<String, Object>>() {
                         });
             } catch (Exception e1) {
+                log.warn(FAILED_TO_PARSE_ERROR_RESPONSE_BODY, e1);
             }
-            log.error("Error received: " + e.getResponseBodyAsString(), e);
+            log.error("Error received: {}", e.getResponseBodyAsString(), e);
         } catch (Exception e) {
             log.error(e.getMessage());
             try {
                 log.warn("Error Response: " + mapper.writeValueAsString(response));
             } catch (Exception e1) {
+                log.warn("Failed to serialize error response for logging", e1);
             }
         }
         return response;
@@ -70,7 +74,7 @@ public class OutboundRequestHandlerServiceImpl {
         try {
             HttpHeaders headers = new HttpHeaders();
             if (!CollectionUtils.isEmpty(headersValues)) {
-                headersValues.forEach((k, v) -> headers.set(k, v));
+                headersValues.forEach(headers::set);
             }
             headers.setContentType(MediaType.APPLICATION_JSON);
             HttpEntity<Object> entity = new HttpEntity<>(request, headers);
@@ -87,8 +91,9 @@ public class OutboundRequestHandlerServiceImpl {
                         new TypeReference<HashMap<String, Object>>() {
                         });
             } catch (Exception e1) {
+                log.warn(FAILED_TO_PARSE_ERROR_RESPONSE_BODY, e1);
             }
-            log.error("Error received: " + e.getResponseBodyAsString(), e);
+            log.error("Error received: {}", e.getResponseBodyAsString(), e);
         }
         if (response == null) {
             return Collections.emptyMap();
@@ -105,6 +110,7 @@ public class OutboundRequestHandlerServiceImpl {
                     .append(System.lineSeparator());
             log.debug(str.toString());
         } catch (JsonProcessingException je) {
+            log.warn("Failed to serialize details for logging", je);
         }
     }
 
@@ -132,7 +138,7 @@ public class OutboundRequestHandlerServiceImpl {
                     return mapper.readValue(ex.getResponseBodyAsString(), new TypeReference<Map<String, Object>>() {});
                 }
             } catch (Exception parseEx) {
-                log.warn("Failed to parse error response body", parseEx);
+                log.warn(FAILED_TO_PARSE_ERROR_RESPONSE_BODY, parseEx);
             }
 
         } catch (JsonProcessingException ex) {

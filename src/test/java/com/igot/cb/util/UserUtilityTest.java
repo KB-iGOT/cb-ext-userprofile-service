@@ -16,12 +16,10 @@ import org.mockito.MockedStatic;
 public class UserUtilityTest {
 
     private DecryptionService mockDecryptionService;
-    private PropertiesCache mockPropertiesCache;
 
     @Before
     public void setup() {
         mockDecryptionService = mock(DecryptionService.class);
-        mockPropertiesCache = mock(PropertiesCache.class);
     }
 
     @Test
@@ -53,6 +51,22 @@ public class UserUtilityTest {
             mockedFactory.when(ServiceFactory::getDecryptionServiceInstance)
                 .thenReturn(mockDecryptionService);
             Map<String, Object> userMap = new HashMap<>();
+            List<String> fieldsToDecrypt = Arrays.asList("email", "phone");
+            Map<String, Object> result = UserUtility.decryptSpecificUserData(userMap, fieldsToDecrypt);
+            assertTrue(result.isEmpty());
+            verify(mockDecryptionService, never()).decryptData(anyString(), anyBoolean());
+        }
+    }
+
+    @Test
+    public void testDecryptSpecificUserDataWithImmutableEmptyMap() {
+        // Regression test: Map.of()/Collections.emptyMap() throw UnsupportedOperationException
+        // from computeIfPresent() even for an absent key, so decryptSpecificUserData must not
+        // attempt to mutate an empty map at all.
+        try (MockedStatic<ServiceFactory> mockedFactory = mockStatic(ServiceFactory.class)) {
+            mockedFactory.when(ServiceFactory::getDecryptionServiceInstance)
+                .thenReturn(mockDecryptionService);
+            Map<String, Object> userMap = Map.of();
             List<String> fieldsToDecrypt = Arrays.asList("email", "phone");
             Map<String, Object> result = UserUtility.decryptSpecificUserData(userMap, fieldsToDecrypt);
             assertTrue(result.isEmpty());
