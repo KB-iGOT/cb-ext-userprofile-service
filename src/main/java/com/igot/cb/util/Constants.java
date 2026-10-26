@@ -547,6 +547,16 @@ public class Constants {
     public static final String API_CAMPAIGN_REGISTER = "api.user.campaign.register";
     public static final String ETS = "ets";
 
+    // Designation-approval -> Service History (Kafka consumer) Constants
+    public static final String APPROVAL_TYPE = "approvalType";
+    public static final String APPROVAL_TYPE_DESIGNATION = "DESIGNATION";
+    public static final String SEARCH_ORG_NAME = "searchOrgName";
+    public static final String SEARCH_DESIGNATION = "searchDesignation";
+    public static final String ORG_STATE = "orgState";
+    public static final String ORG_DISTRICT = "orgDistrict";
+    public static final String APPROVED_VIA_WORKFLOW = "approvedViaWorkflow";
+    public static final String FALSE = "false";
+
     private Constants() {
     }
 }
