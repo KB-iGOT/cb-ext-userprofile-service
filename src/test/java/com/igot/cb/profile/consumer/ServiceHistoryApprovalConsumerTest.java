@@ -49,9 +49,9 @@ class ServiceHistoryApprovalConsumerTest {
     @Test
     @DisplayName("Should log and skip when record value is blank")
     void consumeServiceHistoryApprovalEvent_blankValue_skipsProcessing() throws JsonProcessingException {
-        ConsumerRecord<String, String> record = buildRecord("");
+        ConsumerRecord<String, String> consumerRecord = buildRecord("");
 
-        assertDoesNotThrow(() -> serviceHistoryApprovalConsumer.consumeServiceHistoryApprovalEvent(record));
+        assertDoesNotThrow(() -> serviceHistoryApprovalConsumer.consumeServiceHistoryApprovalEvent(consumerRecord));
 
         verify(mapper, never()).readValue(anyString(), ArgumentMatchers.<TypeReference<List<WorkflowServiceHistoryEvent>>>any());
         verify(serviceHistoryApprovalService, never()).processServiceHistoryApprovalEvent(any());
@@ -60,9 +60,9 @@ class ServiceHistoryApprovalConsumerTest {
     @Test
     @DisplayName("Should log and skip when record value is null")
     void consumeServiceHistoryApprovalEvent_nullValue_skipsProcessing() {
-        ConsumerRecord<String, String> record = buildRecord(null);
+        ConsumerRecord<String, String> consumerRecord = buildRecord(null);
 
-        assertDoesNotThrow(() -> serviceHistoryApprovalConsumer.consumeServiceHistoryApprovalEvent(record));
+        assertDoesNotThrow(() -> serviceHistoryApprovalConsumer.consumeServiceHistoryApprovalEvent(consumerRecord));
 
         verify(serviceHistoryApprovalService, never()).processServiceHistoryApprovalEvent(any());
     }
@@ -70,11 +70,11 @@ class ServiceHistoryApprovalConsumerTest {
     @Test
     @DisplayName("Should log and skip when the deserialized event list is empty")
     void consumeServiceHistoryApprovalEvent_emptyEventList_skipsProcessing() throws JsonProcessingException {
-        ConsumerRecord<String, String> record = buildRecord("[]");
+        ConsumerRecord<String, String> consumerRecord = buildRecord("[]");
         when(mapper.readValue(anyString(),
                 ArgumentMatchers.<TypeReference<List<WorkflowServiceHistoryEvent>>>any())).thenReturn(List.of());
 
-        serviceHistoryApprovalConsumer.consumeServiceHistoryApprovalEvent(record);
+        serviceHistoryApprovalConsumer.consumeServiceHistoryApprovalEvent(consumerRecord);
 
         verify(serviceHistoryApprovalService, never()).processServiceHistoryApprovalEvent(any());
     }
@@ -82,12 +82,12 @@ class ServiceHistoryApprovalConsumerTest {
     @Test
     @DisplayName("Should delegate the deserialized events to the approval service")
     void consumeServiceHistoryApprovalEvent_validPayload_delegatesToService() throws JsonProcessingException {
-        ConsumerRecord<String, String> record = buildRecord("[{}, {}]");
+        ConsumerRecord<String, String> consumerRecord = buildRecord("[{}, {}]");
         List<WorkflowServiceHistoryEvent> events = List.of(new WorkflowServiceHistoryEvent(), new WorkflowServiceHistoryEvent());
         when(mapper.readValue(anyString(),
                 ArgumentMatchers.<TypeReference<List<WorkflowServiceHistoryEvent>>>any())).thenReturn(events);
 
-        serviceHistoryApprovalConsumer.consumeServiceHistoryApprovalEvent(record);
+        serviceHistoryApprovalConsumer.consumeServiceHistoryApprovalEvent(consumerRecord);
 
         verify(serviceHistoryApprovalService).processServiceHistoryApprovalEvent(events);
     }
@@ -95,12 +95,12 @@ class ServiceHistoryApprovalConsumerTest {
     @Test
     @DisplayName("Should not propagate an exception when the payload is malformed JSON")
     void consumeServiceHistoryApprovalEvent_malformedJson_doesNotThrow() throws JsonProcessingException {
-        ConsumerRecord<String, String> record = buildRecord("not-valid-json");
+        ConsumerRecord<String, String> consumerRecord = buildRecord("not-valid-json");
         when(mapper.readValue(anyString(),
                 ArgumentMatchers.<TypeReference<List<WorkflowServiceHistoryEvent>>>any()))
                 .thenThrow(new TestJsonProcessingException("bad json"));
 
-        assertDoesNotThrow(() -> serviceHistoryApprovalConsumer.consumeServiceHistoryApprovalEvent(record));
+        assertDoesNotThrow(() -> serviceHistoryApprovalConsumer.consumeServiceHistoryApprovalEvent(consumerRecord));
 
         verify(serviceHistoryApprovalService, never()).processServiceHistoryApprovalEvent(any());
     }
@@ -108,14 +108,14 @@ class ServiceHistoryApprovalConsumerTest {
     @Test
     @DisplayName("Should not propagate an exception when the approval service throws")
     void consumeServiceHistoryApprovalEvent_serviceThrows_doesNotThrow() throws JsonProcessingException {
-        ConsumerRecord<String, String> record = buildRecord("[{}, {}]");
+        ConsumerRecord<String, String> consumerRecord = buildRecord("[{}, {}]");
         List<WorkflowServiceHistoryEvent> events = List.of(new WorkflowServiceHistoryEvent(), new WorkflowServiceHistoryEvent());
         when(mapper.readValue(anyString(),
                 ArgumentMatchers.<TypeReference<List<WorkflowServiceHistoryEvent>>>any())).thenReturn(events);
         when(serviceHistoryApprovalService.processServiceHistoryApprovalEvent(events))
                 .thenThrow(new IllegalStateException("downstream failure"));
 
-        assertDoesNotThrow(() -> serviceHistoryApprovalConsumer.consumeServiceHistoryApprovalEvent(record));
+        assertDoesNotThrow(() -> serviceHistoryApprovalConsumer.consumeServiceHistoryApprovalEvent(consumerRecord));
     }
 
     private static final class TestJsonProcessingException extends JsonProcessingException {
