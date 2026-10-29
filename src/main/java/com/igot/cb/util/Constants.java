@@ -546,6 +546,11 @@ public class Constants {
     public static final String API_CAMPAIGN_LEAD_CREATE = "api.campaign.lead.create";
     public static final String API_CAMPAIGN_REGISTER = "api.user.campaign.register";
     public static final String ETS = "ets";
+    public static final String ISDELETED = "isdeleted";
+    public static final String ENTRY_TYPE_PREVIOUS = "PREVIOUS";
+    public static final String ENTRY_TYPE_CURRENT = "CURRENT";
+    public static final String APPROVED_VIA_WORKFLOW = "approvedViaWorkflow";
+    public static final String APPROVAL_TYPE_DESIGNATION = "DESIGNATION";
 
     private Constants() {
     }
