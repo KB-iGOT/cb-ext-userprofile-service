@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Predicate;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -32,6 +33,9 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @RequiredArgsConstructor
 public class ServiceHistoryApprovalServiceImpl implements ServiceHistoryApprovalService {
+
+    private static final String ACTION_ORG_TRANSFER = "org-transfer";
+    private static final String ACTION_DESIGNATION_CHANGE = "designation-change";
 
     private final CassandraOperation cassandraOperation;
 
@@ -69,11 +73,10 @@ public class ServiceHistoryApprovalServiceImpl implements ServiceHistoryApproval
     }
 
     /**
-     * Applies an org-transfer approval using the serviceHistory entries' index field, mirroring
-     * {@link #applyDesignationChange}: the highest-index entry is treated as the current one,
-     * validated against the PREVIOUS event's orgId, closed out, and a new entry is appended at
-     * highestIndex + 1. Unlike a designation change, orgId is required to differ between PREVIOUS
-     * and CURRENT; designation is carried through unchanged and is not checked.
+     * Applies an org-transfer approval, mirroring {@link #applyDesignationChange}: orgId is
+     * required to differ between PREVIOUS and CURRENT; designation is carried through unchanged
+     * and is not checked. The highest-index entry is validated against the PREVIOUS event's orgId
+     * only.
      */
     private boolean applyOrgTransfer(String userId, WorkflowServiceHistoryEvent previousEvent,
             WorkflowServiceHistoryEvent currentEvent) {
@@ -83,42 +86,13 @@ public class ServiceHistoryApprovalServiceImpl implements ServiceHistoryApproval
                     currentEvent.getOrgId(), userId, currentEvent.getWfId());
             return false;
         }
-
-        List<Map<String, Object>> existingList = getExistingContextData(userId);
-        Map<String, Object> highestIndexEntry = findHighestIndexEntry(existingList);
-        if (highestIndexEntry == null) {
-            log.warn("No existing service history entries found for userId: {}, wfId: {}", userId,
-                    currentEvent.getWfId());
-            return false;
-        }
-
-        if (!StringUtils.equals(previousEvent.getOrgId(), (String) highestIndexEntry.get(Constants.ORG_ID))) {
-            log.warn(
-                    "Highest-index service history entry does not match PREVIOUS event (orgId) for userId: {}, wfId: {}; skipping.",
-                    userId, currentEvent.getWfId());
-            return false;
-        }
-
-        int newIndex = toIndex(highestIndexEntry.get(Constants.INDEX)) + 1;
-        highestIndexEntry.put(Constants.END_DATE, OffsetDateTime.now().toString());
-        highestIndexEntry.put(Constants.CURRENTLY_WORKING, Boolean.FALSE.toString());
-        existingList.add(buildIndexedServiceHistoryEntry(currentEvent, newIndex));
-
-        if (!saveContextData(userId, existingList)) {
-            log.error("Failed to persist org-transfer service history update for userId: {}, wfId: {}", userId,
-                    currentEvent.getWfId());
-            return false;
-        }
-
-        log.info("Applied org-transfer service history event for userId: {}, wfId: {}", userId,
-                currentEvent.getWfId());
-        return true;
+        return closeAndAppendMatchingEntry(userId, currentEvent, ACTION_ORG_TRANSFER,
+                entry -> StringUtils.equals(previousEvent.getOrgId(), (String) entry.get(Constants.ORG_ID)));
     }
 
     /**
-     * Applies a designation-change approval using the serviceHistory entries' index field: the
-     * highest-index entry is treated as the current one, validated against the PREVIOUS event
-     * (orgId + designation), closed out, and a new entry is appended at highestIndex + 1.
+     * Applies a designation-change approval, mirroring {@link #applyOrgTransfer}: the highest-index
+     * entry is validated against the PREVIOUS event's orgId and designation together.
      */
     private boolean applyDesignationChange(String userId, WorkflowServiceHistoryEvent previousEvent,
             WorkflowServiceHistoryEvent currentEvent) {
@@ -128,7 +102,17 @@ public class ServiceHistoryApprovalServiceImpl implements ServiceHistoryApproval
                     currentEvent.getDesignation(), userId, currentEvent.getWfId());
             return false;
         }
+        return closeAndAppendMatchingEntry(userId, currentEvent, ACTION_DESIGNATION_CHANGE,
+                entry -> matchesPreviousEvent(entry, previousEvent));
+    }
 
+    /**
+     * Shared close-and-append flow for both approval types: loads the existing serviceHistory list,
+     * finds the highest-index entry, validates it with {@code matchesPrevious}, closes it out, and
+     * appends a new entry at highestIndex + 1, persisting and logging under the given action label.
+     */
+    private boolean closeAndAppendMatchingEntry(String userId, WorkflowServiceHistoryEvent currentEvent,
+            String actionLabel, Predicate<Map<String, Object>> matchesPrevious) {
         List<Map<String, Object>> existingList = getExistingContextData(userId);
         Map<String, Object> highestIndexEntry = findHighestIndexEntry(existingList);
         if (highestIndexEntry == null) {
@@ -137,9 +121,9 @@ public class ServiceHistoryApprovalServiceImpl implements ServiceHistoryApproval
             return false;
         }
 
-        if (!matchesPreviousEvent(highestIndexEntry, previousEvent)) {
+        if (!matchesPrevious.test(highestIndexEntry)) {
             log.warn(
-                    "Highest-index service history entry does not match PREVIOUS event (orgId/designation) for userId: {}, wfId: {}; skipping.",
+                    "Highest-index service history entry does not match PREVIOUS event for userId: {}, wfId: {}; skipping.",
                     userId, currentEvent.getWfId());
             return false;
         }
@@ -150,12 +134,12 @@ public class ServiceHistoryApprovalServiceImpl implements ServiceHistoryApproval
         existingList.add(buildIndexedServiceHistoryEntry(currentEvent, newIndex));
 
         if (!saveContextData(userId, existingList)) {
-            log.error("Failed to persist designation-change service history update for userId: {}, wfId: {}", userId,
+            log.error("Failed to persist {} service history update for userId: {}, wfId: {}", actionLabel, userId,
                     currentEvent.getWfId());
             return false;
         }
 
-        log.info("Applied designation-change service history event for userId: {}, wfId: {}", userId,
+        log.info("Applied {} service history event for userId: {}, wfId: {}", actionLabel, userId,
                 currentEvent.getWfId());
         return true;
     }
