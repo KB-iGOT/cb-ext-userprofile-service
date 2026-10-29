@@ -17,6 +17,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.profile.model.WorkflowServiceHistoryEvent;
 import com.igot.cb.transactional.cassandrautils.CassandraOperation;
@@ -115,7 +116,7 @@ class ServiceHistoryApprovalServiceImplTest {
                 .thenReturn(new ArrayList<>());
     }
 
-    private void stubSaveSuccess() {
+    private void stubSaveSuccess() throws JsonProcessingException {
         when(mapper.writeValueAsString(any())).thenReturn("{}");
         ApiResponse success = new ApiResponse();
         success.put(Constants.RESPONSE, Constants.SUCCESS);
@@ -123,7 +124,7 @@ class ServiceHistoryApprovalServiceImplTest {
                 eq(Constants.TABLE_USER_EXTENDED_PROFILE), anyMap())).thenReturn(success);
     }
 
-    private void stubSaveFailure() {
+    private void stubSaveFailure() throws JsonProcessingException {
         when(mapper.writeValueAsString(any())).thenReturn("{}");
         ApiResponse failure = new ApiResponse();
         failure.put(Constants.RESPONSE, FAILED_RESPONSE);
