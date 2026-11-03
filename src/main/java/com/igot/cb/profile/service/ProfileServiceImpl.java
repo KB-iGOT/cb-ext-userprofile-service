@@ -234,7 +234,7 @@ public class ProfileServiceImpl implements ProfileService {
     public ApiResponse getExtendedProfileSummary(String userId, String userToken) {
         String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
         if (StringUtils.isBlank(userIdFromToken)) {
-            ApiResponse response = ProjectUtil.createDefaultResponse("api.extendedProfile.read");
+            ApiResponse response = ProjectUtil.createDefaultResponse(Constants.API_EXTENDED_PROFILE_READ);
             ProjectUtil.errorResponse(response, "Invalid or missing access token", HttpStatus.BAD_REQUEST);
             return response;
         }
@@ -249,7 +249,7 @@ public class ProfileServiceImpl implements ProfileService {
     @Override
     public ApiResponse getExtendedProfileSummaryForAdmin(String userId) {
         if (StringUtils.isBlank(userId)) {
-            ApiResponse response = ProjectUtil.createDefaultResponse("api.extendedProfile.read");
+            ApiResponse response = ProjectUtil.createDefaultResponse(Constants.API_EXTENDED_PROFILE_READ);
             ProjectUtil.errorResponse(response, "userId cannot be empty", HttpStatus.BAD_REQUEST);
             return response;
         }
@@ -258,7 +258,7 @@ public class ProfileServiceImpl implements ProfileService {
     }
 
     private ApiResponse buildExtendedProfileSummary(String userId) {
-        ApiResponse response = ProjectUtil.createDefaultResponse("api.extendedProfile.read");
+        ApiResponse response = ProjectUtil.createDefaultResponse(Constants.API_EXTENDED_PROFILE_READ);
 
         String redisKey = buildCacheKey("user:extendedProfile", "all", userId);
         try {
@@ -304,7 +304,7 @@ public class ProfileServiceImpl implements ProfileService {
 
     @Override
     public ApiResponse readFullExtendedProfile(String userId, String contextType, String userToken) {
-        ApiResponse response = ProjectUtil.createDefaultResponse("api.extendedProfile.read");
+        ApiResponse response = ProjectUtil.createDefaultResponse(Constants.API_EXTENDED_PROFILE_READ);
         String userIdFromToken = accessTokenValidator.fetchUserIdFromAccessToken(userToken);
 
         if (userIdFromToken == null) {
