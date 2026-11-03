@@ -144,6 +144,12 @@ public class ProfileController {
         return new ResponseEntity<>(response, HttpStatus.valueOf(response.getResponseCode().value()));
     }
 
+    @GetMapping("/v2/extended/all/{userId}")
+    public ResponseEntity<Object> getExtendedProfileSummaryForAdmin(@PathVariable(Constants.USER_ID_RQST) String userId) {
+        ApiResponse response = profileService.getExtendedProfileSummaryForAdmin(userId);
+        return new ResponseEntity<>(response, HttpStatus.valueOf(response.getResponseCode().value()));
+    }
+
     @GetMapping("/v2/getAdditionalFields")
     public ResponseEntity<Object> getAdditionalFieldsByOrgForUser(
             @RequestHeader(Constants.X_AUTH_USER_ORG_ID)String userOrgId,

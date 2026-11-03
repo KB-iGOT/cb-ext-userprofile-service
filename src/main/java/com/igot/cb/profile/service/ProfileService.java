@@ -10,6 +10,8 @@ public interface ProfileService {
 
     ApiResponse getExtendedProfileSummary(String userId, String userToken);
 
+    ApiResponse getExtendedProfileSummaryForAdmin(String userId);
+
     ApiResponse readFullExtendedProfile(String userId, String contextType, String userToken);
 
     ApiResponse updateExtendedProfile(Map<String, Object> request, String userToken);
