@@ -82,7 +82,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
         when(profileService.getExtendedProfileSummaryForAdmin(userId)).thenReturn(mockResponse);
 
-        mockMvc.perform(get("/user/profile/v2/extended/all/{userId}", userId))
+        mockMvc.perform(get("/user/profile/v2/admin/extended/all/{userId}", userId))
                 .andExpect(status().isOk());
 
         verify(profileService).getExtendedProfileSummaryForAdmin(userId);
