@@ -75,6 +75,19 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         verify(profileService).getExtendedProfileSummary((userId), (authToken));
     }
 
+    @Test
+     void testGetExtendedProfileSummaryForAdmin() throws Exception {
+        String userId = "user-123";
+        ApiResponse mockResponse = ProjectUtil.createDefaultResponse("GET_EXTENDED_PROFILE_ADMIN");
+
+        when(profileService.getExtendedProfileSummaryForAdmin(userId)).thenReturn(mockResponse);
+
+        mockMvc.perform(get("/user/profile/v2/extended/all/{userId}", userId))
+                .andExpect(status().isOk());
+
+        verify(profileService).getExtendedProfileSummaryForAdmin(userId);
+    }
+
 
     @Test
      void testGetServiceHistory() throws Exception {
