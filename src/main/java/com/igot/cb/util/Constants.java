@@ -545,6 +545,7 @@ public class Constants {
     public static final String API_CAMPAIGN_LEAD_CREATE = "api.campaign.lead.create";
     public static final String API_CAMPAIGN_REGISTER = "api.user.campaign.register";
     public static final String ETS = "ets";
+    public static final String API_EXTENDED_PROFILE_READ = "api.extendedProfile.read";
 
     private Constants() {
     }

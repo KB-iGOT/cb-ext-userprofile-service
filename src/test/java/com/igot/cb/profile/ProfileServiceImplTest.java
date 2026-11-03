@@ -446,6 +446,66 @@ class ProfileServiceImplTest {
     }
 
     @Test
+    void testGetExtendedProfileSummaryForAdmin_blankUserId_returnsBadRequest() {
+        ApiResponse response = profileService.getExtendedProfileSummaryForAdmin(" ");
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
+        assertEquals("userId cannot be empty", response.getParams().getErrMsg());
+        verifyNoInteractions(accessTokenValidator);
+    }
+
+    @Test
+    void testGetExtendedProfileSummaryForAdmin_cacheHit_returnsLimitedSummary() throws Exception {
+        String redisKey = "user:extendedProfile:all:user-123";
+        String cachedJson = "{\"contextA\":{\"count\":3,\"data\":[{\"a\":1},{\"b\":2},{\"c\":3}]}}";
+        when(cacheService.getCache(redisKey)).thenReturn(cachedJson);
+
+        Map<String, Object> fullMap = Map.of("contextA", Map.of(
+                "count", 3,
+                "data", List.of(Map.of("a", 1), Map.of("b", 2), Map.of("c", 3))
+        ));
+        when(objectMapper.readValue(cachedJson, Map.class)).thenReturn(fullMap);
+
+        ApiResponse response = profileService.getExtendedProfileSummaryForAdmin(userID);
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        assertNotNull(response.get(Constants.RESPONSE));
+        verifyNoInteractions(accessTokenValidator);
+    }
+
+    @Test
+    void testGetExtendedProfileSummaryForAdmin_noCache_fallsBackToDB() throws Exception {
+        when(cacheService.getCache(anyString())).thenReturn(null);
+        when(serverProperties.getContextType()).thenReturn(contextType);
+
+        String contextJson = "[{\"a\":1}]";
+        List<Map<String, Object>> records = List.of(Map.of(Constants.CONTEXT_DATA, contextJson));
+        when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
+                .thenReturn(records);
+        when(projectUtil.parseListOfMap(contextJson)).thenReturn(List.of(Map.of("a", 1)));
+
+        ApiResponse response = profileService.getExtendedProfileSummaryForAdmin(userID);
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        assertNotNull(response.get(Constants.RESPONSE));
+        verifyNoInteractions(accessTokenValidator);
+    }
+
+    @Test
+    void testGetExtendedProfileSummaryForAdmin_emptyData_returnsNoContent() {
+        when(cacheService.getCache(anyString())).thenReturn(null);
+        when(serverProperties.getContextType()).thenReturn(contextType);
+        when(cassandraOperation.getRecordsByPropertiesByKey(any(), any(), any(), any(), any()))
+                .thenReturn(Collections.emptyList());
+
+        ApiResponse response = profileService.getExtendedProfileSummaryForAdmin(userID);
+
+        assertEquals(HttpStatus.NO_CONTENT, response.getResponseCode());
+        assertEquals("No data found for user.", response.getParams().getErrMsg());
+        verifyNoInteractions(accessTokenValidator);
+    }
+
+    @Test
     void testInvalidToken() {
         when(accessTokenValidator.fetchUserIdFromAccessToken(token)).thenReturn(null);
 
