@@ -28,7 +28,7 @@ public class RedisConfig {
 
     /**
      * Pool for the per-user cache hash ({@code userprofile:{userId}}) owned by sunbird-lms-service.
-     * Returns {@code null} (bean absent) when {@code user.profile.redis.host} is blank, so callers
+     * Returns {@code null} (bean absent) when {@code user_profile_redis_host} is blank, so callers
      * must treat the pool as optional.
      */
     @Bean(name = "userProfileJedisPool")

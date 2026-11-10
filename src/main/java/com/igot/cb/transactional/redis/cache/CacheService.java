@@ -150,7 +150,7 @@ public class CacheService {
 
     /**
      * Drops one field of the lms-owned user hash so lms recomputes it on its next read. No-op when
-     * user.profile.redis.host is not configured; never throws.
+     * user_profile_redis_host is not configured; never throws.
      */
     public void evictUserProfileField(String userId, String field) {
         if (userProfileJedisPool == null || userId == null || userId.isEmpty()) {
