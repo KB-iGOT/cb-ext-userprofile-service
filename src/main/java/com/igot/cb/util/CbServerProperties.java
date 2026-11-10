@@ -85,6 +85,24 @@ public class CbServerProperties {
     @Value("${redis.port}")
     private String redisPort;
 
+    @Value("${user.profile.redis.host:}")
+    private String userProfileRedisHost;
+
+    @Value("${user.profile.redis.port:6379}")
+    private int userProfileRedisPort;
+
+    @Value("${user.profile.redis.index:0}")
+    private int userProfileRedisIndex;
+
+    @Value("${user.profile.redis.password.enabled:false}")
+    private boolean userProfileRedisPasswordEnabled;
+
+    @Value("${user.profile.redis.username:}")
+    private String userProfileRedisUsername;
+
+    @Value("${user.profile.redis.password:}")
+    private String userProfileRedisPassword;
+
     @Value("${redis.data.host.name}")
     private String redisDataHostName;
 
@@ -135,6 +153,10 @@ public class CbServerProperties {
 
     @Value("${cb.badge.count.redis.ttl}")
     private int badgeCountRedisTtl;
+
+    public String getCertificateCountRedisKey() {
+        return certificateCountRedisKey;
+    }
 
     public int getCertificateCountRedisTtl() {
         return certificateCountRedisTtl;

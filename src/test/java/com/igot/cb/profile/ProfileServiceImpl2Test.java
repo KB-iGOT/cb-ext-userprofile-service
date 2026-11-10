@@ -3,6 +3,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.profile.service.ProfileServiceImpl;
 import com.igot.cb.transactional.cassandrautils.CassandraOperation;
+import com.igot.cb.transactional.redis.cache.CacheService;
 import com.igot.cb.util.Constants;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,6 +28,9 @@ class ProfileServiceImpl2Test {
 
     @Mock
     private CassandraOperation cassandraOperation;
+
+    @Mock
+    private CacheService cacheService;
 
     @Mock
     private ObjectMapper mapper;

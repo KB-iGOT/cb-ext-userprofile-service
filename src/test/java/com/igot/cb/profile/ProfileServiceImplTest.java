@@ -2894,6 +2894,7 @@ class ProfileServiceImplTest {
         ProfileServiceImpl service = spy(new ProfileServiceImpl());
         CassandraOperation cassandraOperation = mock(CassandraOperation.class);
         ReflectionTestUtils.setField(service, "cassandraOperation", cassandraOperation);
+        ReflectionTestUtils.setField(service, "cacheService", mock(CacheService.class));
         ObjectMapper mapper = new ObjectMapper();
         ReflectionTestUtils.setField(service, "mapper", mapper);
 
@@ -2914,6 +2915,7 @@ class ProfileServiceImplTest {
         ProfileServiceImpl service = spy(new ProfileServiceImpl());
         CassandraOperation cassandraOperation = mock(CassandraOperation.class);
         ReflectionTestUtils.setField(service, "cassandraOperation", cassandraOperation);
+        ReflectionTestUtils.setField(service, "cacheService", mock(CacheService.class));
         ObjectMapper mapper = new ObjectMapper();
         ReflectionTestUtils.setField(service, "mapper", mapper);
 
@@ -2934,6 +2936,7 @@ class ProfileServiceImplTest {
         ProfileServiceImpl service = spy(new ProfileServiceImpl());
         CassandraOperation cassandraOperation = mock(CassandraOperation.class);
         ReflectionTestUtils.setField(service, "cassandraOperation", cassandraOperation);
+        ReflectionTestUtils.setField(service, "cacheService", mock(CacheService.class));
         ObjectMapper mapper = new ObjectMapper();
         ReflectionTestUtils.setField(service, "mapper", mapper);
 
@@ -2955,6 +2958,7 @@ class ProfileServiceImplTest {
         ProfileServiceImpl service = spy(new ProfileServiceImpl());
         CassandraOperation cassandraOperation = mock(CassandraOperation.class);
         ReflectionTestUtils.setField(service, "cassandraOperation", cassandraOperation);
+        ReflectionTestUtils.setField(service, "cacheService", mock(CacheService.class));
         ObjectMapper mapper = new ObjectMapper();
         ReflectionTestUtils.setField(service, "mapper", mapper);
 
@@ -2976,6 +2980,7 @@ class ProfileServiceImplTest {
         ProfileServiceImpl service = spy(new ProfileServiceImpl());
         CassandraOperation cassandraOperation = mock(CassandraOperation.class);
         ReflectionTestUtils.setField(service, "cassandraOperation", cassandraOperation);
+        ReflectionTestUtils.setField(service, "cacheService", mock(CacheService.class));
         ObjectMapper mapper = new ObjectMapper();
         ReflectionTestUtils.setField(service, "mapper", mapper);
 
