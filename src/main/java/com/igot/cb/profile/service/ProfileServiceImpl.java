@@ -26,6 +26,7 @@ import com.igot.cb.profile.entity.CustomFieldEntity;
 import com.igot.cb.profile.repository.CustomFieldRepository;
 import com.igot.cb.transactional.cassandrautils.CassandraOperation;
 import com.igot.cb.transactional.elasticsearch.service.EsUtilServiceImpl;
+import com.igot.cb.transactional.cassandrautils.CassandraPropertyReader;
 import com.igot.cb.transactional.redis.cache.CacheService;
 import com.igot.cb.transactional.service.RequestHandlerServiceImpl;
 
@@ -366,9 +367,11 @@ public class ProfileServiceImpl implements ProfileService {
         String cacheKey = Constants.USER + ":basicProfile:" + userId;
 
         try {
-            String cachedJson = cacheService.getCache(cacheKey);
-            Map<String, Object> userProfile;
-            if (StringUtils.isNotEmpty(cachedJson)) {
+            Map<String, Object> userProfile = readUserDataFromSharedCache(userId);
+            String cachedJson = userProfile == null ? cacheService.getCache(cacheKey) : null;
+            if (userProfile != null) {
+                log.debug("getBasicProfile: user {} served from shared user cache", userId);
+            } else if (StringUtils.isNotEmpty(cachedJson)) {
                 userProfile = mapper.readValue(cachedJson, new TypeReference<>() {});
                 Set<String> cachedKeysLower = userProfile.keySet().stream()
                         .map(String::toLowerCase)
@@ -400,10 +403,7 @@ public class ProfileServiceImpl implements ProfileService {
                     userId, userToken));
             userProfile.put(Constants.KARMA_POINTS, getUserKarmaPoints(userId));
             userProfile.put(Constants.WALLET_BALANCE, getUserWalletBalance(userId));
-            if (!userProfile.containsKey(Constants.CERTIFICATE_COUNT)) {
-                userProfile.put(Constants.CERTIFICATE_COUNT, getIssuedCertificateCount(userId));
-                cacheService.putCache(cacheKey, userProfile);
-            }
+            userProfile.put(Constants.CERTIFICATE_COUNT, getCachedCertificateCount(userId));
             userProfile.put(Constants.POSTCOUNT, getUserPostCount(userId));
             userProfile.put(Constants.BADGE_COUNT, getUserBadgeCount(userId));
             if (!isSelfUser) {
@@ -508,7 +508,12 @@ public class ProfileServiceImpl implements ProfileService {
             query.put(Constants.CONTEXT_DATA, finalJson);
             ApiResponse insertResponse = (ApiResponse) cassandraOperation.insertRecord(Constants.KEYSPACE_SUNBIRD,
                     Constants.TABLE_USER_EXTENDED_PROFILE, query);
-            return Constants.SUCCESS.equalsIgnoreCase((String) insertResponse.get(Constants.RESPONSE));
+            boolean success = Constants.SUCCESS.equalsIgnoreCase((String) insertResponse.get(Constants.RESPONSE));
+            if (success) {
+                // lms caches the set of contextTypes present for profile-completion; a new row changes it
+                cacheService.evictUserProfileField(userId, CacheService.USER_PROFILE_FIELD_EXT_CTX);
+            }
+            return success;
         } catch (JsonProcessingException e) {
             log.error("Failed to serialize context data for userId: {}, contextType: {}", userId, contextType);
         }
@@ -655,6 +660,102 @@ public class ProfileServiceImpl implements ProfileService {
                 .findFirst()
                 .map(key -> "Invalid context type in request: " + key)
                 .orElse(null);
+    }
+
+    /**
+     * The basic-profile fields from the shared user cache owned by sunbird-lms-service
+     * ({@code userprofile:{userId}} / {@code info} = raw sunbird.user row). Keys are renamed to the
+     * names this service's own Cassandra read produces, and profileDetails is parsed, so the result
+     * is interchangeable with {@link #readUserDataFromDB}. Read-only: this service never writes the
+     * shared hash (its own read is a column subset; lms serves the full row from it).
+     *
+     * @return the profile map, or {@code null} on miss / disabled / error.
+     */
+    private Map<String, Object> readUserDataFromSharedCache(String userId) {
+        String json = cacheService.getUserProfileField(userId, CacheService.USER_PROFILE_FIELD_INFO);
+        if (StringUtils.isBlank(json)) {
+            return null;
+        }
+        try {
+            Map<String, Object> rawRow = mapper.readValue(json, new TypeReference<Map<String, Object>>() {});
+            if (rawRow == null || findIgnoreCase(rawRow, Constants.ID) == null) {
+                return null;
+            }
+            CassandraPropertyReader columnNames = CassandraPropertyReader.getInstance();
+            Map<String, Object> userObj = new HashMap<>();
+            for (String field : serverConfig.getBasicProfileFields()) {
+                String column = field.trim().toLowerCase();
+                String localKey = columnNames.readProperty(column).trim();
+                userObj.put(localKey, findIgnoreCase(rawRow, column));
+            }
+            Object profileDetails = userObj.get(Constants.PROFILE_DETAILS);
+            if (profileDetails instanceof String profileDetailsJson) {
+                userObj.put(Constants.PROFILE_DETAILS, StringUtils.isNotBlank(profileDetailsJson)
+                        ? mapper.readValue(profileDetailsJson, new TypeReference<Map<String, Object>>() {})
+                        : Map.of());
+            } else if (profileDetails == null) {
+                userObj.put(Constants.PROFILE_DETAILS, Map.of());
+            }
+            return userObj;
+        } catch (Exception e) {
+            log.warn("readUserDataFromSharedCache: could not use shared cache for userId {}: {}", userId, e.getMessage());
+            return null;
+        }
+    }
+
+    /** Raw user_roles rows from the shared user cache ({@code roles} field), or {@code null} on miss. */
+    private List<Map<String, Object>> readUserRolesFromSharedCache(String userId) {
+        String json = cacheService.getUserProfileField(userId, CacheService.USER_PROFILE_FIELD_ROLES);
+        if (StringUtils.isBlank(json)) {
+            return null;
+        }
+        try {
+            List<Map<String, Object>> rows = mapper.readValue(json, new TypeReference<List<Map<String, Object>>>() {});
+            if (rows == null) {
+                return null;
+            }
+            // lms caches the rows with its own column-name casing; normalise the two keys we use.
+            List<Map<String, Object>> normalised = new ArrayList<>(rows.size());
+            for (Map<String, Object> row : rows) {
+                Map<String, Object> r = new HashMap<>();
+                r.put(Constants.ROLE, findIgnoreCase(row, Constants.ROLE));
+                r.put(Constants.SCOPE, findIgnoreCase(row, Constants.SCOPE));
+                normalised.add(r);
+            }
+            return normalised;
+        } catch (Exception e) {
+            log.warn("readUserRolesFromSharedCache: could not use shared cache for userId {}: {}", userId, e.getMessage());
+            return null;
+        }
+    }
+
+    private static Object findIgnoreCase(Map<String, Object> row, String key) {
+        Object direct = row.get(key);
+        if (direct != null) {
+            return direct;
+        }
+        for (Map.Entry<String, Object> e : row.entrySet()) {
+            if (key.equalsIgnoreCase(e.getKey())) {
+                return e.getValue();
+            }
+        }
+        return null;
+    }
+
+    /** Certificate count under its own key/TTL (cb.certificate.count.redis.*) instead of inside the profile map. */
+    private int getCachedCertificateCount(String userId) {
+        String redisKey = serverConfig.getCertificateCountRedisKey() + ":" + userId;
+        try {
+            String cached = cacheService.getCache(redisKey);
+            if (cached != null) {
+                return Integer.parseInt(cached);
+            }
+        } catch (Exception e) {
+            log.warn("getCachedCertificateCount: cache read failed for userId {}: {}", userId, e.getMessage());
+        }
+        int count = getIssuedCertificateCount(userId);
+        cacheService.putCache(redisKey, count, serverConfig.getCertificateCountRedisTtl());
+        return count;
     }
 
     public Map<String, Object> readUserDataFromDB(String userId, List<String> keyList) {
@@ -1170,10 +1271,13 @@ public class ProfileServiceImpl implements ProfileService {
     }
 
     public List<String> getUserRoles(String userId, String rootOrgId) {
-        List<Map<String, Object>> userRoleList = cassandraOperation.getRecordsByPropertiesByKey(
-                Constants.KEYSPACE_SUNBIRD, Constants.USER_ROLES,
-                Map.of(Constants.USERID_KEY, userId), List.of(Constants.ROLE, Constants.SCOPE), userId
-        );
+        List<Map<String, Object>> userRoleList = readUserRolesFromSharedCache(userId);
+        if (userRoleList == null) {
+            userRoleList = cassandraOperation.getRecordsByPropertiesByKey(
+                    Constants.KEYSPACE_SUNBIRD, Constants.USER_ROLES,
+                    Map.of(Constants.USERID_KEY, userId), List.of(Constants.ROLE, Constants.SCOPE), userId
+            );
+        }
         return userRoleList.stream()
                 .map(userRoleObj -> {
                     Object userRoleScope = userRoleObj.get(Constants.SCOPE);

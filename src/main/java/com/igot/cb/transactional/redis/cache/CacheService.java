@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -28,6 +29,19 @@ public class CacheService {
 
     @Autowired
     private JedisPool jedisDataPopulationPool;
+
+    @Autowired(required = false)
+    @Qualifier("userProfileJedisPool")
+    private JedisPool userProfileJedisPool;
+
+    /** Key prefix of the per-user hash owned by sunbird-lms-service. */
+    public static final String USER_PROFILE_KEY_PREFIX = "userprofile:";
+    /** Field holding the contextTypes present in user_extended_profile; lms recomputes it on a miss. */
+    public static final String USER_PROFILE_FIELD_EXT_CTX = "extctx";
+    /** Raw sunbird.user row (JSON) as cached by lms. */
+    public static final String USER_PROFILE_FIELD_INFO = "info";
+    /** Raw sunbird.user_roles rows (JSON list) as cached by lms. */
+    public static final String USER_PROFILE_FIELD_ROLES = "roles";
 
     @Autowired
     CbServerProperties serverProperties;
@@ -116,6 +130,37 @@ public class CacheService {
             log.error("Error in getCourseMetadataAsJsonString: ", e);
         }
         return result;
+    }
+
+    /**
+     * One field of the lms-owned user hash as raw JSON, or {@code null} when the shared cache is not
+     * configured, the field is absent, or Redis fails. This service never writes these fields.
+     */
+    public String getUserProfileField(String userId, String field) {
+        if (userProfileJedisPool == null || userId == null || userId.isEmpty()) {
+            return null;
+        }
+        try (Jedis jedis = userProfileJedisPool.getResource()) {
+            return jedis.hget(USER_PROFILE_KEY_PREFIX + userId, field);
+        } catch (Exception e) {
+            logger.error("Error reading {} from {}{}", field, USER_PROFILE_KEY_PREFIX, userId, e);
+            return null;
+        }
+    }
+
+    /**
+     * Drops one field of the lms-owned user hash so lms recomputes it on its next read. No-op when
+     * user_profile_redis_host is not configured; never throws.
+     */
+    public void evictUserProfileField(String userId, String field) {
+        if (userProfileJedisPool == null || userId == null || userId.isEmpty()) {
+            return;
+        }
+        try (Jedis jedis = userProfileJedisPool.getResource()) {
+            jedis.hdel(USER_PROFILE_KEY_PREFIX + userId, field);
+        } catch (Exception e) {
+            logger.error("Error evicting {} from {}{}", field, USER_PROFILE_KEY_PREFIX, userId, e);
+        }
     }
 
     public void removeCache(String key) {

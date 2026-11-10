@@ -26,6 +26,31 @@ public class RedisConfig {
         return jedisPool;
     }
 
+    /**
+     * Pool for the per-user cache hash ({@code userprofile:{userId}}) owned by sunbird-lms-service.
+     * Returns {@code null} (bean absent) when {@code user_profile_redis_host} is blank, so callers
+     * must treat the pool as optional.
+     */
+    @Bean(name = "userProfileJedisPool")
+    public JedisPool userProfileJedisPool() {
+        String host = cbProperties.getUserProfileRedisHost();
+        if (host == null || host.trim().isEmpty()) {
+            return null;
+        }
+        final JedisPoolConfig poolConfig = buildPoolConfig();
+        int port = cbProperties.getUserProfileRedisPort();
+        int index = cbProperties.getUserProfileRedisIndex();
+        int timeout = 2000;
+        if (cbProperties.isUserProfileRedisPasswordEnabled()) {
+            String user = cbProperties.getUserProfileRedisUsername();
+            String password = cbProperties.getUserProfileRedisPassword();
+            return (user == null || user.trim().isEmpty())
+                    ? new JedisPool(poolConfig, host.trim(), port, timeout, password, index)
+                    : new JedisPool(poolConfig, host.trim(), port, timeout, user.trim(), password, index);
+        }
+        return new JedisPool(poolConfig, host.trim(), port, timeout, null, index);
+    }
+
     @Bean
     public JedisPool jedisDataPopulationPool() {
         final JedisPoolConfig poolConfig = buildPoolConfig();
