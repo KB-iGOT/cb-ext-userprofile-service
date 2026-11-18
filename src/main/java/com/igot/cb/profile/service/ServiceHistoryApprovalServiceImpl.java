@@ -107,30 +107,24 @@ public class ServiceHistoryApprovalServiceImpl implements ServiceHistoryApproval
     }
 
     /**
-     * Shared close-and-append flow for both approval types: loads the existing serviceHistory list,
-     * finds the highest-index entry, validates it with {@code matchesPrevious}, closes it out, and
-     * appends a new entry at highestIndex + 1, persisting and logging under the given action label.
+     * Shared close-and-append flow for both approval types: loads the existing serviceHistory list
+     * and finds the highest-index entry. If none exists, the user is new to the platform and the
+     * CURRENT event is appended at index 0. Otherwise the highest-index entry is validated with
+     * {@code matchesPrevious}, closed out, and a new entry is appended at highestIndex + 1.
+     * Persists and logs under the given action label.
      */
     private boolean closeAndAppendMatchingEntry(String userId, WorkflowServiceHistoryEvent currentEvent,
             String actionLabel, Predicate<Map<String, Object>> matchesPrevious) {
         List<Map<String, Object>> existingList = getExistingContextData(userId);
         Map<String, Object> highestIndexEntry = findHighestIndexEntry(existingList);
-        if (highestIndexEntry == null) {
-            log.warn("No existing service history entries found for userId: {}, wfId: {}", userId,
-                    currentEvent.getWfId());
-            return false;
-        }
-
-        if (!matchesPrevious.test(highestIndexEntry)) {
+        if (highestIndexEntry != null && !matchesPrevious.test(highestIndexEntry)) {
             log.warn(
                     "Highest-index service history entry does not match PREVIOUS event for userId: {}, wfId: {}; skipping.",
                     userId, currentEvent.getWfId());
             return false;
         }
 
-        int newIndex = toIndex(highestIndexEntry.get(Constants.INDEX)) + 1;
-        highestIndexEntry.put(Constants.END_DATE, OffsetDateTime.now().toString());
-        highestIndexEntry.put(Constants.CURRENTLY_WORKING, Boolean.FALSE.toString());
+        int newIndex = resolveNextIndexAndCloseExisting(userId, highestIndexEntry, currentEvent);
         existingList.add(buildIndexedServiceHistoryEntry(currentEvent, newIndex));
 
         if (!saveContextData(userId, existingList)) {
@@ -237,5 +231,24 @@ public class ServiceHistoryApprovalServiceImpl implements ServiceHistoryApproval
             log.error("Failed to serialize serviceHistory data for userId: {}", userId, e);
         }
         return false;
+    }
+
+    /**
+     * Resolves the index for the entry about to be appended. When {@code highestIndexEntry} is
+     * {@code null} the user has no prior serviceHistory, so index 0 is used and nothing is closed.
+     * Otherwise the existing highest-index entry is closed out and index highestIndex + 1 is
+     * returned.
+     */
+    private int resolveNextIndexAndCloseExisting(String userId, Map<String, Object> highestIndexEntry,
+            WorkflowServiceHistoryEvent currentEvent) {
+        if (highestIndexEntry == null) {
+            log.info("No existing service history entries found for userId: {}, wfId: {}; treating as new user.",
+                    userId, currentEvent.getWfId());
+            return 0;
+        }
+        int newIndex = toIndex(highestIndexEntry.get(Constants.INDEX)) + 1;
+        highestIndexEntry.put(Constants.END_DATE, OffsetDateTime.now().toString());
+        highestIndexEntry.put(Constants.CURRENTLY_WORKING, Boolean.FALSE.toString());
+        return newIndex;
     }
 }
