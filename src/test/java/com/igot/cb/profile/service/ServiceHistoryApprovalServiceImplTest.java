@@ -289,15 +289,24 @@ class ServiceHistoryApprovalServiceImplTest {
         }
 
         @Test
-        @DisplayName("Should return false when no existing service history is found")
-        void processServiceHistoryApprovalEvent_noExistingHistory_returnsFalse() {
+        @DisplayName("Should treat a new user as having no history and append the first entry at index 0")
+        void processServiceHistoryApprovalEvent_noExistingHistory_appendsFirstEntry() throws IOException {
             stubActiveUser();
             stubNoExistingHistory();
+            stubSaveSuccess();
 
             boolean result = serviceHistoryApprovalService.processServiceHistoryApprovalEvent(designationChangeEvents());
 
-            assertFalse(result);
-            verify(cassandraOperation, never()).insertRecord(any(), any(), any());
+            assertTrue(result);
+            verify(mapper).writeValueAsString(contextDataCaptor.capture());
+            List<Map<String, Object>> saved = contextDataCaptor.getValue();
+            assertEquals(1, saved.size());
+
+            Map<String, Object> newEntry = saved.get(0);
+            assertEquals(0, newEntry.get(Constants.INDEX));
+            assertEquals(NEW_DESIGNATION, newEntry.get(Constants.DESIGNATION));
+            assertEquals(SAME_ORG_ID, newEntry.get(Constants.ORG_ID));
+            assertEquals("true", newEntry.get(Constants.CURRENTLY_WORKING));
         }
 
         @Test
@@ -461,15 +470,24 @@ class ServiceHistoryApprovalServiceImplTest {
         }
 
         @Test
-        @DisplayName("Should return false when no existing service history is found")
-        void processServiceHistoryApprovalEvent_noExistingHistory_returnsFalse() {
+        @DisplayName("Should treat a new user as having no history and append the first entry at index 0")
+        void processServiceHistoryApprovalEvent_noExistingHistory_appendsFirstEntry() throws IOException {
             stubActiveUser();
             stubNoExistingHistory();
+            stubSaveSuccess();
 
             boolean result = serviceHistoryApprovalService.processServiceHistoryApprovalEvent(orgTransferEvents());
 
-            assertFalse(result);
-            verify(cassandraOperation, never()).insertRecord(any(), any(), any());
+            assertTrue(result);
+            verify(mapper).writeValueAsString(contextDataCaptor.capture());
+            List<Map<String, Object>> saved = contextDataCaptor.getValue();
+            assertEquals(1, saved.size());
+
+            Map<String, Object> newEntry = saved.get(0);
+            assertEquals(0, newEntry.get(Constants.INDEX));
+            assertEquals(OLD_DESIGNATION, newEntry.get(Constants.DESIGNATION));
+            assertEquals(NEW_ORG_ID, newEntry.get(Constants.ORG_ID));
+            assertEquals("true", newEntry.get(Constants.CURRENTLY_WORKING));
         }
 
         @Test
@@ -492,8 +510,8 @@ class ServiceHistoryApprovalServiceImplTest {
     class MalformedDataTests {
 
         @Test
-        @DisplayName("Should treat unparseable contextData as empty history and return false")
-        void processServiceHistoryApprovalEvent_unparseableContextData_returnsFalse() throws IOException {
+        @DisplayName("Should treat unparseable contextData as empty history and append the first entry at index 0")
+        void processServiceHistoryApprovalEvent_unparseableContextData_appendsFirstEntry() throws IOException {
             stubActiveUser();
             Map<String, Object> row = new HashMap<>();
             row.put(Constants.CONTEXT_DATA, PLACEHOLDER_JSON);
@@ -501,6 +519,7 @@ class ServiceHistoryApprovalServiceImplTest {
                     eq(Constants.TABLE_USER_EXTENDED_PROFILE), anyMap(), isNull(), isNull()))
                     .thenReturn(List.of(row));
             when(projectUtil.parseListOfMap(PLACEHOLDER_JSON)).thenThrow(new IOException("bad json"));
+            stubSaveSuccess();
 
             List<WorkflowServiceHistoryEvent> events = List.of(
                     buildEvent(Constants.ENTRY_TYPE_PREVIOUS, Constants.APPROVAL_TYPE_DESIGNATION, "DESIGNATION_CHANGE",
@@ -510,8 +529,12 @@ class ServiceHistoryApprovalServiceImplTest {
 
             boolean result = serviceHistoryApprovalService.processServiceHistoryApprovalEvent(events);
 
-            assertFalse(result);
-            verify(cassandraOperation, never()).insertRecord(any(), any(), any());
+            assertTrue(result);
+            verify(mapper).writeValueAsString(contextDataCaptor.capture());
+            List<Map<String, Object>> saved = contextDataCaptor.getValue();
+            assertEquals(1, saved.size());
+            assertEquals(0, saved.get(0).get(Constants.INDEX));
+            assertEquals(NEW_DESIGNATION, saved.get(0).get(Constants.DESIGNATION));
         }
     }
 }
