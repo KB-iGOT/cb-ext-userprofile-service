@@ -261,6 +261,9 @@ public class CbServerProperties {
     @Value("${campaign.kafka.consumer.group:${special.campaign.consumer.group:specialCampaignEvent}}")
     private String campaignConsumerGroup;
 
+    @Value("${kafka.service.history.merge.window.seconds:60}")
+    private long serviceHistoryMergeWindowSeconds;
+
     public String getCampaignTopicName() {
         return campaignTopicName;
     }
