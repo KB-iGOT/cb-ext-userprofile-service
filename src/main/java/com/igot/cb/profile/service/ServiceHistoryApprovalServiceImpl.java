@@ -1,7 +1,9 @@
 package com.igot.cb.profile.service;
 
 import java.io.IOException;
-import java.time.OffsetDateTime;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -19,6 +21,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.profile.model.WorkflowServiceHistoryEvent;
 import com.igot.cb.transactional.cassandrautils.CassandraOperation;
 import com.igot.cb.util.ApiResponse;
+import com.igot.cb.util.CbServerProperties;
 import com.igot.cb.util.Constants;
 import com.igot.cb.util.ProjectUtil;
 
@@ -42,6 +45,8 @@ public class ServiceHistoryApprovalServiceImpl implements ServiceHistoryApproval
     private final ObjectMapper mapper;
 
     private final ProjectUtil projectUtil;
+
+    private final CbServerProperties cbServerProperties;
 
     @Override
     public boolean processServiceHistoryApprovalEvent(List<WorkflowServiceHistoryEvent> events) {
@@ -86,7 +91,7 @@ public class ServiceHistoryApprovalServiceImpl implements ServiceHistoryApproval
                     currentEvent.getOrgId(), userId, currentEvent.getWfId());
             return false;
         }
-        return closeAndAppendMatchingEntry(userId, currentEvent, ACTION_ORG_TRANSFER,
+        return closeAndAppendMatchingEntry(userId, previousEvent, currentEvent, ACTION_ORG_TRANSFER,
                 entry -> StringUtils.equals(previousEvent.getOrgId(), (String) entry.get(Constants.ORG_ID)));
     }
 
@@ -102,7 +107,7 @@ public class ServiceHistoryApprovalServiceImpl implements ServiceHistoryApproval
                     currentEvent.getDesignation(), userId, currentEvent.getWfId());
             return false;
         }
-        return closeAndAppendMatchingEntry(userId, currentEvent, ACTION_DESIGNATION_CHANGE,
+        return closeAndAppendMatchingEntry(userId, previousEvent, currentEvent, ACTION_DESIGNATION_CHANGE,
                 entry -> matchesPreviousEvent(entry, previousEvent));
     }
 
@@ -113,11 +118,26 @@ public class ServiceHistoryApprovalServiceImpl implements ServiceHistoryApproval
      * {@code matchesPrevious}, closed out, and a new entry is appended at highestIndex + 1.
      * Persists and logs under the given action label.
      */
-    private boolean closeAndAppendMatchingEntry(String userId, WorkflowServiceHistoryEvent currentEvent,
-            String actionLabel, Predicate<Map<String, Object>> matchesPrevious) {
+    private boolean closeAndAppendMatchingEntry(String userId, WorkflowServiceHistoryEvent previousEvent,
+            WorkflowServiceHistoryEvent currentEvent, String actionLabel,
+            Predicate<Map<String, Object>> matchesPrevious) {
         List<Map<String, Object>> existingList = getExistingContextData(userId);
         Map<String, Object> highestIndexEntry = findHighestIndexEntry(existingList);
-        if (highestIndexEntry != null && !matchesPrevious.test(highestIndexEntry)) {
+
+        if (highestIndexEntry == null) {
+            return bootstrapNewUserHistory(userId, existingList, previousEvent, currentEvent, actionLabel);
+        }
+
+        if (ACTION_DESIGNATION_CHANGE.equals(actionLabel)) {
+            String createdDate = (String) highestIndexEntry.get(Constants.CREATED_DATE);
+            boolean orgIdMatches = StringUtils.equals(currentEvent.getOrgId(),
+                    (String) highestIndexEntry.get(Constants.ORG_ID));
+            if (orgIdMatches && isWithinMergeWindow(createdDate, currentEvent.getTimestamp())) {
+                return mergeIntoHighestEntry(userId, existingList, highestIndexEntry, currentEvent, actionLabel);
+            }
+        }
+
+        if (!matchesPrevious.test(highestIndexEntry)) {
             log.warn(
                     "Highest-index service history entry does not match PREVIOUS event for userId: {}, wfId: {}; skipping.",
                     userId, currentEvent.getWfId());
@@ -185,6 +205,9 @@ public class ServiceHistoryApprovalServiceImpl implements ServiceHistoryApproval
         entry.put(Constants.ORG_ID, currentEvent.getOrgId());
         entry.put(Constants.CURRENTLY_WORKING, Boolean.TRUE.toString());
         entry.put(Constants.APPROVED_VIA_WORKFLOW, Boolean.TRUE.toString());
+        entry.put(Constants.CREATED_DATE, StringUtils.isNotBlank(currentEvent.getTimestamp())
+                ? currentEvent.getTimestamp()
+                : Instant.now().toString());
         return entry;
     }
 
@@ -247,8 +270,73 @@ public class ServiceHistoryApprovalServiceImpl implements ServiceHistoryApproval
             return 0;
         }
         int newIndex = toIndex(highestIndexEntry.get(Constants.INDEX)) + 1;
-        highestIndexEntry.put(Constants.END_DATE, OffsetDateTime.now().toString());
+        highestIndexEntry.put(Constants.END_DATE, Instant.now().toString());
         highestIndexEntry.put(Constants.CURRENTLY_WORKING, Boolean.FALSE.toString());
         return newIndex;
+    }
+
+    /**
+     * Merge-window fast-path for designation-change: updates ONLY the highest-index entry's
+     * designation from the incoming CURRENT event and persists the list back to Cassandra. orgId
+     * and orgName are left untouched so a prior ORG_TRANSFER that already updated them is
+     * preserved. No new entry is appended; index, createdDate, currentlyWorking stay as-is.
+     */
+    private boolean mergeIntoHighestEntry(String userId, List<Map<String, Object>> existingList,
+            Map<String, Object> highestIndexEntry, WorkflowServiceHistoryEvent currentEvent, String actionLabel) {
+        highestIndexEntry.put(Constants.DESIGNATION, currentEvent.getDesignation());
+        if (!saveContextData(userId, existingList)) {
+            log.error("Failed to persist merged {} service history for userId: {}, wfId: {}", actionLabel, userId,
+                    currentEvent.getWfId());
+            return false;
+        }
+        log.info("Merged {} service history event into highest-index entry for userId: {}, wfId: {}", actionLabel,
+                userId, currentEvent.getWfId());
+        return true;
+    }
+
+    /**
+     * Bootstraps serviceHistory for a brand-new user: writes the PREVIOUS event payload as a
+     * closed index-0 entry (currentlyWorking=false, endDate=current event's timestamp) and the
+     * CURRENT event payload as the open index-1 entry. Persists both in a single save.
+     */
+    private boolean bootstrapNewUserHistory(String userId, List<Map<String, Object>> existingList,
+            WorkflowServiceHistoryEvent previousEvent, WorkflowServiceHistoryEvent currentEvent, String actionLabel) {
+        Map<String, Object> closedPrevious = buildIndexedServiceHistoryEntry(previousEvent, 0);
+        closedPrevious.put(Constants.CURRENTLY_WORKING, Boolean.FALSE.toString());
+        closedPrevious.put(Constants.END_DATE, StringUtils.isNotBlank(currentEvent.getTimestamp())
+                ? currentEvent.getTimestamp()
+                : Instant.now().toString());
+        existingList.add(closedPrevious);
+        existingList.add(buildIndexedServiceHistoryEntry(currentEvent, 1));
+
+        if (!saveContextData(userId, existingList)) {
+            log.error("Failed to persist bootstrap {} service history for userId: {}, wfId: {}", actionLabel, userId,
+                    currentEvent.getWfId());
+            return false;
+        }
+        log.info("Bootstrapped {} service history for new userId: {}, wfId: {}", actionLabel, userId,
+                currentEvent.getWfId());
+        return true;
+    }
+
+    /**
+     * Returns true when the delta between an existing entry's createdDate and an incoming event's
+     * timestamp is within the configured merge window (kafka.service.history.merge.window.seconds).
+     * Blank or unparseable inputs are treated as outside the window.
+     */
+    private boolean isWithinMergeWindow(String createdDate, String eventTimestamp) {
+        if (StringUtils.isBlank(createdDate) || StringUtils.isBlank(eventTimestamp)) {
+            return false;
+        }
+        try {
+            Instant created = Instant.parse(createdDate);
+            Instant eventTs = Instant.parse(eventTimestamp);
+            long deltaSeconds = Math.abs(Duration.between(created, eventTs).getSeconds());
+            return deltaSeconds <= cbServerProperties.getServiceHistoryMergeWindowSeconds();
+        } catch (DateTimeParseException e) {
+            log.warn("Unparseable timestamp (createdDate='{}', eventTimestamp='{}'); treating as outside merge window.",
+                    createdDate, eventTimestamp);
+            return false;
+        }
     }
 }
