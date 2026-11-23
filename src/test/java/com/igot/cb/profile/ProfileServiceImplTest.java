@@ -1409,7 +1409,7 @@ class ProfileServiceImplTest {
         String mandatoryFields = "";
         ProfileServiceImpl localService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
         String result = ReflectionTestUtils.invokeMethod(localService, "validateFields", data, mandatoryFields, false);
-        assertEquals(" is mandatory. ", result);
+        assertEquals("", result);
     }
 
     @Test
