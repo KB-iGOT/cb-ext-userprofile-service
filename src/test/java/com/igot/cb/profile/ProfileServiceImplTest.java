@@ -3693,4 +3693,130 @@ class ProfileServiceImplTest {
         assertTrue(result.startsWith("Invalid value 'child' at level 2"));
     }
 
+    @Test
+    void saveExtendedProfile_serviceHistoryWithNoExisting_assignsIndexZero() throws Exception {
+        String userToken = "valid-token";
+        Map<String, Object> newEntry = new HashMap<>();
+        newEntry.put("orgName", "Mahesh MDO");
+        newEntry.put("designation", "Controller");
+
+        Map<String, Object> requestData = new HashMap<>();
+        requestData.put(Constants.USER_ID_RQST, userID);
+        requestData.put(Constants.SERVICE_HISTORY, new ArrayList<>(List.of(newEntry)));
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestData);
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userID);
+        when(serverProperties.getContextType()).thenReturn(new String[]{Constants.SERVICE_HISTORY});
+        when(serverProperties.getEducationalQualificationMandatoryFields()).thenReturn("");
+        when(serverProperties.getAchievementsMandatoryFields()).thenReturn("");
+        when(serverProperties.getServiceHistoryMandatoryFields()).thenReturn("");
+        when(cassandraOperation.getRecordsByPropertiesByKey(
+                anyString(), anyString(), anyMap(), isNull(), isNull()))
+                .thenReturn(new ArrayList<>());
+
+        ArgumentCaptor<List<Map<String, Object>>> listCaptor = ArgumentCaptor.forClass(List.class);
+        when(objectMapper.writeValueAsString(listCaptor.capture())).thenReturn("[]");
+
+        ApiResponse mockResponse = new ApiResponse();
+        mockResponse.put(Constants.RESPONSE, Constants.SUCCESS);
+        when(cassandraOperation.insertRecord(anyString(), anyString(), anyMap())).thenReturn(mockResponse);
+
+        ApiResponse response = profileService.saveExtendedProfile(request, userToken);
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        List<Map<String, Object>> persisted = listCaptor.getValue();
+        assertEquals(1, persisted.size());
+        assertEquals(0, persisted.get(0).get(Constants.INDEX));
+    }
+
+    @Test
+    void saveExtendedProfile_serviceHistoryWithExisting_assignsMaxIndexPlusOneSequentially() throws Exception {
+        String userToken = "valid-token";
+
+        Map<String, Object> newEntry1 = new HashMap<>();
+        newEntry1.put("orgName", "OrgA");
+        Map<String, Object> newEntry2 = new HashMap<>();
+        newEntry2.put("orgName", "OrgB");
+
+        Map<String, Object> requestData = new HashMap<>();
+        requestData.put(Constants.USER_ID_RQST, userID);
+        requestData.put(Constants.SERVICE_HISTORY, new ArrayList<>(List.of(newEntry1, newEntry2)));
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestData);
+
+        Map<String, Object> existing0 = new HashMap<>();
+        existing0.put(Constants.INDEX, 0);
+        Map<String, Object> existing2 = new HashMap<>();
+        existing2.put(Constants.INDEX, "2");
+        List<Map<String, Object>> existingList = new ArrayList<>(List.of(existing0, existing2));
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userID);
+        when(serverProperties.getContextType()).thenReturn(new String[]{Constants.SERVICE_HISTORY});
+        when(serverProperties.getEducationalQualificationMandatoryFields()).thenReturn("");
+        when(serverProperties.getAchievementsMandatoryFields()).thenReturn("");
+        when(serverProperties.getServiceHistoryMandatoryFields()).thenReturn("");
+        when(cassandraOperation.getRecordsByPropertiesByKey(
+                anyString(), anyString(), anyMap(), isNull(), isNull()))
+                .thenReturn(List.of(Map.of(Constants.CONTEXT_DATA, "[existing-json]")));
+        when(projectUtil.parseListOfMap(anyString())).thenReturn(existingList);
+
+        ArgumentCaptor<List<Map<String, Object>>> listCaptor = ArgumentCaptor.forClass(List.class);
+        when(objectMapper.writeValueAsString(listCaptor.capture())).thenReturn("[]");
+
+        ApiResponse mockResponse = new ApiResponse();
+        mockResponse.put(Constants.RESPONSE, Constants.SUCCESS);
+        when(cassandraOperation.insertRecord(anyString(), anyString(), anyMap())).thenReturn(mockResponse);
+
+        ApiResponse response = profileService.saveExtendedProfile(request, userToken);
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        List<Map<String, Object>> persisted = listCaptor.getValue();
+        assertEquals(4, persisted.size());
+        assertEquals(3, persisted.get(2).get(Constants.INDEX));
+        assertEquals(4, persisted.get(3).get(Constants.INDEX));
+    }
+
+    @Test
+    void saveExtendedProfile_serviceHistoryWithExistingMissingIndex_treatsMissingAsNegativeOne() throws Exception {
+        String userToken = "valid-token";
+
+        Map<String, Object> newEntry = new HashMap<>();
+        newEntry.put("orgName", "OrgA");
+
+        Map<String, Object> requestData = new HashMap<>();
+        requestData.put(Constants.USER_ID_RQST, userID);
+        requestData.put(Constants.SERVICE_HISTORY, new ArrayList<>(List.of(newEntry)));
+        Map<String, Object> request = new HashMap<>();
+        request.put(Constants.REQUEST, requestData);
+
+        Map<String, Object> legacyEntry = new HashMap<>();
+        legacyEntry.put("orgName", "LegacyOrg");
+        List<Map<String, Object>> existingList = new ArrayList<>(List.of(legacyEntry));
+
+        when(accessTokenValidator.fetchUserIdFromAccessToken(userToken)).thenReturn(userID);
+        when(serverProperties.getContextType()).thenReturn(new String[]{Constants.SERVICE_HISTORY});
+        when(serverProperties.getEducationalQualificationMandatoryFields()).thenReturn("");
+        when(serverProperties.getAchievementsMandatoryFields()).thenReturn("");
+        when(serverProperties.getServiceHistoryMandatoryFields()).thenReturn("");
+        when(cassandraOperation.getRecordsByPropertiesByKey(
+                anyString(), anyString(), anyMap(), isNull(), isNull()))
+                .thenReturn(List.of(Map.of(Constants.CONTEXT_DATA, "[legacy-json]")));
+        when(projectUtil.parseListOfMap(anyString())).thenReturn(existingList);
+
+        ArgumentCaptor<List<Map<String, Object>>> listCaptor = ArgumentCaptor.forClass(List.class);
+        when(objectMapper.writeValueAsString(listCaptor.capture())).thenReturn("[]");
+
+        ApiResponse mockResponse = new ApiResponse();
+        mockResponse.put(Constants.RESPONSE, Constants.SUCCESS);
+        when(cassandraOperation.insertRecord(anyString(), anyString(), anyMap())).thenReturn(mockResponse);
+
+        ApiResponse response = profileService.saveExtendedProfile(request, userToken);
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        List<Map<String, Object>> persisted = listCaptor.getValue();
+        assertEquals(2, persisted.size());
+        assertEquals(0, persisted.get(1).get(Constants.INDEX));
+    }
+
 }
