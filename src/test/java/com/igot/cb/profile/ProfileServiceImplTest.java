@@ -3819,4 +3819,55 @@ class ProfileServiceImplTest {
         assertEquals(0, persisted.get(1).get(Constants.INDEX));
     }
 
+    @Test
+    void parseServiceHistoryIndex_nullValue_returnsNegativeOne() {
+        ProfileServiceImpl localService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
+        Integer result = ReflectionTestUtils.invokeMethod(localService, "parseServiceHistoryIndex", new Object[]{null});
+        assertNotNull(result);
+        assertEquals(-1, result.intValue());
+    }
+
+    @Test
+    void parseServiceHistoryIndex_blankString_returnsNegativeOne() {
+        ProfileServiceImpl localService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
+        Integer result = ReflectionTestUtils.invokeMethod(localService, "parseServiceHistoryIndex", "   ");
+        assertNotNull(result);
+        assertEquals(-1, result.intValue());
+    }
+
+    @Test
+    void parseServiceHistoryIndex_invalidString_returnsNegativeOne() {
+        ProfileServiceImpl localService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
+        Integer result = ReflectionTestUtils.invokeMethod(localService, "parseServiceHistoryIndex", "not-a-number");
+        assertNotNull(result);
+        assertEquals(-1, result.intValue());
+    }
+
+    @Test
+    void parseServiceHistoryIndex_numberValue_returnsIntValue() {
+        ProfileServiceImpl localService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
+        Integer result = ReflectionTestUtils.invokeMethod(localService, "parseServiceHistoryIndex", 7L);
+        assertNotNull(result);
+        assertEquals(7, result.intValue());
+    }
+
+    @Test
+    void assignNextServiceHistoryIndexes_emptyNewEntries_noOp() {
+        ProfileServiceImpl localService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
+        List<Map<String, Object>> existing = new ArrayList<>();
+        List<Map<String, Object>> newEntries = new ArrayList<>();
+        ReflectionTestUtils.invokeMethod(localService, "assignNextServiceHistoryIndexes", existing, newEntries);
+        assertTrue(newEntries.isEmpty());
+    }
+
+    @Test
+    void assignNextServiceHistoryIndexes_nullExisting_startsAtZero() {
+        ProfileServiceImpl localService = new ProfileServiceImpl(null, null, null, null, null, null, null, null, null, null);
+        Map<String, Object> entry = new HashMap<>();
+        entry.put("orgName", "OrgA");
+        List<Map<String, Object>> newEntries = new ArrayList<>(List.of(entry));
+        ReflectionTestUtils.invokeMethod(localService, "assignNextServiceHistoryIndexes", null, newEntries);
+        assertEquals(0, newEntries.get(0).get(Constants.INDEX));
+    }
+
 }
