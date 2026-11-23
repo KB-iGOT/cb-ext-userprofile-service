@@ -628,6 +628,9 @@ public class ProfileServiceImpl implements ProfileService {
     }
 
     private String validateFields(Map<String, Object> data, String mandatoryFields, boolean allowSkipEndDate) {
+        if (StringUtils.isBlank(mandatoryFields)) {
+            return "";
+        }
         StringBuilder errorMessages = new StringBuilder();
         for (String field : mandatoryFields.split(",")) {
             if (allowSkipEndDate && Constants.END_DATE.equals(field)) {
