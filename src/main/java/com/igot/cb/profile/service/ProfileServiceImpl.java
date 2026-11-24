@@ -104,7 +104,10 @@ public class ProfileServiceImpl implements ProfileService {
 
             if(Constants.ACHIEVEMENTS.equalsIgnoreCase(contextType)) {
                 mergeAndSortByIssuedDateOrTitle(existingList, dataWithUUIDs);
-            }else{
+            } else {
+                if (Constants.SERVICE_HISTORY.equalsIgnoreCase(contextType)) {
+                    assignNextServiceHistoryIndexes(existingList, dataWithUUIDs);
+                }
                 existingList.addAll(dataWithUUIDs);
             }
 
@@ -625,6 +628,9 @@ public class ProfileServiceImpl implements ProfileService {
     }
 
     private String validateFields(Map<String, Object> data, String mandatoryFields, boolean allowSkipEndDate) {
+        if (StringUtils.isBlank(mandatoryFields)) {
+            return "";
+        }
         StringBuilder errorMessages = new StringBuilder();
         for (String field : mandatoryFields.split(",")) {
             if (allowSkipEndDate && Constants.END_DATE.equals(field)) {
@@ -1753,5 +1759,32 @@ public class ProfileServiceImpl implements ProfileService {
             }
         }
         return retValue;
+    }
+
+    private void assignNextServiceHistoryIndexes(List<Map<String, Object>> existingList,
+                                                 List<Map<String, Object>> newEntries) {
+        if (CollectionUtils.isEmpty(newEntries)) {
+            return;
+        }
+        int startIndex = CollectionUtils.emptyIfNull(existingList).stream()
+                .mapToInt(entry -> parseServiceHistoryIndex(entry.get(Constants.INDEX)))
+                .max()
+                .orElse(-1) + 1;
+        IntStream.range(0, newEntries.size())
+                .forEach(i -> newEntries.get(i).put(Constants.INDEX, startIndex + i));
+    }
+
+    private int parseServiceHistoryIndex(Object value) {
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        if (value instanceof String str && StringUtils.isNotBlank(str)) {
+            try {
+                return Integer.parseInt(str);
+            } catch (NumberFormatException e) {
+                return -1;
+            }
+        }
+        return -1;
     }
 }
